@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useProject } from "@/context/ProjectContext";
 import {
-  CHECKIN_QUESTIONS, CHECKIN_LABELS,
+  CHECKIN_QUESTIONS, CHECKIN_LABELS, JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
 } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import type { JournalEntry, CheckinResponse } from "@/types";
@@ -457,12 +457,14 @@ function DiscardDraftModal({ onKeep, onDiscard }: { onKeep: () => void; onDiscar
 
 // ── Prompt picker dropdown ────────────────────────────────────────────────────
 
-function PromptPicker({ usedTexts, onSelect, onClose }: {
+function PromptPicker({ usedTexts, onSelect, onClose, availablePrompts }: {
   usedTexts: string[];
   onSelect: (text: string) => void;
   onClose: () => void;
+  availablePrompts?: string[];
 }) {
-  const available = PRESET_PROMPTS.filter((t) => !usedTexts.includes(t));
+  const pool = availablePrompts && availablePrompts.length > 0 ? availablePrompts : PRESET_PROMPTS;
+  const available = pool.filter((t) => !usedTexts.includes(t));
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -643,6 +645,7 @@ export default function JournalPage() {
   const [entries, setEntries]               = useState<JournalEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
   const [authUserId, setAuthUserId]         = useState("local");
+  const [projectPrompts, setProjectPrompts] = useState<string[]>([]);
   const [cryptoKey, setCryptoKey]           = useState<CryptoKey | null>(null);
   const [encryptionDisabled, setEncryptionDisabled] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | "new">("new");
@@ -904,6 +907,31 @@ export default function JournalPage() {
       if (!user) { setLoadingEntries(false); return; }
       setAuthUserId(user.id);
 
+      // Load project's active prompt configuration so the picker reflects what the PI set
+      try {
+        const { data: prof } = await supabase
+          .from("user_profiles")
+          .select("project_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (prof?.project_id) {
+          const { data: proj } = await supabase
+            .from("projects")
+            .select("active_prompt_ids, custom_prompts")
+            .eq("id", prof.project_id)
+            .maybeSingle();
+          if (proj) {
+            const ids = (proj.active_prompt_ids as string[] | null) ?? ACTIVE_PROMPT_IDS;
+            const customs = (proj.custom_prompts as { id: string; text: string }[] | null) ?? [];
+            const fromPresets = JOURNAL_PROMPTS.filter((p) => ids.includes(p.id)).map((p) => p.text);
+            const combined = [...fromPresets, ...customs.map((c) => c.text)];
+            if (combined.length > 0) setProjectPrompts(combined);
+          }
+        }
+      } catch (e) {
+        console.warn("[Journal] could not load project prompts:", e);
+      }
+
       // Fetch per-user encryption key from server
       let encKey: CryptoKey | null = null;
       try {
@@ -1112,7 +1140,14 @@ export default function JournalPage() {
 
           {/* Reflections */}
           <div className="mb-8">
-            <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", marginBottom: 16 }}>Reflections</h2>
+            <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 16 }}>
+              <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Reflections</h2>
+              {!isViewingEntry && (
+                <span style={{ fontSize: 12, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)", flexShrink: 0 }}>
+                  Pick any that resonate — add as many as you like.
+                </span>
+              )}
+            </div>
             <div className="space-y-4">
               {isViewingEntry && viewedEntry ? (
                 viewedEntry.prompts.map((pr, i) => (
@@ -1151,7 +1186,7 @@ export default function JournalPage() {
                       <button
                         onClick={() => setPromptPickerOpen((o) => !o)}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(27,46,75,0.06)]"
-                        style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-border)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
+                        style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-navy)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
                       >
                         <Plus size={14} /> Add a prompt
                       </button>
@@ -1163,6 +1198,7 @@ export default function JournalPage() {
                               usedTexts={addedPrompts.map((p) => p.text)}
                               onSelect={addPrompt}
                               onClose={() => setPromptPickerOpen(false)}
+                              availablePrompts={projectPrompts}
                             />
                           </div>
                         </>

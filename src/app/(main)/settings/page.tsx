@@ -526,6 +526,22 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Research participation note - researchers only */}
+      {profile?.role !== "pi" && activeScope !== "personal" && (
+        <section style={sectionStyle} aria-labelledby="settings-research-note-heading">
+          <div style={sectionHeaderStyle}>
+            <h2 id="settings-research-note-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Research Participation
+            </h2>
+          </div>
+          <div style={{ padding: "16px 20px" }}>
+            <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0, lineHeight: 1.6 }}>
+              Whether your lab&rsquo;s anonymized data contributes to Canopy&rsquo;s research studies is a setting each lab member controls individually. Your PI has set a default for the lab, but <strong style={{ color: "var(--color-body)" }}>your own participation is separate</strong> &mdash; ask your PI to update it in Lab Settings if you&rsquo;d like to change it. Your journal entries and check-in responses are always private to you and are never shared with your team or included in any study without your explicit consent.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Lab & Invite - PI only, hidden in Personal workspace */}
       {profile?.role === "pi" && activeScope !== "personal" && (
         <section style={sectionStyle} aria-labelledby="settings-invite-heading">
