@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Users, BookOpen, Check, X, Search, ChevronDown } from "lucide-react";
+import { Users, BookOpen, Check, X, Search, ChevronDown, Calendar } from "lucide-react";
 import CanopyLogo from "@/components/ui/CanopyLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
@@ -36,21 +36,26 @@ const RESEARCHER_STEPS = 5;
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const INPUT_STYLE: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  height: 44,
-  border: "1px solid var(--color-border)",
-  borderRadius: 8,
-  padding: "0 14px",
-  fontFamily: "var(--font-roboto)",
-  fontWeight: 400,
-  fontSize: 14,
-  color: "var(--color-body)",
-  outline: "none",
-  boxSizing: "border-box",
-  backgroundColor: "var(--color-surface)",
-};
+function inputStyle(large: boolean): React.CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    height: large ? 52 : 44,
+    border: "1px solid var(--color-border)",
+    borderRadius: 8,
+    padding: "0 14px",
+    fontFamily: "var(--font-roboto)",
+    fontWeight: 400,
+    fontSize: large ? 15 : 14,
+    color: "var(--color-body)",
+    outline: "none",
+    boxSizing: "border-box",
+    backgroundColor: "var(--color-surface)",
+  };
+}
+
+// Keep the static constant for uses that don't have access to isLarge
+const INPUT_STYLE: React.CSSProperties = inputStyle(false);
 
 const PAGE_WRAP: React.CSSProperties = {
   minHeight: "100dvh",
@@ -63,15 +68,20 @@ const PAGE_WRAP: React.CSSProperties = {
   fontFamily: "var(--font-roboto)",
 };
 
-const CARD_STYLE: React.CSSProperties = {
-  backgroundColor: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 10,
-  maxWidth: 560,
-  width: "100%",
-  padding: "40px 40px 44px",
-  boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
-};
+function cardStyle(large: boolean): React.CSSProperties {
+  return {
+    backgroundColor: "var(--color-surface)",
+    border: "1px solid var(--color-border)",
+    borderRadius: large ? 14 : 10,
+    maxWidth: large ? 720 : 580,
+    width: "100%",
+    padding: large ? "56px 56px 60px" : "40px 40px 44px",
+    boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+  };
+}
+
+// Keep static constant for non-large default uses
+const CARD_STYLE: React.CSSProperties = cardStyle(false);
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -150,11 +160,13 @@ function NavButton({
   onClick,
   disabled,
   style: extraStyle,
+  large,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   style?: React.CSSProperties;
+  large?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -163,17 +175,17 @@ function NavButton({
       disabled={disabled}
       style={{
         width: "100%",
-        height: 44,
+        height: large ? 52 : 44,
         backgroundColor: disabled ? "var(--color-border)" : "var(--color-navy)",
         color: "#fff",
         border: "none",
         borderRadius: 8,
         fontFamily: "var(--font-roboto)",
         fontWeight: 700,
-        fontSize: 14,
+        fontSize: large ? 15 : 14,
         cursor: disabled ? "not-allowed" : "pointer",
         transition: "background-color 150ms ease",
-        marginTop: 24,
+        marginTop: large ? 28 : 24,
         ...extraStyle,
       }}
       onMouseEnter={(e) => {
@@ -219,12 +231,14 @@ function TextInput({
   placeholder,
   type = "text",
   onKeyDown,
+  large,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  large?: boolean;
 }) {
   return (
     <input
@@ -232,7 +246,7 @@ function TextInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={INPUT_STYLE}
+      style={inputStyle(large ?? false)}
       onKeyDown={onKeyDown}
       onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
       onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
@@ -240,14 +254,14 @@ function TextInput({
   );
 }
 
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionTitle({ title, subtitle, large }: { title: string; subtitle?: string; large?: boolean }) {
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div style={{ marginBottom: large ? 28 : 24 }}>
       <h2
         style={{
           fontFamily: "var(--font-lora)",
           fontWeight: 700,
-          fontSize: 20,
+          fontSize: large ? 26 : 20,
           color: "var(--color-navy)",
           margin: 0,
           lineHeight: 1.25,
@@ -260,7 +274,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
           style={{
             fontFamily: "var(--font-roboto)",
             fontWeight: 400,
-            fontSize: 13,
+            fontSize: large ? 14 : 13,
             color: "var(--color-secondary)",
             marginTop: 6,
             marginBottom: 0,
@@ -283,6 +297,7 @@ function ProjectForm({
   showResearchType, researchType, setResearchType,
   roleTitle, setRoleTitle,
   showName = true,
+  large,
 }: {
   projectName: string; setProjectName: (v: string) => void;
   institution: string; setInstitution: (v: string) => void;
@@ -290,20 +305,22 @@ function ProjectForm({
   showResearchType: boolean; researchType?: string; setResearchType?: (v: string) => void;
   roleTitle?: string; setRoleTitle?: (v: string) => void;
   showName?: boolean;
+  large?: boolean;
 }) {
   return (
     <>
       <Field label="Lab name">
-        <TextInput value={projectName} onChange={setProjectName} placeholder="e.g. Moral Injury & Resilience Lab" />
+        <TextInput large={large} value={projectName} onChange={setProjectName} placeholder="e.g. Moral Injury & Resilience Lab" />
       </Field>
 
       <Field label="Institution">
-        <TextInput value={institution} onChange={setInstitution} placeholder="e.g. Your university or research center" />
+        <TextInput large={large} value={institution} onChange={setInstitution} placeholder="e.g. Your university or research center" />
       </Field>
 
       {showResearchType && setResearchType && (
         <Field label="Research type">
           <TextInput
+            large={large}
             value={researchType ?? ""}
             onChange={setResearchType}
             placeholder="e.g. Moral injury in military veterans"
@@ -313,13 +330,13 @@ function ProjectForm({
 
       {showName && (
         <Field label="Your name">
-          <TextInput value={userName} onChange={setUserName} placeholder="Full name" />
+          <TextInput large={large} value={userName} onChange={setUserName} placeholder="Full name" />
         </Field>
       )}
 
       {setRoleTitle !== undefined && (
         <Field label="Your role title (optional)">
-          <TextInput value={roleTitle ?? ""} onChange={setRoleTitle} placeholder="e.g. Associate Professor, Lab Director" />
+          <TextInput large={large} value={roleTitle ?? ""} onChange={setRoleTitle} placeholder="e.g. Associate Professor, Lab Director" />
         </Field>
       )}
     </>
@@ -567,6 +584,8 @@ export default function OnboardingPage() {
 
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
+  const [showCalendarStep, setShowCalendarStep] = useState(false);
+  const [calendarConnecting, setCalendarConnecting] = useState(false);
 
   // PI step 2
   const [piProjectName, setPiProjectName] = useState("");
@@ -626,6 +645,14 @@ export default function OnboardingPage() {
   const [syncError, setSyncError] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
   const checked = useRef(false);
+
+  // Responsive breakpoint — true on screens ≥ 960px
+  const [isLarge, setIsLarge] = useState(() => typeof window !== "undefined" && window.innerWidth >= 960);
+  useEffect(() => {
+    function check() { setIsLarge(window.innerWidth >= 960); }
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // Guard: session check runs FIRST - nothing renders until this resolves
   useEffect(() => {
@@ -883,17 +910,110 @@ export default function OnboardingPage() {
       }
     }
 
-    router.push("/profile");
+    // All data is saved — show the optional Google Calendar step before entering the app
+    if (isSupabaseConfigured) {
+      setShowCalendarStep(true);
+      setSubmitting(false);
+    } else {
+      router.push("/profile");
+    }
+  }
+
+  async function handleConnectGoogleCalendar() {
+    if (calendarConnecting) return;
+    setCalendarConnecting(true);
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: [
+          "email",
+          "profile",
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/calendar.events",
+        ].join(" "),
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
+    });
+    // If signInWithOAuth resolves without redirect (error case), reset the button
+    setCalendarConnecting(false);
   }
 
   if (!sessionReady) return null;
+
+  // ── Google Calendar step (post-completion, optional) ─────────────────────
+
+  if (showCalendarStep) {
+    return (
+      <div style={PAGE_WRAP}>
+        <div style={cardStyle(isLarge)}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
+            {/* Google Calendar brand colours */}
+            <div style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: "#fff", border: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(27,46,75,0.10)" }}>
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                <rect x="4" y="6" width="24" height="22" rx="3" fill="#fff" stroke="#E0E3EB" strokeWidth="1.2"/>
+                <rect x="4" y="6" width="24" height="8" rx="3" fill="#4285F4"/>
+                <rect x="4" y="11" width="24" height="3" fill="#4285F4"/>
+                <rect x="8" y="17" width="4" height="4" rx="1" fill="#34A853"/>
+                <rect x="14" y="17" width="4" height="4" rx="1" fill="#FBBC04"/>
+                <rect x="20" y="17" width="4" height="4" rx="1" fill="#EA4335"/>
+                <rect x="8" y="23" width="4" height="2" rx="1" fill="#E0E3EB"/>
+                <rect x="14" y="23" width="4" height="2" rx="1" fill="#E0E3EB"/>
+                <circle cx="10" cy="7" r="2" fill="#fff" stroke="#E0E3EB" strokeWidth="1"/>
+                <circle cx="22" cy="7" r="2" fill="#fff" stroke="#E0E3EB" strokeWidth="1"/>
+              </svg>
+            </div>
+          </div>
+          <SectionTitle
+            large={isLarge}
+            title="Connect Google Calendar"
+            subtitle="Import your existing events so Canopy can suggest meeting times that actually work for your schedule."
+          />
+          <div style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "14px 16px", marginBottom: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { icon: <Calendar size={15} color="#4285F4" />, text: "See your existing events in Scheduling" },
+                { icon: <Check size={15} color="#34A853" />, text: "Get smarter meeting suggestions" },
+                { icon: <Check size={15} color="#34A853" />, text: "Block off busy time automatically" },
+              ].map(({ icon, text }) => (
+                <div key={text} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ flexShrink: 0 }}>{icon}</span>
+                  <span style={{ fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <NavButton large={isLarge} onClick={handleConnectGoogleCalendar} disabled={calendarConnecting}>
+            {calendarConnecting ? "Redirecting to Google…" : "Connect Google Calendar"}
+          </NavButton>
+          <button
+            onClick={() => router.push("/profile")}
+            style={{
+              width: "100%",
+              marginTop: 14,
+              padding: "10px 0",
+              background: "none",
+              border: "none",
+              fontFamily: "var(--font-roboto)",
+              fontSize: 13,
+              color: "var(--color-secondary)",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            Skip for now — I&apos;ll connect from Settings later
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Step 1: Role selection ─────────────────────────────────────────────────
 
   if (step === 1) {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <StepDots current={1} total={role === "pi" ? PI_STEPS : RESEARCHER_STEPS} />
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
@@ -904,7 +1024,7 @@ export default function OnboardingPage() {
             style={{
               fontFamily: "var(--font-lora)",
               fontWeight: 700,
-              fontSize: 22,
+              fontSize: isLarge ? 30 : 22,
               color: "var(--color-navy)",
               textAlign: "center",
               margin: "16px 0 8px",
@@ -916,7 +1036,7 @@ export default function OnboardingPage() {
             style={{
               fontFamily: "var(--font-roboto)",
               fontWeight: 400,
-              fontSize: 14,
+              fontSize: isLarge ? 15 : 14,
               color: "var(--color-secondary)",
               textAlign: "center",
               margin: "0 0 32px",
@@ -985,7 +1105,7 @@ export default function OnboardingPage() {
             })}
           </div>
 
-          <NavButton onClick={handleStep1Continue} disabled={!role}>
+          <NavButton large={isLarge} onClick={handleStep1Continue} disabled={!role}>
             Continue
           </NavButton>
         </div>
@@ -1004,16 +1124,17 @@ export default function OnboardingPage() {
 
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(1)} />
           <StepDots current={2} total={PI_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Set up your lab workspace"
             subtitle="You can change these later in Lab Settings."
           />
 
           <Field label="Lab name">
-            <TextInput value={piProjectName} onChange={setPiProjectName} placeholder="e.g. Moral Injury & Resilience Lab" />
+            <TextInput large={isLarge} value={piProjectName} onChange={setPiProjectName} placeholder="e.g. Moral Injury & Resilience Lab" />
           </Field>
 
           {/* Institution search */}
@@ -1037,7 +1158,7 @@ export default function OnboardingPage() {
                   }}
                   onFocus={() => { if (piInstitution) setInstitutionOpen(true); }}
                   placeholder="Search your university or research center"
-                  style={{ ...INPUT_STYLE, paddingLeft: 34 }}
+                  style={{ ...inputStyle(isLarge), paddingLeft: 34 }}
                   onBlur={() => setTimeout(() => setInstitutionOpen(false), 150)}
                 />
               </div>
@@ -1075,14 +1196,14 @@ export default function OnboardingPage() {
           </Field>
 
           <Field label="Research area">
-            <TextInput value={piResearchType} onChange={setPiResearchType} placeholder="e.g. Moral injury in military veterans" />
+            <TextInput large={isLarge} value={piResearchType} onChange={setPiResearchType} placeholder="e.g. Moral injury in military veterans" />
           </Field>
 
           <Field label="Your name">
-            <TextInput value={piUserName} onChange={setPiUserName} placeholder="Full name" />
+            <TextInput large={isLarge} value={piUserName} onChange={setPiUserName} placeholder="Full name" />
           </Field>
 
-          <NavButton onClick={handlePiStep2Continue} disabled={!canContinue}>
+          <NavButton large={isLarge} onClick={handlePiStep2Continue} disabled={!canContinue}>
             Continue
           </NavButton>
         </div>
@@ -1095,10 +1216,11 @@ export default function OnboardingPage() {
   if (step === 3 && role === "pi") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(2)} />
           <StepDots current={3} total={PI_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Your schedule"
             subtitle="Canopy uses this for meeting suggestions and your weekly digest."
           />
@@ -1109,7 +1231,7 @@ export default function OnboardingPage() {
             onWorkingHoursChange={setPiWorkingHours}
             showDetectedBanner
           />
-          <NavButton onClick={() => setStep(4)}>
+          <NavButton large={isLarge} onClick={() => setStep(4)}>
             Continue
           </NavButton>
         </div>
@@ -1122,10 +1244,11 @@ export default function OnboardingPage() {
   if (step === 4 && role === "pi") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(3)} />
           <StepDots current={4} total={PI_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Research participation"
             subtitle="Canopy runs two research studies on researcher well-being and lab team dynamics. You decide how your lab's data is used."
           />
@@ -1160,7 +1283,7 @@ export default function OnboardingPage() {
           <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
             All data is anonymized before analysis. You can change this at any time in Lab Settings.
           </p>
-          <NavButton onClick={() => {
+          <NavButton large={isLarge} onClick={() => {
             const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
             setGeneratedCode(code);
             setStep(5);
@@ -1181,7 +1304,7 @@ export default function OnboardingPage() {
     if (isJoining) {
       return (
         <div style={PAGE_WRAP}>
-          <div style={{ ...CARD_STYLE, textAlign: "center", padding: "56px 40px" }}>
+          <div style={{ ...cardStyle(isLarge), textAlign: "center", padding: isLarge ? "72px 56px" : "56px 40px" }}>
             <CanopyLogo size={28} />
             <p style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 18, color: "var(--color-navy)", marginTop: 20, marginBottom: 0 }}>
               Joined! Setting up your workspace...
@@ -1193,16 +1316,18 @@ export default function OnboardingPage() {
 
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(1)} />
           <StepDots current={2} total={RESEARCHER_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Join your lab"
             subtitle={autoFilled ? "Your invite code is ready. Just confirm below." : "Enter the invite code or paste the invite link your PI shared with you."}
           />
 
           <Field label="Invite code">
             <TextInput
+              large={isLarge}
               value={inviteCode}
               onChange={setInviteCode}
               placeholder="e.g. CANOPY-XXXX"
@@ -1215,7 +1340,7 @@ export default function OnboardingPage() {
             </p>
           )}
 
-          <NavButton onClick={handleResearcherStep2Continue} disabled={!inviteValid}>
+          <NavButton large={isLarge} onClick={handleResearcherStep2Continue} disabled={!inviteValid}>
             Continue
           </NavButton>
         </div>
@@ -1228,10 +1353,11 @@ export default function OnboardingPage() {
   if (step === 5 && role === "pi") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(4)} />
           <StepDots current={5} total={PI_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Invite researchers to your lab"
             subtitle="Add email addresses below. Each person gets a unique invite link tied to their address."
           />
@@ -1246,7 +1372,7 @@ export default function OnboardingPage() {
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddEmail(); } }}
                 placeholder="Add email"
                 aria-label="Add team member email"
-                style={{ ...INPUT_STYLE, flex: 1, borderColor: emailInputError ? "#C0392B" : "var(--color-border)" }}
+                style={{ ...inputStyle(isLarge), flex: 1, borderColor: emailInputError ? "#C0392B" : "var(--color-border)" }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = emailInputError ? "#C0392B" : "var(--color-navy)"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = emailInputError ? "#C0392B" : "var(--color-border)"; }}
               />
@@ -1404,7 +1530,7 @@ export default function OnboardingPage() {
             )}
           </div>
 
-          <NavButton onClick={() => setStep(6)}>
+          <NavButton large={isLarge} onClick={() => setStep(6)}>
             Continue
           </NavButton>
 
@@ -1426,11 +1552,12 @@ export default function OnboardingPage() {
   if (step === 6 && role === "pi") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={{ ...CARD_STYLE, maxHeight: "90dvh", display: "flex", flexDirection: "column" }}>
+        <div style={{ ...cardStyle(isLarge), maxHeight: "90dvh", display: "flex", flexDirection: "column" }}>
           <div style={{ flexShrink: 0 }}>
             <BackButton onClick={() => setStep(5)} />
             <StepDots current={6} total={PI_STEPS} />
             <SectionTitle
+              large={isLarge}
               title="Journal prompts"
               subtitle="Choose which prompts appear for your team's weekly journals. You can change this in Lab Settings at any time."
             />
@@ -1483,7 +1610,7 @@ export default function OnboardingPage() {
                     }
                   }}
                   placeholder="Add a custom prompt and press Enter or Add"
-                  style={{ ...INPUT_STYLE, flex: 1, height: 40 }}
+                  style={{ ...inputStyle(isLarge), flex: 1, height: isLarge ? 48 : 40 }}
                   onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
                 />
@@ -1500,7 +1627,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           <div style={{ flexShrink: 0 }}>
-            <NavButton onClick={() => setStep(7)}>
+            <NavButton large={isLarge} onClick={() => setStep(7)}>
               Continue
             </NavButton>
           </div>
@@ -1514,15 +1641,16 @@ export default function OnboardingPage() {
   if (step === 7 && role === "pi") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(6)} />
           <StepDots current={7} total={PI_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Team wellbeing check-ins"
             subtitle="Here's what your team will see each week."
           />
           <WellbeingPreview role="pi" />
-          <NavButton onClick={completeOnboarding} disabled={submitting}>
+          <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
             {submitting ? "Setting up your workspace…" : "Go to my workspace"}
           </NavButton>
           {syncError && (
@@ -1542,17 +1670,18 @@ export default function OnboardingPage() {
 
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(2)} />
           <StepDots current={3} total={RESEARCHER_STEPS} />
-          <SectionTitle title="Set up your profile" />
+          <SectionTitle large={isLarge} title="Set up your profile" />
 
           <Field label="Full name">
-            <TextInput value={profileName} onChange={setProfileName} placeholder="Full name" />
+            <TextInput large={isLarge} value={profileName} onChange={setProfileName} placeholder="Full name" />
           </Field>
 
           <Field label="Department / Program (optional)">
             <TextInput
+              large={isLarge}
               value={profileDept}
               onChange={setProfileDept}
               placeholder="e.g. Psychology, Epidemiology"
@@ -1587,7 +1716,7 @@ export default function OnboardingPage() {
             />
           </div>
 
-          <NavButton onClick={() => setStep(4)} disabled={!canContinue}>
+          <NavButton large={isLarge} onClick={() => setStep(4)} disabled={!canContinue}>
             Continue
           </NavButton>
         </div>
@@ -1600,10 +1729,11 @@ export default function OnboardingPage() {
   if (step === 4 && role === "researcher") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(3)} />
           <StepDots current={4} total={RESEARCHER_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Your schedule"
             subtitle="Canopy uses this for meeting suggestions and your weekly digest."
           />
@@ -1614,7 +1744,7 @@ export default function OnboardingPage() {
             onWorkingHoursChange={setResWorkingHours}
             showDetectedBanner
           />
-          <NavButton onClick={() => setStep(5)}>
+          <NavButton large={isLarge} onClick={() => setStep(5)}>
             Continue
           </NavButton>
         </div>
@@ -1627,15 +1757,16 @@ export default function OnboardingPage() {
   if (step === 5 && role === "researcher") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={CARD_STYLE}>
+        <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(4)} />
           <StepDots current={5} total={RESEARCHER_STEPS} />
           <SectionTitle
+            large={isLarge}
             title="Weekly check-ins"
             subtitle="A quick preview of what to expect each week."
           />
           <WellbeingPreview role="researcher" />
-          <NavButton onClick={completeOnboarding} disabled={submitting}>
+          <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
             {submitting ? "Setting up your workspace…" : "Go to my workspace"}
           </NavButton>
           {syncError && (
