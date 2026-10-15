@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Lato } from "next/font/google";
 import "./globals.css";
 import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 
-const inter = localFont({
-  src: "./fonts/InterVariable.woff2",
-  variable: "--font-inter",
+// AIESEC's brand typeface. Downloaded at build time and self-hosted by Next.js:
+// browsers never request fonts from Google.
+const lato = Lato({
+  weight: ["300", "400", "700", "900"],
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-lato",
   display: "swap",
 });
 
@@ -16,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${lato.variable} h-full`}>
       <head>
         {/* Apply the stored theme (default: light) before first paint so pages don't flash the wrong theme */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('aiesec-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');else if(t!=='system')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();` }} />
