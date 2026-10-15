@@ -44,3 +44,18 @@ export function ledDepartmentIds(
   if (role !== "vp" || !userId) return [];
   return departments.filter((d) => d.vpUserId === userId).map((d) => d.id);
 }
+
+/**
+ * In charge of finance: the president, or a VP who leads a department flagged
+ * as the finance department (Finance & Legality by default). Mirrors the SQL
+ * function is_finance_lead() — keep the two in step.
+ */
+export function isFinanceLead(
+  role: UserRole | null | undefined,
+  userId: string | null | undefined,
+  departments: Pick<Department, "vpUserId" | "isFinance">[],
+): boolean {
+  if (role === "president") return true;
+  if (role !== "vp" || !userId) return false;
+  return departments.some((d) => d.isFinance && d.vpUserId === userId);
+}

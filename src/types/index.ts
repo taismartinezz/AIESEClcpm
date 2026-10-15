@@ -265,3 +265,50 @@ export interface Reminder {
   position?: number;      // fractional index for manual drag order
   assigneeId?: string;    // user to notify (shows in their reminders)
 }
+
+// ── Finance ───────────────────────────────────────────────────────────────────
+
+export type FinanceEntryType = "income" | "expense";
+export type ClaimStatus = "pending" | "approved" | "rejected";
+
+export interface FinanceCategory {
+  id: string;
+  projectId: string;
+  name: string;
+  sortOrder: number;
+}
+
+/** A ledger line. `claimId` is set when it was created by approving a claim. */
+export interface FinanceEntry {
+  id: string;
+  projectId: string;
+  type: FinanceEntryType;
+  amount: number;
+  currency: string;
+  date: string;            // ISO date
+  categoryId: string | null;
+  departmentId: string | null;
+  description: string;
+  recordedBy: string | null;
+  receiptPath: string | null;
+  claimId: string | null;
+  createdAt: string;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  projectId: string;
+  submittedBy: string;
+  amount: number;
+  currency: string;
+  date: string;            // date of the expense
+  description: string;
+  departmentId: string | null;
+  categoryId: string | null;
+  receiptPath: string;
+  status: ClaimStatus;
+  rejectionReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}

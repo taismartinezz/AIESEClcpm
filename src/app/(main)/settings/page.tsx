@@ -15,6 +15,7 @@ import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
 import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
+import CategoriesManager from "@/components/finance/CategoriesManager";
 import type { UserRole } from "@/types";
 
 const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
@@ -110,6 +111,8 @@ export default function SettingsPage() {
   // LC settings (president only)
   const [projectName, setProjectName] = useState("");
   const [projectInstitution, setProjectInstitution] = useState("");
+  const [lcCurrency, setLcCurrency] = useState("EUR");
+  const [termStart, setTermStart] = useState("");
   const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
   const [customPrompts, setCustomPrompts] = useState<{ id: string; text: string }[]>([]);
   const [customPromptInput, setCustomPromptInput] = useState("");
@@ -149,6 +152,8 @@ export default function SettingsPage() {
           if (proj) {
             setProjectName((proj.name as string) ?? "");
             setProjectInstitution((proj.institution as string) ?? "");
+            setLcCurrency((proj.currency as string) ?? "EUR");
+            setTermStart((proj.term_start_date as string) ?? "");
             const loadedIds = proj.active_prompt_ids as string[] | null | undefined;
             if (Array.isArray(loadedIds)) {
               // NULL/undefined = not yet set; keep defaults. [] = president chose none.
@@ -259,16 +264,23 @@ export default function SettingsPage() {
   const handleSaveLabSettings = useCallback(async () => {
     if (!project?.id) return;
     setSavingLabSettings(true);
-    const { error } = await supabase.from("projects").update({
-      name: projectName,
-      institution: projectInstitution,
-      active_prompt_ids: activePromptIds,
-      custom_prompts: customPrompts,
-    }).eq("id", project.id);
-    setSavingLabSettings(false);
-    if (error) { showToast("Failed to save: " + error.message); }
-    else { showToast("LC settings saved."); }
-  }, [project, projectName, projectInstitution, activePromptIds, customPrompts]);
+    try {
+      const { error } = await supabase.from("projects").update({
+        name: projectName,
+        institution: projectInstitution,
+        currency: lcCurrency.trim().toUpperCase(),
+        term_start_date: termStart || null,
+        active_prompt_ids: activePromptIds,
+        custom_prompts: customPrompts,
+      }).eq("id", project.id);
+      if (error) throw new Error(error.message);
+      showToast("LC settings saved.");
+    } catch (e) {
+      showToast("Failed to save: " + (e instanceof Error ? e.message : String(e)), "error");
+    } finally {
+      setSavingLabSettings(false);
+    }
+  }, [project, projectName, projectInstitution, lcCurrency, termStart, activePromptIds, customPrompts]);
 
   const handleSendEmailInvites = useCallback(async () => {
     if (!project?.id) return;
@@ -846,6 +858,24 @@ export default function SettingsPage() {
               <input value={projectInstitution} onChange={e => setProjectInstitution(e.target.value)}
                 placeholder="e.g. University of Lisbon"
                 style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+              <div>
+                <label style={labelStyle} htmlFor="lc-currency">Currency</label>
+                <input id="lc-currency" value={lcCurrency} maxLength={3} onChange={e => setLcCurrency(e.target.value.toUpperCase())}
+                  placeholder="EUR" style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>3-letter code used for new finance entries and claims.</p>
+              </div>
+              <div>
+                <label style={labelStyle} htmlFor="lc-term-start">Term starts on</label>
+                <input id="lc-term-start" type="date" value={termStart} onChange={e => setTermStart(e.target.value)}
+                  style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>Used for &ldquo;this term&rdquo; totals in attendance and tabling. Empty = 1 February.</p>
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Finance categories</label>
+              {activeLcId && <CategoriesManager projectId={activeLcId} />}
             </div>
             <div>
               <label style={labelStyle}>Journal Prompts</label>

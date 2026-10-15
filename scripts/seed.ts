@@ -118,6 +118,30 @@ async function seed() {
   if (jErr) throw jErr;
   console.log(`  ✓ ${entries.length} weekly check-ins`);
 
+  // 6. Finance: a few ledger lines and one pending claim (with a placeholder receipt)
+  const { data: cats } = await supabase.from("finance_categories").select("id, name").eq("project_id", lcId);
+  const cat = Object.fromEntries((cats ?? []).map((c) => [c.name as string, c.id as string]));
+  const financeLead = SEED_PEOPLE.find((p) => p.leads?.includes("Finance & Legality"))!;
+  const today = new Date().toISOString().slice(0, 10);
+  const { error: entErr } = await supabase.from("finance_entries").insert([
+    { project_id: lcId, type: "income", amount: 450, currency: "EUR", entry_date: today, category_id: cat["Sponsorship"], description: "Partner sponsorship", recorded_by: ids[financeLead.email] },
+    { project_id: lcId, type: "income", amount: 120, currency: "EUR", entry_date: today, category_id: cat["Membership fees"], description: "Membership fees", recorded_by: ids[financeLead.email] },
+    { project_id: lcId, type: "expense", amount: 85.4, currency: "EUR", entry_date: today, category_id: cat["Marketing"], department_id: depId["Marketing"], description: "Posters", recorded_by: ids[financeLead.email] },
+  ]);
+  if (entErr) throw entErr;
+  const claimant = SEED_PEOPLE.find((p) => p.department === "Outgoing Global Volunteer")!;
+  const receiptPath = `${lcId}/${ids[claimant.email]}/seed-receipt.pdf`;
+  const pdf = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+  const { error: upErr } = await supabase.storage.from("receipts").upload(receiptPath, pdf, { contentType: "application/pdf", upsert: true });
+  if (upErr) throw upErr;
+  const { error: claimErr } = await supabase.from("expense_claims").insert({
+    project_id: lcId, submitted_by: ids[claimant.email], amount: 23.9, currency: "EUR",
+    description: "Snacks for the info session", department_id: depId["Outgoing Global Volunteer"],
+    category_id: cat["Food"], receipt_path: receiptPath,
+  });
+  if (claimErr) throw claimErr;
+  console.log("  ✓ finance entries and a pending claim");
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 
