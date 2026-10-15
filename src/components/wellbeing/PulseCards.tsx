@@ -191,6 +191,49 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
   );
 }
 
+// ── Areas (president): Outgoing / Incoming / Support pool small departments ──
+
+const AREAS = [
+  { id: "outgoing", label: "Outgoing (oGX)" },
+  { id: "incoming", label: "Incoming (iGX)" },
+  { id: "support", label: "Support (MKT, TM, F&L, BD…)" },
+];
+
+function AreaRows({ projectId }: { projectId: string | null }) {
+  const [series, setSeries] = useState<PulseSeries[] | null>(null);
+  useEffect(() => {
+    if (!projectId || !isSupabaseConfigured) return;
+    let cancelled = false;
+    supabase.rpc("get_area_pulse", { p_project_id: projectId }).then(({ data, error }) => {
+      if (cancelled || error) return;
+      setSeries(toSeries(((data ?? []) as (PulseRow & { area: string })[]).map((r) => ({ ...r, department_id: r.area }))));
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+  if (!series) return null;
+  return (
+    <>
+      <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "14px 0 6px" }}>By area</h3>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {AREAS.map((a) => {
+          const summary = summarize(series.find((x) => x.groupId === a.id));
+          const cur = summary.current;
+          const visible = cur && !cur.suppressed && cur.overall != null;
+          return (
+            <li key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--color-border)", fontSize: 12 }}>
+              <span style={{ flex: 1, color: "var(--color-body)" }}>{a.label}</span>
+              {summary.dropped && <AlertTriangle size={11} color="var(--color-warning)" aria-label="dropped noticeably" />}
+              <span style={{ fontSize: visible ? 13 : 11, fontWeight: visible ? 600 : 400, color: visible ? "var(--color-body)" : "var(--color-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                {visible ? cur!.overall!.toFixed(1) : "not enough yet"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
 // ── Public cards ──────────────────────────────────────────────────────────────
 
 /** President only: the executive board's average. */
@@ -219,6 +262,7 @@ export function MemberPulseCard({ projectId, departments }: { projectId: string 
       {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : (
         <>
           <SeriesBody series={total} label="Member Pulse, whole LC" cadence={cadence} />
+          <AreaRows projectId={projectId} />
           <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "14px 0 6px" }}>
             By department · {thisPeriod(cadence)}
           </h3>

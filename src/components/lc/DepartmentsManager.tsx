@@ -161,7 +161,8 @@ export default function DepartmentsManager() {
               <Trash2 size={12} color="var(--color-secondary)" />
             </button>
           </div>
-          <div role="group" aria-label={`Exchange products run by ${dep.name}`} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, paddingLeft: 38 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 6, paddingLeft: 38 }}>
+          <div role="group" aria-label={`Exchange products run by ${dep.name}`} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {PRODUCTS.map((p) => {
               const on = dep.products.includes(p.code);
               return (
@@ -173,6 +174,15 @@ export default function DepartmentsManager() {
                 </button>
               );
             })}
+          </div>
+          <select aria-label={`Pulse area for ${dep.name}`} value={dep.pulseArea ?? ""} onChange={(e) => update(dep, { pulse_area: e.target.value || null })}
+            title="Small departments are pooled into an area for the Member Pulse"
+            style={{ ...inputStyle, height: 24, fontSize: 11, padding: "0 6px" }}>
+            <option value="">Pulse area: automatic</option>
+            <option value="outgoing">Pulse area: Outgoing</option>
+            <option value="incoming">Pulse area: Incoming</option>
+            <option value="support">Pulse area: Support</option>
+          </select>
           </div>
           </div>
         ))}

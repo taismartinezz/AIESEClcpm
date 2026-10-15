@@ -40,10 +40,13 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [filterMember, setFilterMember] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
-  const [filterDepartment, setFilterDepartment] = useState("all");
+  const [departmentChoice, setFilterDepartment] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState>(null);
-  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments } = useProject();
+  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments, role, departmentId: myDepartmentId, ledDepartmentIds } = useProject();
+  // VPs and members land on their own department; "All departments" is one click away.
+  const homeDepartment = role === "vp" ? ledDepartmentIds[0] ?? myDepartmentId : role === "member" ? myDepartmentId : null;
+  const filterDepartment = departmentChoice ?? homeDepartment ?? "all";
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("aiesec_tasks_sidebar_collapsed") === "true"; } catch { return false; }

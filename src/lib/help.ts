@@ -63,6 +63,24 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
   },
   {
+    id: "emails", title: "Events, invites and emails", forRoles: ["president", "vp", "member"], video: "",
+    steps: [
+      "Events → new event: pick who it's for and tick \"Email the invite\". People answer Going / Not going from the email.",
+      "Reminders go out 24 h and 1 h before, except to people who said no.",
+      "Settings → Notifications: everything, the Monday digest only, or only important emails.",
+      "Exec board: Events → Announcement to email the LC, a department or a role.",
+    ],
+  },
+  {
+    id: "outreach", title: "oGX outreach sequences", forRoles: ["president", "vp", "member"], video: "",
+    steps: [
+      "Outreach → Templates: write an email with merge fields like {first_name}; your VP, LCP or MC approves it.",
+      "Sequences: choose the stage (e.g. sign-ups) and which template goes out on day 0, 3, 7…, then Start.",
+      "Enroll people who signed up and agreed to be contacted. Emails go out from your name; replies come to you.",
+      "It stops when they move stage, unsubscribe, or you press \"They replied\" on their card. Results compare sequences.",
+    ],
+  },
+  {
     id: "national", title: "The national view (MC)", forRoles: ["mc", "president"], video: "",
     steps: [
       "MCP: go to National, create the MC and share the LC code with LC presidents.",
@@ -76,6 +94,15 @@ export interface Release { id: string; date: string; title: string; items: strin
 
 /** Newest first. Bump the first id to show "What's new" again. */
 export const RELEASES: Release[] = [
+  {
+    id: "2026-10-emails", date: "2026-10-21", title: "Emails, invites and outreach",
+    items: [
+      "Events: invite a department, a role or chosen people; they answer Going / Not going from the email and get reminders.",
+      "Choose how much email you get in Settings: everything, the Monday digest, or only what's important.",
+      "Outreach: approved email sequences for oGX sign-ups that stop when someone applies or replies.",
+      "Tasks open on your own department; the Member Pulse also shows Outgoing, Incoming and Support.",
+    ],
+  },
   {
     id: "2026-10-tutorial", date: "2026-10-19", title: "Import, Members and a national view",
     items: [

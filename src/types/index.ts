@@ -31,6 +31,8 @@ export interface Department {
   sortOrder: number;
   /** AIESEC products this department runs (ogv, ogta, ogte, igv, igta, igte). */
   products: string[];
+  /** Member Pulse area this department is pooled into; null = automatic from its products. */
+  pulseArea?: "outgoing" | "incoming" | "support" | null;
 }
 
 export interface User {

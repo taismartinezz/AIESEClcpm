@@ -160,7 +160,7 @@ export default function DrivePage() {
         ) : !enabled || !projectId || !userId ? (
           <NeedsDatabase what="LC Drive">Templates, brand kit, job descriptions and important links, in folders for the whole LC.</NeedsDatabase>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 230px) 1fr", gap: 20, alignItems: "start" }}>
+          <div className="grid gap-5 items-start md:grid-cols-[minmax(180px,230px)_1fr]">
             <nav aria-label="Drive folders">
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                 {navItem("all", "Everything", <Library size={14} aria-hidden="true" />, view.kind === "all", () => setView({ kind: "all" }), items.length)}

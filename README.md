@@ -28,6 +28,12 @@ Everyone can belong to several LCs and has a role **in each one**:
 - **Reminders**: personal, LC-wide and group reminders, including an automatic check-in reminder.
 - **LC Drive**: links and uploaded files (templates, brand kit, job descriptions…) in LC folders, plus personal and group items. `/bookmarks` redirects here.
 - **Handover**: one note per department per term for whoever takes over next.
+- **Members** (Talent Management): recruitment intake, onboarding checklists, term dates and activity signals.
+- **Import**: bring Google Sheets trackers (exchanges, partners, tasks, recruitment) in from a link or CSV.
+- **Outreach**: approved email templates and sequences for oGX sign-ups, with consent, unsubscribe and results per sequence.
+- **Events**: invites to the LC, a department, a role or chosen people, RSVP from the email, calendar files and reminders.
+- **National (MC)**: an MC sees every linked LC's exchange numbers side by side (counts only).
+- **Learning the app**: a short tour per role, a getting-started checklist, a demo LC with sample data and `/help`.
 - **Team**: the directory, grouped into Executive Board and one section per department.
 - **Finance**: income and expense ledger with running balance, month and year-to-date totals, spend by category and department, filters and CSV export. Any member can submit an **expense claim** with a receipt photo or PDF; the person in charge of finance approves or rejects it (a rejection needs a reason), and an approved claim creates the matching ledger entry. Members see only their own claims; other VPs see their departments' claims and spend.
 - **Attendance**: LC events and conferences. VPs and the LCP log who attended (searchable, or a whole department at once); views by event, by member (with totals per event type this term) and a sortable, exportable table. Members see only their own history; VPs see their departments.

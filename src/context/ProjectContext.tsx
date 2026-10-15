@@ -97,6 +97,7 @@ function mapDepartment(row: Record<string, unknown>): Department {
     isFinance:  (row.is_finance as boolean) ?? false,
     sortOrder:  (row.sort_order as number) ?? 0,
     products:   (row.products as string[] | null) ?? [],
+    pulseArea:  (row.pulse_area as Department["pulseArea"]) ?? null,
   };
 }
 
