@@ -35,7 +35,13 @@ export function mockSession() {
 
 export type MockRole = 'president' | 'vp' | 'member'
 
-export async function setupAuthMocks(page: Page, role: MockRole) {
+export interface MockOptions {
+  /** Responses for supabase.rpc(name, …), keyed by function name. */
+  rpc?: Record<string, unknown>
+  departments?: Record<string, unknown>[]
+}
+
+export async function setupAuthMocks(page: Page, role: MockRole, options: MockOptions = {}) {
   const session = mockSession()
   const profileData = {
     id: MOCK_USER_ID, name: 'Test User', role,
@@ -54,8 +60,11 @@ export async function setupAuthMocks(page: Page, role: MockRole) {
     ? [{ id: 'code-1', code: 'LC-ABCDEF', used_by: null }]
     : []
 
+  const rpc = options.rpc ?? {}
+  const departments = options.departments ?? []
+
   await page.addInitScript(
-    ({ session, profileData, membershipData, projectData, inviteCodes }) => {
+    ({ session, profileData, membershipData, projectData, inviteCodes, rpc, departments }) => {
       // 1. Auth storage: return fake session so Supabase reads from cache first
       const _origGet = Storage.prototype.getItem
       Storage.prototype.getItem = function (key) {
@@ -96,12 +105,15 @@ export async function setupAuthMocks(page: Page, role: MockRole) {
         if (url.includes('/rest/v1/team_members'))  return ok([membershipData])
         if (url.includes('/rest/v1/projects'))       return ok([projectData])
         if (url.includes('/rest/v1/invite_codes'))   return ok(inviteCodes)
+        if (url.includes('/rest/v1/departments'))    return ok(departments)
+        const rpcMatch = url.match(/\/rest\/v1\/rpc\/([a-z_]+)/)
+        if (rpcMatch) return ok((rpc as Record<string, unknown>)[rpcMatch[1]] ?? [])
         if (url.includes('/rest/v1/'))               return ok([])
 
         // Next.js assets and anything else can pass through
         return _origFetch.call(this, input, init)
       }
     },
-    { session, profileData, membershipData, projectData, inviteCodes }
+    { session, profileData, membershipData, projectData, inviteCodes, rpc, departments }
   )
 }

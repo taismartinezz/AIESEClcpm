@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import type { PulseWeek } from "@/lib/wellbeing";
 
-const W = 320, H = 120;
+const W = 480, H = 110;
 const PAD = { l: 22, r: 30, t: 10, b: 20 };
 const PLOT_W = W - PAD.l - PAD.r;
 const PLOT_H = H - PAD.t - PAD.b;

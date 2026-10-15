@@ -91,7 +91,9 @@ function Headline({ summary }: { summary: PulseSummary }) {
 function Change({ summary }: { summary: PulseSummary }) {
   if (summary.change == null) return null;
   const { change, dropped } = summary;
-  const text = `${change > 0 ? "+" : ""}${change.toFixed(1)} vs 4-week average`;
+  const text = Math.abs(change) < 0.05
+    ? "Same as the 4-week average"
+    : `${change > 0 ? "+" : "−"}${Math.abs(change).toFixed(1)} vs 4-week average`;
   return (
     <p style={{ display: "flex", alignItems: "center", gap: 4, margin: "4px 0 0", fontSize: 11, fontWeight: dropped ? 600 : 400, color: dropped ? "var(--color-warning)" : "var(--color-secondary)" }}>
       {dropped && <AlertTriangle size={12} aria-hidden="true" />}
@@ -150,7 +152,7 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
             <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--color-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dept.name}</span>
             {summary.dropped && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: "var(--color-warning)" }}>
-                <AlertTriangle size={11} aria-hidden="true" /> {summary.change!.toFixed(1)} vs 4-wk avg
+                <AlertTriangle size={11} aria-hidden="true" /> −{Math.abs(summary.change!).toFixed(1)} vs 4-wk avg
               </span>
             )}
             <span style={{ fontSize: visible ? 13 : 10, fontWeight: visible ? 600 : 400, color: visible ? "var(--color-body)" : "var(--color-secondary)", fontVariantNumeric: "tabular-nums", textAlign: "right", maxWidth: 150 }}>
