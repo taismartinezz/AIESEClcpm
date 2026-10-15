@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { APP_URL, sendEmail, type EmailPayload } from "@/lib/email";
 import { buildIcs } from "@/lib/ics";
 import { rsvpToken } from "@/lib/rsvp-token";
+import { runOutreach } from "@/lib/outreach-server";
 import { periodStart, type CheckinCadence } from "@/lib/wellbeing";
 import {
   checkinEmailDue, digestWeek, eventReminderDue, reminderRecipients, taskEmailsDue, wantsEmail,
@@ -296,5 +297,9 @@ export async function runScheduledEmails(db: SupabaseClient, now = new Date()): 
   await runTaskEmails(db, mailer, now);
   await runCheckinEmails(db, mailer, now);
   await runDigest(db, mailer, now);
-  return mailer.summary;
+  const outreach = await runOutreach(db, now);
+  return {
+    sent: mailer.summary.sent + outreach.sent, skipped: mailer.summary.skipped + outreach.skipped,
+    failed: mailer.summary.failed + outreach.failed, errors: [...mailer.summary.errors, ...outreach.errors].slice(0, 20),
+  };
 }

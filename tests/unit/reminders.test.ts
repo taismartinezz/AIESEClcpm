@@ -73,3 +73,20 @@ describe("RSVP links", () => {
     expect(verifyRsvpToken("ev1", "u1", "nope")).toBe(false);
   });
 });
+
+describe("outreach templates", async () => {
+  const { renderTemplate, unknownFields, valuesFor } = await import("@/lib/outreach");
+  const { unsubscribeToken, verifyUnsubscribeToken } = await import("@/lib/outreach-token");
+  it("fill merge fields and flag typos", () => {
+    const v = valuesFor({ person_name: "Ana Silva", product: "ogv", opportunity: null, host_entity: "AIESEC in Bogotá", expa_url: null }, "AIESEC in Lisbon", "Marta Costa");
+    expect(renderTemplate("Hi {first_name}, {sender_name} from {lc_name} here about {product}.", v))
+      .toBe("Hi Ana, Marta from AIESEC in Lisbon here about Global Volunteer.");
+    expect(unknownFields("Hi {firstname} {first_name} {lc}")).toEqual(["firstname", "lc"]);
+    expect(renderTemplate("Hi {firstname}", v)).toBe("Hi {firstname}");
+  });
+  it("sign unsubscribe links per contact", () => {
+    process.env.RSVP_SECRET = "test-secret";
+    expect(verifyUnsubscribeToken("ex1", unsubscribeToken("ex1"))).toBe(true);
+    expect(verifyUnsubscribeToken("ex2", unsubscribeToken("ex1"))).toBe(false);
+  });
+});

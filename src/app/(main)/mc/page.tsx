@@ -9,6 +9,7 @@ import { PRODUCTS } from "@/lib/products";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
+import McTemplateReview from "@/components/outreach/McTemplateReview";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
 interface Row { project_id: string; lc_name: string; members: number; product: string; applied: number; approved: number; realized: number; completed: number }
@@ -218,6 +219,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
           </div>
         )}
       </Panel>
+      <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
       <Panel title="Codes">
         <div style={{ padding: 14, fontSize: 13, color: "var(--color-body)", display: "grid", gap: 6 }}>
           <span>LC code (for LC presidents): <strong style={{ fontFamily: "monospace" }}>{mc.lcCode}</strong></span>

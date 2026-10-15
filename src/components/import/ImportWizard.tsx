@@ -24,6 +24,7 @@ export default function ImportWizard({ target: initialTarget, targets, projectId
   const [targetId, setTargetId] = useState<ImportTargetId>(initialTarget);
   const target = IMPORT_TARGETS[targetId];
   const [product, setProduct] = useState<ProductCode>(products[0] ?? "ogv");
+  const [consent, setConsent] = useState(false);
   const [source, setSource] = useState<"sheet" | "file">("sheet");
   const [link, setLink] = useState("");
   const [loadedFrom, setLoadedFrom] = useState("");
@@ -94,7 +95,7 @@ export default function ImportWizard({ target: initialTarget, targets, projectId
     setError(null);
     try {
       const args = target.id === "exchanges"
-        ? { p_project_id: projectId, p_product: product, p_rows: plan.rows }
+        ? { p_project_id: projectId, p_product: product, p_rows: consent ? plan.rows.map((r) => ({ ...r, email_consent: true, consent_source: `import: ${loadedFrom}` })) : plan.rows }
         : { p_project_id: projectId, p_rows: plan.rows };
       const { data: rows, error: err } = await supabase.rpc(target.rpc, args);
       if (err) throw new Error(err.message);
@@ -153,6 +154,12 @@ export default function ImportWizard({ target: initialTarget, targets, projectId
             )}
           </div>
 
+          {target.id === "exchanges" && (
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--color-body)", margin: "0 0 12px" }}>
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ accentColor: "var(--color-navy)", marginTop: 2 }} />
+              <span>Everyone in this file signed up with AIESEC (on EXPA or our own form) and agreed to be contacted. Needed for outreach emails; never tick it for bought or scraped lists.</span>
+            </label>
+          )}
           <div role="group" aria-label="Source" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {sourceTab("sheet", "Google Sheets link", Link2)}
             {sourceTab("file", "CSV file", FileUp)}

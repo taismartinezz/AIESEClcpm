@@ -236,3 +236,26 @@ test.describe('Events, RSVPs and announcements', () => {
     await expect(page.getByRole('group', { name: /People/ })).toBeVisible()
   })
 })
+
+test.describe('Outreach', () => {
+  const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: 'mock-user-id', is_finance: false, sort_order: 1, products: ['ogv'] }
+  const tpl = { id: 't1', project_id: 'project-abc', department_id: 'dep-ogv', name: 'Day 0 welcome', subject: 'Hi {first_name}', body: 'Hi {first_name}, I am {sender_name}.', status: 'pending', review_note: null, created_by: 'x', updated_at: new Date().toISOString() }
+
+  test('an empty outreach page explains sequences', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { outreach_templates: [], outreach_sequences: [] }, rpc: { outreach_stats: [] } })
+    await page.goto('/outreach')
+    await expect(page.getByRole('region', { name: /Follow up with every sign-up/ })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('templates show their status, preview merge fields and can be approved by the LCP', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { outreach_templates: [tpl], outreach_sequences: [] }, rpc: { outreach_stats: [] } })
+    await page.goto('/outreach')
+    await page.getByRole('tab', { name: /Templates \(1 to review\)/ }).click({ timeout: 10000 })
+    await page.getByRole('button', { name: /Day 0 welcome/ }).click()
+    const preview = page.getByRole('region', { name: 'Preview' })
+    await expect(preview.getByText('Hi Ana', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible()
+    await page.getByLabel('Subject').fill('Hi {firstname}')
+    await expect(page.getByRole('alert').filter({ hasText: '{firstname}' })).toBeVisible()
+  })
+})

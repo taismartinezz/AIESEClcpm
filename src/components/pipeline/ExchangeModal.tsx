@@ -6,6 +6,7 @@ import { PRODUCTS, STAGES, type ExchangeStage, type ProductCode } from "@/lib/pr
 import type { LcMember } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import OutreachPanel from "@/components/pipeline/OutreachPanel";
 
 /** Add or edit one exchange participant. */
 export default function ExchangeModal({ projectId, userId, products, roster, exchange, defaultProduct, onClose, onSaved }: {
@@ -116,6 +117,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
         <textarea id="ex-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, height: "auto", padding: 10 }} />
       </Field>
       <ErrorText>{error}</ErrorText>
+      {exchange && <OutreachPanel exchangeId={exchange.id} />}
     </Modal>
   );
 }
