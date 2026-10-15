@@ -192,3 +192,22 @@ test.describe('National (MC)', () => {
     await expect(page.getByRole('link', { name: 'National' }).first()).toBeVisible()
   })
 })
+
+test.describe('Learning the app', () => {
+  test('an empty pipeline explains itself and offers the import', async ({ page }) => {
+    const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: null, is_finance: false, sort_order: 1, products: ['ogv'] }
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [] } })
+    await page.goto('/pipeline')
+    await expect(page.getByRole('region', { name: 'Your exchange pipeline' })).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: /Import from Google Sheets or EXPA/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+  })
+
+  test('the help page has guides per feature and can replay the tour', async ({ page }) => {
+    await setupAuthMocks(page, 'vp')
+    await page.goto('/help')
+    await expect(page.getByRole('heading', { name: 'Importing a Google Sheet' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Replay the tour/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
+  })
+})

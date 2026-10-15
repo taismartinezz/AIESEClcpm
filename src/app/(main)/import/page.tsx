@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FileSpreadsheet, Handshake, Plane, CheckSquare, UserPlus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -37,7 +38,7 @@ export default function ImportPage() {
       <PageHeader title="Import trackers" subtitle="Bring your Google Sheets into the app once, then keep working here." />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 900, width: "100%" }}>
         {isLoading ? null : !isSupabaseConfigured || !projectId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Importing needs a connected database.</p>
+          <NeedsDatabase what="Import trackers">Bring your Google Sheets trackers (exchanges, partners, tasks, recruitment) into the app in one go.</NeedsDatabase>
         ) : (
           <>
             <ol style={{ fontSize: 13, color: "var(--color-body)", lineHeight: 1.7, margin: "0 0 18px", paddingLeft: 20 }}>

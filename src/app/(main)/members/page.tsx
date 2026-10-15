@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -31,7 +32,7 @@ export default function MembersPage() {
         {isLoading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !isSupabaseConfigured || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Members needs a connected database.</p>
+          <NeedsDatabase what="Members">Recruitment, onboarding and activity signals for Talent Management.</NeedsDatabase>
         ) : !exec ? (
           <div style={{ maxWidth: 520 }}>
             <MyOnboardingCard projectId={projectId} userId={userId} departmentId={departmentId} />

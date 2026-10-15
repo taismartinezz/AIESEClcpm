@@ -13,6 +13,8 @@ import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
+import { DemoLcButton } from "@/components/lc/DemoLc";
+import WhatsNew from "@/components/ui/WhatsNew";
 import { USERS, getStoredProject, getStoredUser, withDemoUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
@@ -21,7 +23,7 @@ import SupportPanel from "@/components/support/SupportPanel";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
-import OnboardingModal, { useOnboarding } from "@/components/ui/OnboardingModal";
+import OnboardingModal, { useOnboarding, type TourRole } from "@/components/ui/OnboardingModal";
 import Tooltip from "@/components/ui/Tooltip";
 import GlobalSearch from "@/components/ui/GlobalSearch";
 import { UndoToastProvider } from "@/context/UndoToastContext";
@@ -92,6 +94,7 @@ function LcMenuSection({ onDone }: { onDone: () => void }) {
           </button>
         );
       })}
+      <DemoLcButton onDone={onDone} />
       <Link
         href="/onboarding?add=1"
         onClick={onDone}
@@ -728,7 +731,9 @@ function projectInitials(name: string): string {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope } = useProject();
+  const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
+  const { mcs: myMcs, loaded: mcsLoaded } = useMcs();
+  const tourRole: TourRole | null = lcLoading ? null : lcRole ?? (mcsLoaded && myMcs.length > 0 ? "mc" : null);
   const [navCollapsed, setNavCollapsed]   = useState(false);
   const [navWidth, setNavWidth]           = useState(() => {
     try {
@@ -739,7 +744,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   });
   const navWidthRef                       = useRef(210);
   const [showCreate, setShowCreate]       = useState(false);
-  const { show: showOnboarding, close: closeOnboarding } = useOnboarding();
+  const { show: showOnboarding, close: closeOnboarding } = useOnboarding(tourRole);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1424,7 +1429,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )}
     {projectId && <GlobalSearch projectId={projectId} />}
     {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} />}
-    {showOnboarding && authed && <OnboardingModal onClose={closeOnboarding} />}
+    {showOnboarding && authed && tourRole && <OnboardingModal role={tourRole} onClose={closeOnboarding} />}
+    {authed && !showOnboarding && <WhatsNew />}
     <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     {authed && <ChatDock />}
 </>

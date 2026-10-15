@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -87,7 +88,7 @@ export default function AttendancePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Attendance needs a connected database. You are in demo mode: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (locally in .env, or in your hosting provider&apos;s environment variables) to use it.</p>
+          <NeedsDatabase what="Attendance">LC events and who came, so Talent Management can spot who's drifting away.</NeedsDatabase>
         ) : tab === "events" ? (
           <EventsView
             events={events} records={records} roster={roster} departments={departments} canManage={exec}

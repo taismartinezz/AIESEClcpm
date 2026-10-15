@@ -17,6 +17,8 @@ import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
 import ThisWeekCard from "@/components/dashboard/ThisWeekCard";
+import GettingStartedCard from "@/components/dashboard/GettingStartedCard";
+import { DemoBanner } from "@/components/lc/DemoLc";
 import { MyOnboardingCard } from "@/components/members/OnboardingTab";
 import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
 import { FinanceSnapshotCard, FollowUpsCard, GoalsCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
@@ -498,6 +500,10 @@ export default function DashboardPage() {
           loading={loading}
         />
 
+        {isSupabaseConfigured && <DemoBanner />}
+        {role && isSupabaseConfigured && (
+          <GettingStartedCard role={role} projectId={activeProjectId} userId={ctxUserId} ledDepartmentIds={ledDepartmentIds} />
+        )}
         {(role === "president" || role === "vp") && isSupabaseConfigured && (
           <ThisWeekCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
         )}

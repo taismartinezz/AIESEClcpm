@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Button, ErrorText, Panel } from "@/components/lc/ui";
@@ -59,7 +60,7 @@ export default function GoalsPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !isSupabaseConfigured || !projectId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Goals need a connected database. You are in demo mode: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (locally in .env, or in your hosting provider&apos;s environment variables) to use them.</p>
+          <NeedsDatabase what="Term goals">Your LC's and departments' targets for the term. Exchange goals count themselves from the pipeline.</NeedsDatabase>
         ) : sections.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
             No goals yet.{president || manageable.length ? " Add your term targets, e.g. \"30 oGV approvals\" or \"15 new members\"." : " Your VPs and LCP set them."}

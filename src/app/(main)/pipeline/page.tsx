@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Download, ExternalLink, Plus, Search, Upload } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import TeachingEmpty, { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { PRODUCTS, PRODUCT_BY_CODE, STAGES, STAGE_DATE_FIELD, STAGE_LABEL, type ExchangeStage, type ProductCode } from "@/lib/products";
@@ -136,11 +137,20 @@ export default function PipelinePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 260, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The pipeline needs a connected database. You are in demo mode: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (locally in .env, or in your hosting provider&apos;s environment variables) to use it.</p>
+          <NeedsDatabase what="Exchange pipeline">Every exchange per product, from sign-up to completed, with this term's approvals, realizations and conversion rates.</NeedsDatabase>
         ) : myProducts.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
             Your department doesn&apos;t run an exchange product. The pipeline is for the oGV, oGT/Te, iGV and iGT/Te departments.
           </p>
+        ) : exchanges.length === 0 ? (
+          <TeachingEmpty title="Your exchange pipeline" actions={<>
+            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from Google Sheets or EXPA</Button>
+            <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add one by hand</Button>
+          </>}>
+            Track every sign-up through Applied, Accepted, Approved, Realized, Finished and Completed, per product. Approvals and
+            realizations this term, conversion rates and stuck exchanges are worked out for you, and your goals count themselves.
+            Start by importing your oGX/iGX tracker or EXPA export.
+          </TeachingEmpty>
         ) : (
           <>
             <section aria-label={`${PRODUCT_BY_CODE[product].label} this term`} style={{ marginBottom: 16 }}>

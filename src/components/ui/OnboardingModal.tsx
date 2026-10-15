@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { X, ArrowRight, ArrowLeft } from "lucide-react";
 
-const LS_KEY = "aiesec_tour_v2";
+const LS_PREFIX = "aiesec_tour_v3:";
+const lsKey = (role: TourRole) => LS_PREFIX + role;
 
 // ── Tour steps ─────────────────────────────────────────────────────────────────
 
@@ -17,42 +18,38 @@ interface TourStep {
   body: string;
 }
 
-const STEPS: TourStep[] = [
-  {
-    title: `Welcome to ${APP_NAME}`,
-    body: "Your Local Committee's workspace. This tour highlights the main areas. Use arrow keys to move between steps.",
-  },
-  {
-    selector: 'a[href="/"]',
-    title: "Dashboard",
-    body: "Your home base. See open tasks, your LC's wins and opportunities, and how the team is doing.",
-  },
-  {
-    selector: 'a[href="/tasks"]',
-    title: "Tasks",
-    body: "Track LC work on a board from Backlog to Done. Assign teammates, tag a department and set due dates.",
-  },
-  {
-    selector: 'a[href="/reminders"]',
-    title: "Reminders",
-    body: "Keep track of deadlines and follow-ups. Create reminders from here or with the + New button on the dashboard.",
-  },
-  {
-    selector: 'a[href="/team"]',
-    title: "Team",
-    body: "Meet your executive board and departments, and share your weekly update.",
-  },
-  {
-    selector: 'a[href="/checkin"]',
-    title: "Check-in",
-    body: "A one-minute check-in every two weeks. Your answers only ever count towards anonymous averages for your department.",
-  },
-  {
-    selector: 'a[href="/journal"]',
-    title: "Journal",
-    body: "An optional private diary. Only you can read it.",
-  },
-];
+export type TourRole = "president" | "vp" | "member" | "mc";
+
+const welcome = (body: string): TourStep => ({ title: `Welcome to ${APP_NAME}`, body: `${body} Use the arrow keys to move between steps.` });
+
+/** A short tour per role: only what that person uses. */
+export const TOURS: Record<TourRole, TourStep[]> = {
+  member: [
+    welcome("Your LC's workspace. Four quick stops."),
+    { selector: 'a[href="/"]', title: "Dashboard", body: "What's due today, your onboarding checklist and what's coming up in the LC." },
+    { selector: 'a[href="/tasks"]', title: "Tasks", body: "Your department's work, from Backlog to Done. Anything assigned to you shows on the dashboard." },
+    { selector: 'a[href="/tabling"]', title: "Tabling", body: "Sign up for shifts. You get a reminder the day before, and attended shifts count as your hours." },
+    { selector: 'a[href="/checkin"]', title: "Check-in", body: "One minute every two weeks. Your answers only count towards anonymous averages; nobody sees them." },
+  ],
+  vp: [
+    welcome("Everything for running your department."),
+    { selector: 'a[href="/"]', title: "This week", body: "Your departments' approvals vs last week, stuck exchanges and overdue tasks, every Monday." },
+    { selector: 'a[href="/pipeline"]', title: "Pipeline", body: "Every exchange per product, with term numbers and conversion. Import your EXPA export or tracker in one go." },
+    { selector: 'a[href="/members"]', title: "Members", body: "Onboarding and activity signals for the people in your departments." },
+    { selector: 'a[href="/import"]', title: "Import", body: "Bring your Google Sheets trackers (exchanges, partners, tasks, recruitment) into the app." },
+  ],
+  president: [
+    welcome("Set up your LC in a few minutes; the checklist on the dashboard walks you through it."),
+    { selector: 'a[href="/"]', title: "Dashboard", body: "This week's numbers, the getting-started checklist, and the Exec and Member Pulse." },
+    { selector: 'a[href="/import"]', title: "Import your trackers", body: "Paste a Google Sheets link to bring in exchanges, partners, tasks and recruitment." },
+    { selector: 'a[href="/members"]', title: "Members", body: "Recruitment, onboarding, term dates and who might need a conversation." },
+    { selector: 'a[href="/team"]', title: "Team", body: "Your exec board and departments. Invite VPs and members from Settings." },
+  ],
+  mc: [
+    welcome("The national view."),
+    { selector: 'a[href="/mc"]', title: "National", body: "Every linked LC's applications, approvals and realizations this term, side by side. Counts only." },
+  ],
+};
 
 const PAD = 8;    // spotlight padding around the target element
 const W   = 300;  // tooltip card width
@@ -117,7 +114,8 @@ function Caret({ side }: { side: "right" | "left" | "bottom" | "top" }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function OnboardingModal({ onClose }: { onClose: () => void }) {
+export default function OnboardingModal({ role, onClose }: { role: TourRole; onClose: () => void }) {
+  const STEPS = TOURS[role];
   const [step, setStep]         = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [tooltipH, setTooltipH] = useState(220);
@@ -128,7 +126,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const side    = current.side ?? "right";
 
   function dismiss() {
-    localStorage.setItem(LS_KEY, "1");
+    try { localStorage.setItem(lsKey(role), "1"); } catch { /* storage blocked: the tour shows again next time */ }
     onClose();
   }
 
@@ -305,20 +303,24 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
-export function useOnboarding() {
+export function useOnboarding(role: TourRole | null) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!localStorage.getItem(LS_KEY)) setShow(true);
+    if (typeof window === "undefined" || !role) return;
+    let seen = true;
+    try { seen = Boolean(localStorage.getItem(lsKey(role))); } catch { /* storage blocked */ }
+    // Showing the tour once per role is the point of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!seen) setShow(true);
 
     function handleRetrigger() {
-      localStorage.removeItem(LS_KEY);
+      try { localStorage.removeItem(lsKey(role!)); } catch { /* ignore */ }
       setShow(true);
     }
     window.addEventListener("app:show-onboarding", handleRetrigger);
     return () => window.removeEventListener("app:show-onboarding", handleRetrigger);
-  }, []);
+  }, [role]);
 
   return { show, open: () => setShow(true), close: () => setShow(false) };
 }

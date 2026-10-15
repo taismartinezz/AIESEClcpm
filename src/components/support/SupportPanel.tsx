@@ -416,6 +416,10 @@ function EntryScreen({ piInvitation, onHelp, onResources, onClose }: {
       >
         See wellbeing resources
       </button>
+
+      <a href="/help" style={{ display: "block", textAlign: "center", marginTop: 14, fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>
+        How do I use the app? Guides and videos
+      </a>
     </PanelShell>
   );
 }

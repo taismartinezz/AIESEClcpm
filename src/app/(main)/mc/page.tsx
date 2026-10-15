@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { PRODUCTS } from "@/lib/products";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -25,7 +26,7 @@ export default function McPage() {
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The national view needs a connected database.</p>
+          <NeedsDatabase what="National (MC)">Every LC's approvals and realizations this term, side by side, for the national team.</NeedsDatabase>
         ) : !loaded ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !mc ? (
