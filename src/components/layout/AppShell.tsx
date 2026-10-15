@@ -5,13 +5,14 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useMcs } from "@/hooks/useMcs";
 import { USERS, getStoredProject, getStoredUser, withDemoUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
@@ -57,6 +58,12 @@ const NAV_ITEMS = [
   { href: "/journal",     label: "Journal",    icon: BookOpen        },
 ];
 
+
+/** The sidebar items, plus "National" for people on an MC. */
+function useNavItems() {
+  const { mcs } = useMcs();
+  return mcs.length > 0 ? [...NAV_ITEMS, { href: "/mc", label: "National", icon: Globe2 }] : NAV_ITEMS;
+}
 
 // ── LC switcher (top of the workspace menu) ───────────────────────────────────
 
@@ -171,6 +178,7 @@ function SidebarBody({
   projectName?: string;
   projectColor?: string;
 }) {
+  const navItems = useNavItems();
   const [wsOpen, setWsOpen] = useState(false);
   const ICON_BTN = {
     width: 36, height: 36, display: "flex", alignItems: "center",
@@ -281,7 +289,7 @@ function SidebarBody({
 
         {/* Page nav icons */}
         <nav className="flex-1 flex flex-col items-center overflow-y-auto" style={{ gap: 2, scrollbarWidth: "none" }} aria-label="Main navigation">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             const badgeCount = href === "/chat" ? chatUnread : 0;
             const showBadge = badgeCount > 0;
@@ -475,7 +483,7 @@ function SidebarBody({
 
       {/* Nav items */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           const badgeCount = href === "/chat" ? chatUnread : 0;
           const showBadge = badgeCount > 0;

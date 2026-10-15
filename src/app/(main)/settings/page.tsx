@@ -14,6 +14,7 @@ import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
+import McLinkSettings from "@/components/lc/McLinkSettings";
 import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
 import CategoriesManager from "@/components/finance/CategoriesManager";
 import type { UserRole } from "@/types";
@@ -818,6 +819,21 @@ export default function SettingsPage() {
           </div>
           <div style={{ padding: "20px" }}>
             <DepartmentsManager />
+          </div>
+        </section>
+      )}
+
+      {/* National (MC) — president only */}
+      {isPresident && activeScope !== "personal" && (
+        <section id="national" style={sectionStyle} aria-labelledby="settings-national-heading">
+          <div style={sectionHeaderStyle}>
+            <Globe2 size={16} color="var(--color-secondary)" />
+            <h2 id="settings-national-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              National (MC)
+            </h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <McLinkSettings />
           </div>
         </section>
       )}

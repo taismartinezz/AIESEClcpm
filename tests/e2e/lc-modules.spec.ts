@@ -176,3 +176,19 @@ test.describe('Members and import', () => {
     await expect(page.getByLabel('Link to the sheet')).toBeVisible()
   })
 })
+
+test.describe('National (MC)', () => {
+  test('an MC member sees LCs side by side with national totals', async ({ page }) => {
+    const mc = { id: 'mc1', name: 'AIESEC in Portugal', member_code: 'AAAA1111', lc_code: 'BBBB2222', term_start: null }
+    const rows = [
+      { project_id: 'l1', lc_name: 'LC Lisbon', members: 30, product: 'ogv', applied: 10, approved: 4, realized: 2, completed: 0 },
+      { project_id: 'l2', lc_name: 'LC Porto', members: 22, product: 'ogv', applied: 5, approved: 1, realized: 0, completed: 0 },
+    ]
+    await setupAuthMocks(page, 'member', { tables: { mcs: [mc], mc_members: [{ mc_id: 'mc1', role: 'mcp' }] }, rpc: { mc_dashboard: rows } })
+    await page.goto('/mc')
+    await expect(page.getByText('LC Lisbon')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('rowheader', { name: 'National' })).toBeVisible()
+    await expect(page.getByText('33%')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'National' }).first()).toBeVisible()
+  })
+})

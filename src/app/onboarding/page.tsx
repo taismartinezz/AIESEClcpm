@@ -895,6 +895,9 @@ export default function OnboardingPage() {
           <NavButton large={isLarge} onClick={handleStep1Continue} disabled={!role}>
             Continue
           </NavButton>
+          <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", textAlign: "center", margin: "16px 0 0" }}>
+            On the national team (MC)? <a href="/mc" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Go to the national view</a>
+          </p>
         </div>
       </div>
     );
