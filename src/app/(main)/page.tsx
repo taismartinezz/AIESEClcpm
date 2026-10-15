@@ -15,7 +15,8 @@ import TaskModal from "@/components/tasks/TaskModal";
 import Toast from "@/components/ui/Toast";
 import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
-import { LabPulseWidget } from "./_components/LabPulseWidget";
+import { LcWinsWidget } from "./_components/LcWinsWidget";
+import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
 
 // ── Add Reminder modal ────────────────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ function AddReminderModal({
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments } = useProject();
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalStatus, setModalStatus] = useState<TaskStatus | null>(null);
@@ -460,6 +461,9 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Wellbeing — what you see depends on your role in this LC */}
+        {role !== "president" && <CheckinNudgeCard projectId={activeProjectId} userId={userId || null} />}
+
         {/* Row 1: Agenda (Overdue / Today / Upcoming) */}
         <TodayWidget
           tasks={tasks}
@@ -470,8 +474,21 @@ export default function DashboardPage() {
           loading={loading}
         />
 
+        {(role === "president" || role === "vp") && (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {role === "president" ? (
+              <>
+                <ExecPulseCard projectId={activeProjectId} />
+                <MemberPulseCard projectId={activeProjectId} departments={departments} />
+              </>
+            ) : (
+              <DepartmentPulseCard projectId={activeProjectId} departments={departments} />
+            )}
+          </div>
+        )}
+
         {/* Row 2: Opportunities + Wins */}
-        <LabPulseWidget
+        <LcWinsWidget
           posts={dashPosts}
           projectId={projectId}
           projectName={projectName}

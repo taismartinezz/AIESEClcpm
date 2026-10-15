@@ -9,7 +9,7 @@ import type { TeamMember, TaskStatus, LabRole, Department, UserRole } from "@/ty
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, toUserRole } from "@/lib/permissions";
 import { groupDirectory } from "@/lib/team";
 import Avatar from "@/components/ui/Avatar";
-import { Video, X, Edit3, Check, Users, TrendingUp, ShieldCheck, Plus, Phone, Globe, Lock, ChevronDown, ChevronRight } from "lucide-react";
+import { Video, X, Edit3, Check, Users, Plus, Phone, Globe, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import {
   getRegistryResources, getInstitutionName, hasNoCounselingResources, INSTITUTION_OPTIONS,
 } from "@/lib/support/institutions";
@@ -21,132 +21,6 @@ import PageHeader from "@/components/ui/PageHeader";
 
 const STATUS_LABELS = TASK_STATUS_LABELS;
 const STATUS_COLORS = TASK_STATUS_COLORS;
-
-// ── PI wellbeing rollup ───────────────────────────────────────────────────────
-
-type RollupRow = { week_start: string; question_id: string; avg_score: number; respondent_count: number };
-
-const ROLLUP_COLORS: Record<string, string> = {
-  cq1: "#0263C4", cq2: "#D97706", cq3: "#10B981", cq4: "#8B5CF6", cq5: "#EC4899",
-};
-const ROLLUP_LABELS: Record<string, string> = {
-  cq1: "Support", cq2: "Workload", cq3: "Meaningful", cq4: "Boundaries", cq5: "Help",
-};
-
-function WellbeingRollupPanel({ rows, overdueCount, totalMembers, minRespondents, loading }: {
-  rows: RollupRow[];
-  overdueCount: number | null;
-  totalMembers: number | null;
-  minRespondents: number;
-  loading: boolean;
-}) {
-  if (loading) {
-    return (
-      <div style={{ padding: "14px 18px", borderRadius: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", marginBottom: 24 }}>
-        <div style={{ height: 12, width: "40%", backgroundColor: "var(--color-dimmed-bg)", borderRadius: 6 }} />
-      </div>
-    );
-  }
-
-  const qids = ["cq1", "cq2", "cq3", "cq4", "cq5"];
-  const weeks = [...new Set(rows.map(r => r.week_start))].sort();
-
-  return (
-    <div style={{ borderRadius: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", marginBottom: 24, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid var(--color-border)" }}>
-        <TrendingUp size={15} color="var(--color-navy)" />
-        <span style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 14, color: "var(--color-navy)" }}>Team Wellbeing (PI view)</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
-          <ShieldCheck size={12} color="var(--color-secondary)" />
-          <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>min {minRespondents} respondents required</span>
-        </div>
-      </div>
-      <div style={{ padding: "14px 18px" }}>
-        {weeks.length === 0 ? (
-          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
-            Not enough data yet. Check-ins from at least {minRespondents} member{minRespondents === 1 ? "" : "s"} are required to show aggregates.
-          </p>
-        ) : (
-          <>
-            {(() => {
-              const W = 480, H = 130;
-              const padL = 24, padR = 12, padT = 10, padB = 28;
-              const plotW = W - padL - padR;
-              const plotH = H - padT - padB;
-              const xStep = weeks.length > 1 ? plotW / (weeks.length - 1) : 0;
-              function sx(i: number) { return padL + i * xStep; }
-              function sy(s: number) { return padT + plotH - ((s - 1) / 4) * plotH; }
-              function buildPath(qid: string): string {
-                let d = ""; let penDown = false;
-                for (let i = 0; i < weeks.length; i++) {
-                  const row = rows.find(r => r.week_start === weeks[i] && r.question_id === qid);
-                  if (!row) { penDown = false; continue; }
-                  const x = sx(i), y = sy(row.avg_score);
-                  d += penDown ? ` L${x.toFixed(1)},${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`;
-                  penDown = true;
-                }
-                return d;
-              }
-              return (
-                <div style={{ overflowX: "auto", marginBottom: 8 }}>
-                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", minWidth: 280 }}>
-                    {[1,2,3,4,5].map(s => (
-                      <line key={s} x1={padL} y1={sy(s)} x2={W-padR} y2={sy(s)}
-                        stroke="var(--color-border)" strokeWidth={0.5} />
-                    ))}
-                    {[1,3,5].map(s => (
-                      <text key={s} x={padL-4} y={sy(s)+4} textAnchor="end"
-                        style={{ fontSize: 8, fill: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>{s}</text>
-                    ))}
-                    {weeks.map((wk, i) => {
-                      const d = new Date(wk);
-                      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                      return i % 2 === 0 ? (
-                        <text key={wk} x={sx(i)} y={H-4} textAnchor="middle"
-                          style={{ fontSize: 8, fill: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>{label}</text>
-                      ) : null;
-                    })}
-                    {qids.map(qid => {
-                      const color = ROLLUP_COLORS[qid];
-                      const path = buildPath(qid);
-                      return (
-                        <g key={qid}>
-                          {path && <path d={path} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />}
-                          {weeks.map((wk, i) => {
-                            const row = rows.find(r => r.week_start === wk && r.question_id === qid);
-                            return row ? <circle key={i} cx={sx(i)} cy={sy(row.avg_score)} r={3} fill={color} /> : null;
-                          })}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-              );
-            })()}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginBottom: 12 }}>
-              {qids.map(qid => (
-                <div key={qid} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 10, height: 2.5, borderRadius: 2, backgroundColor: ROLLUP_COLORS[qid] }} />
-                  <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>{ROLLUP_LABELS[qid]}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        {overdueCount !== null && totalMembers !== null && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 10, borderTop: "1px solid var(--color-border)", marginTop: 4 }}>
-            <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>
-              <strong style={{ color: "var(--color-body)" }}>{overdueCount}</strong> open tasks across {totalMembers} member{totalMembers === 1 ? "" : "s"}
-            </span>
-          </div>
-        )}
-        <p style={{ fontSize: 10, color: "var(--color-secondary)", marginTop: 8, marginBottom: 0 }}>
-          Aggregated anonymously. Individual responses are never shown.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // ── Start Meeting modal ───────────────────────────────────────────────────────
 
@@ -636,11 +510,6 @@ export default function TeamPage() {
   const [projectTeam, setProjectTeam] = useState<TeamMember[]>([]);
   const [projectScopedCounts, setProjectScopedCounts] = useState<Record<string, Record<TaskStatus, number>>>({});
   const [showMembersModal, setShowMembersModal] = useState(false);
-  const [rollupRows, setRollupRows] = useState<RollupRow[]>([]);
-  const [rollupLoading, setRollupLoading] = useState(false);
-  const [overdueCount, setOverdueCount] = useState<number | null>(null);
-  const [overdueTotalMembers, setOverdueTotalMembers] = useState<number | null>(null);
-  const [minRespondents, setMinRespondents] = useState(2);
   const [adminResources, setAdminResources] = useState<LabResource[]>([]);
   const [institutionKey, setInstitutionKey] = useState<string | null>(null);
   const [savingInstitution, setSavingInstitution] = useState(false);
@@ -684,7 +553,7 @@ export default function TeamPage() {
           .eq("project_id", projectId),
         supabase
           .from("projects")
-          .select("name, min_wellbeing_respondents")
+          .select("name")
           .eq("id", projectId)
           .maybeSingle(),
         supabase
@@ -712,7 +581,6 @@ export default function TeamPage() {
 
       // Override the localStorage-cached name with the real value from the DB.
       if (projectData?.name) setStoredProjectName(projectData.name as string);
-      if (projectData?.min_wellbeing_respondents != null) setMinRespondents(projectData.min_wellbeing_respondents as number);
 
       // 2. Task counts - single embedded-join query so PostgREST handles the
       //    task_id → tasks.id match server-side; no client-side Map key lookup needed.
@@ -792,7 +660,7 @@ export default function TeamPage() {
     })();
   }, [currentUserId, projectId]);
 
-  // Load support resources and institution_key for PI admin panel.
+  // Load support resources and institution_key for the president's admin panel.
   useEffect(() => {
     if (!isPresident || !projectId || !isSupabaseConfigured) return;
     (async () => {
@@ -868,23 +736,6 @@ export default function TeamPage() {
     })();
   }, [activeScope, subProjectId]);
 
-  // F2: PI wellbeing rollup -- fetched only when the user is a PI and we have a projectId
-  useEffect(() => {
-    if (!isPresident || !projectId || !isSupabaseConfigured) return;
-    setRollupLoading(true);
-    Promise.all([
-      supabase.rpc("get_wellbeing_rollup", { p_project_id: projectId }),
-      supabase.rpc("get_overdue_signal", { p_project_id: projectId }),
-    ]).then(([{ data: rData }, { data: oData }]) => {
-      setRollupRows((rData as RollupRow[] | null) ?? []);
-      if (oData && Array.isArray(oData) && oData.length > 0) {
-        setOverdueCount((oData[0] as { overdue_count: number }).overdue_count);
-        setOverdueTotalMembers((oData[0] as { total_members: number }).total_members);
-      }
-      setRollupLoading(false);
-    });
-  }, [isPresident, projectId]);
-
   // In project scope use the directly-fetched list with project-scoped task counts.
   const visibleTeam = activeScope === "project"
     ? projectTeam.map((m) => ({
@@ -939,18 +790,7 @@ export default function TeamPage() {
 
         <WeeklyUpdateBar current={weeklyUpdate} onSave={setWeeklyUpdate} />
 
-        {/* PI wellbeing rollup -- only shown to PI */}
-        {isPresident && (
-          <WellbeingRollupPanel
-            rows={rollupRows}
-            overdueCount={overdueCount}
-            totalMembers={overdueTotalMembers}
-            minRespondents={minRespondents}
-            loading={rollupLoading}
-          />
-        )}
-
-        {/* PI support resources admin -- only shown to PI */}
+        {/* Support resources admin -- president only */}
         {isPresident && projectId && (
           <SupportResourcesAdmin
             projectId={projectId}

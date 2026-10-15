@@ -210,9 +210,9 @@ function PostColumn({
   );
 }
 
-// ── LabPulseWidget ─────────────────────────────────────────────────────────────
+// ── LcWinsWidget ───────────────────────────────────────────────────────────────
 
-export function LabPulseWidget({
+export function LcWinsWidget({
   posts,
   projectId,
   projectName = "",

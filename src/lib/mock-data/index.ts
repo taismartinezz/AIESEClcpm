@@ -1,5 +1,5 @@
 import type {
-  User, Project, Task, JournalEntry, JournalPrompt, CheckinQuestion,
+  User, Project, Task, JournalEntry, JournalPrompt,
   TeamMember, ActivityEvent, Department,
   CalendarEvent, DashboardPost, Notification, Reminder,
 } from "@/types";
@@ -133,21 +133,9 @@ export const ACTIVE_PROMPT_IDS = ["jp2", "jp7", "jp11"];
 
 // ── Checkin Questions ─────────────────────────────────────────────────────────
 
-export const CHECKIN_QUESTIONS: CheckinQuestion[] = [
-  { id: "cq1", text: "I feel supported by my research team." },
-  { id: "cq2", text: "I have been able to manage my workload this week." },
-  { id: "cq3", text: "My research work has felt meaningful to me." },
-  { id: "cq4", text: "I have been able to maintain boundaries between work and personal time." },
-  { id: "cq5", text: "I feel comfortable reaching out for help when I need it." },
-];
-
-export const CHECKIN_LABELS: Record<number, string> = {
-  1: "Strongly Disagree",
-  2: "Disagree",
-  3: "Neutral",
-  4: "Agree",
-  5: "Strongly Agree",
-};
+// The check-in questions live in src/lib/wellbeing.ts (they are shared with the
+// SQL pulse functions); re-exported here for existing imports.
+export { CHECKIN_QUESTIONS, CHECKIN_LABELS } from "@/lib/wellbeing";
 
 export const CHECKIN_COLORS: Record<number, string> = {
   1: "#C0392B",  // red       - very low

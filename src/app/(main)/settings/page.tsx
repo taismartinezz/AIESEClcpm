@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, Globe2 } from "lucide-react";
+import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, Globe2, HeartPulse } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
@@ -14,6 +14,7 @@ import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
+import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
 import type { UserRole } from "@/types";
 
 const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
@@ -805,6 +806,21 @@ export default function SettingsPage() {
           </div>
           <div style={{ padding: "20px" }}>
             <DepartmentsManager />
+          </div>
+        </section>
+      )}
+
+      {/* Wellbeing — president only */}
+      {isPresident && activeScope !== "personal" && activeLcId && (
+        <section style={sectionStyle} aria-labelledby="settings-wellbeing-heading">
+          <div style={sectionHeaderStyle}>
+            <HeartPulse size={16} color="var(--color-secondary)" />
+            <h2 id="settings-wellbeing-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Wellbeing &amp; privacy
+            </h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <WellbeingSettings projectId={activeLcId} />
           </div>
         </section>
       )}

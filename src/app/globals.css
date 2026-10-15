@@ -256,6 +256,10 @@ body {
   --color-btn-primary:       #0263C4;
   --color-btn-primary-hover: #01529F;
 
+  /* ── Charts ── single-series line + recessive grid (validated vs surface) */
+  --chart-series: #0263C4;
+  --chart-grid:   #E8ECF1;
+
   /* ── Semantic ── */
   --color-success:      #2E7D52;
   --color-warning:      #A0622A;
@@ -310,6 +314,8 @@ body {
     --color-segment-active: rgba(255,255,255,0.16);
     --color-btn-primary:       #0263C4;
     --color-btn-primary-hover: #037EF3;
+    --chart-series: #037EF3;
+    --chart-grid:   rgba(255,255,255,0.08);
     --color-success:      #30D158;
     --color-warning:      #FF9F0A;
     --color-error:        #FF453A;
@@ -361,6 +367,8 @@ body {
   --color-segment-active: rgba(255,255,255,0.16);
   --color-btn-primary:       #0263C4;
   --color-btn-primary-hover: #037EF3;
+  --chart-series: #037EF3;
+  --chart-grid:   rgba(255,255,255,0.08);
   --color-success:      #30D158;
   --color-warning:      #FF9F0A;
   --color-error:        #FF453A;
