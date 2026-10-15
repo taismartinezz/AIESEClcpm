@@ -312,3 +312,32 @@ export interface ExpenseClaim {
   reviewedAt: string | null;
   createdAt: string;
 }
+
+// ── Attendance ────────────────────────────────────────────────────────────────
+
+export type LcEventType =
+  | "local_event"
+  | "local_conference"
+  | "national_conference"
+  | "international_conference"
+  | "info_session"
+  | "other";
+
+export interface LcEvent {
+  id: string;
+  projectId: string;
+  name: string;
+  type: LcEventType;
+  startsOn: string;        // ISO date
+  endsOn: string;          // ISO date
+  location: string | null;
+  departmentId: string | null;
+  createdBy: string | null;
+}
+
+export interface AttendanceRecord {
+  eventId: string;
+  userId: string;
+  recordedBy: string | null;
+  recordedAt: string;
+}

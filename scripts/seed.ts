@@ -142,6 +142,19 @@ async function seed() {
   if (claimErr) throw claimErr;
   console.log("  ✓ finance entries and a pending claim");
 
+  // 7. Attendance: two events with attendees
+  const { data: evRows, error: evErr } = await supabase.from("lc_events").insert([
+    { project_id: lcId, name: "oGV info session", type: "info_session", starts_on: today, ends_on: today, location: "Main campus", department_id: depId["Outgoing Global Volunteer"], created_by: ids[president.email] },
+    { project_id: lcId, name: "National conference", type: "national_conference", starts_on: today, ends_on: today, location: "Host city", created_by: ids[president.email] },
+  ]).select("id");
+  if (evErr) throw evErr;
+  const attendanceRows = (evRows ?? []).flatMap((e, i) => SEED_PEOPLE
+    .filter((_, j) => (i === 0 ? j % 2 === 0 : true))
+    .map((p) => ({ event_id: e.id, user_id: ids[p.email], project_id: lcId, recorded_by: ids[president.email] })));
+  const { error: attErr } = await supabase.from("event_attendance").insert(attendanceRows);
+  if (attErr) throw attErr;
+  console.log(`  ✓ ${evRows?.length ?? 0} events, ${attendanceRows.length} attendance records`);
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 
