@@ -8,32 +8,65 @@ import {
   useState,
 } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import type { SubProject } from "@/types";
+import { ledDepartmentIds, toUserRole } from "@/lib/permissions";
+import type { Department, SubProject, UserRole } from "@/types";
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
 export type ActiveScope = "lab" | "project" | "personal";
 
+/** One Local Committee the signed-in user belongs to. */
+export interface LcMembership {
+  id: string;            // projects.id
+  name: string;
+  role: UserRole;        // the user's permission level in THIS LC
+  departmentId: string | null;
+}
+
 interface ProjectContextValue {
-  /** Lab-level projects.id - null until auth resolves */
+  /** Signed-in user's id — null until auth resolves */
+  userId: string | null;
+  /** Every LC the user belongs to */
+  lcs: LcMembership[];
+  /** Active LC (projects.id) — null until auth resolves */
   projectId: string | null;
-  /** Currently active sub-project filter - null means lab or personal */
+  /** The user's role in the active LC */
+  role: UserRole | null;
+  /** The user's own department in the active LC */
+  departmentId: string | null;
+  /** Departments of the active LC */
+  departments: Department[];
+  /** Departments the user leads as VP in the active LC */
+  ledDepartmentIds: string[];
+  /** Switch the active LC (reloads the app so every page refetches) */
+  setActiveLc: (id: string) => void;
+  /** Re-read departments after the president edits them */
+  refreshDepartments: () => Promise<void>;
+  /** Currently active group filter - null means whole LC or personal */
   subProjectId: string | null;
-  /** All sub-projects the current user belongs to (excludes archived) */
+  /** Groups the current user belongs to in the active LC (excludes archived) */
   subProjects: SubProject[];
-  /** Active scope: lab | project (sub-project selected) | personal */
+  /** Active scope: lab (whole LC) | project (a group is selected) | personal */
   activeScope: ActiveScope;
-  /** Switch the active sub-project; pass null to clear sub-project */
+  /** Switch the active group; pass null to clear it */
   setActiveSubProject: (id: string | null) => void;
-  /** Set the active scope independently (lab / project / personal) */
+  /** Set the active scope independently (lc / group / personal) */
   setActiveScope: (scope: ActiveScope) => void;
-  /** Optimistically add a newly created sub-project to the list */
+  /** Optimistically add a newly created group to the list */
   addSubProject: (sp: SubProject) => void;
   isLoading: boolean;
 }
 
 const ProjectContext = createContext<ProjectContextValue>({
+  userId: null,
+  lcs: [],
   projectId: null,
+  role: null,
+  departmentId: null,
+  departments: [],
+  ledDepartmentIds: [],
+  setActiveLc: () => {},
+  refreshDepartments: async () => {},
   subProjectId: null,
   subProjects: [],
   activeScope: "lab",
@@ -45,17 +78,51 @@ const ProjectContext = createContext<ProjectContextValue>({
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
-const STORAGE_KEY       = "canopy_active_sub_project";
-const SCOPE_STORAGE_KEY = "canopy_scope_mode";
+export const ACTIVE_LC_STORAGE_KEY = "aiesec_active_lc";
+const STORAGE_KEY       = "aiesec_active_group";
+const SCOPE_STORAGE_KEY = "aiesec_scope_mode";
+
+function readStorage(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function mapDepartment(row: Record<string, unknown>): Department {
+  return {
+    id:         row.id as string,
+    projectId:  row.project_id as string,
+    name:       row.name as string,
+    color:      (row.color as string) ?? "#037EF3",
+    vpUserId:   (row.vp_user_id as string | null) ?? null,
+    isFinance:  (row.is_finance as boolean) ?? false,
+    sortOrder:  (row.sort_order as number) ?? 0,
+  };
+}
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
+  const [userId, setUserId]               = useState<string | null>(null);
+  const [lcs, setLcs]                     = useState<LcMembership[]>([]);
   const [projectId, setProjectId]         = useState<string | null>(null);
+  const [departments, setDepartments]     = useState<Department[]>([]);
   const [subProjectId, setSubProjectId]   = useState<string | null>(null);
   const [subProjects, setSubProjects]     = useState<SubProject[]>([]);
   const [activeScopeState, setActiveScopeState] = useState<ActiveScope>("lab");
   const [isLoading, setIsLoading]         = useState(true);
+
+  const loadDepartments = useCallback(async (pid: string) => {
+    const { data, error } = await supabase
+      .from("departments")
+      .select("id, project_id, name, color, vp_user_id, is_finance, sort_order")
+      .eq("project_id", pid)
+      .order("sort_order")
+      .order("name");
+    if (error) {
+      console.error("[ProjectContext] departments error:", error.message);
+      return;
+    }
+    setDepartments((data ?? []).map(mapDepartment));
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -66,89 +133,88 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     async function load() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        if (!userId) { setIsLoading(false); return; }
+        const uid = session?.user?.id;
+        if (!uid) { setIsLoading(false); return; }
+        setUserId(uid);
 
-        // ── 1. Lab-level project_id - try team_members first, then user_profiles ─
-        const { data: membership } = await supabase
+        // ── 1. Every LC this user belongs to ───────────────────────────────
+        const { data: memberRows, error: memberErr } = await supabase
           .from("team_members")
-          .select("project_id")
-          .eq("user_id", userId)
-          .maybeSingle();
+          .select("project_id, role, department_id, joined_at, projects(name)")
+          .eq("user_id", uid)
+          .order("joined_at", { ascending: true });
+        if (memberErr) console.error("[ProjectContext] team_members error:", memberErr.message);
 
-        let pid = (membership?.project_id as string) ?? null;
+        const memberships: LcMembership[] = (memberRows ?? []).map((row) => {
+          const proj = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+          return {
+            id: row.project_id as string,
+            name: ((proj as { name?: string } | null)?.name) ?? "Local Committee",
+            role: toUserRole(row.role),
+            departmentId: (row.department_id as string | null) ?? null,
+          };
+        });
+        setLcs(memberships);
+        if (memberships.length === 0) { setIsLoading(false); return; }
 
-        if (!pid) {
-          // Fallback: user may be in user_profiles but not yet in team_members
-          const { data: prof } = await supabase
-            .from("user_profiles")
-            .select("project_id")
-            .eq("id", userId)
-            .maybeSingle();
-          pid = (prof?.project_id as string) ?? null;
-        }
-
-        if (!pid) { setIsLoading(false); return; }
+        const stored = readStorage(ACTIVE_LC_STORAGE_KEY);
+        const pid = memberships.some((m) => m.id === stored) ? stored! : memberships[0].id;
         setProjectId(pid);
 
-        // ── 2. Sub-projects this user is a member of ───────────────────────
-        const { data: memberRows, error: memberError } = await supabase
+        // ── 2. Departments of the active LC ────────────────────────────────
+        await loadDepartments(pid);
+
+        // ── 3. Groups (sub_projects) this user is in, within the active LC ─
+        const { data: groupRows, error: groupError } = await supabase
           .from("sub_project_members")
           .select(
             "sub_project_id, sub_projects(id, project_id, name, description, created_by, created_at, archived, color)"
           )
-          .eq("user_id", userId);
+          .eq("user_id", uid);
 
-        if (memberError) {
-          console.error("[ProjectContext] sub_project_members error:", memberError);
-          setIsLoading(false);
+        if (groupError) {
+          console.error("[ProjectContext] sub_project_members error:", groupError);
           return;
         }
 
-        if (memberRows) {
-          const seen = new Set<string>();
-          const sps: SubProject[] = memberRows
-            .map((row) => {
-              const raw = row.sub_projects;
-              // Supabase returns a single object (FK → PK join), not an array
-              const sp = Array.isArray(raw) ? raw[0] : (raw as Record<string, unknown> | null);
-              if (!sp) return null;
-              return {
-                id:          sp.id          as string,
-                projectId:   sp.project_id  as string,
-                name:        sp.name        as string,
-                description: (sp.description as string | undefined) ?? undefined,
-                createdBy:   (sp.created_by  as string | undefined) ?? undefined,
-                createdAt:   sp.created_at  as string,
-                archived:    (sp.archived   as boolean) ?? false,
-                color:       (sp.color as string | null) ?? undefined,
-              } as SubProject;
-            })
-            .filter((sp): sp is SubProject => {
-              if (sp === null || sp.archived) return false;
-              if (seen.has(sp.id)) return false;
-              seen.add(sp.id);
-              return true;
-            });
+        const seen = new Set<string>();
+        const sps: SubProject[] = (groupRows ?? [])
+          .map((row) => {
+            const raw = row.sub_projects;
+            // Supabase returns a single object (FK → PK join), not an array
+            const sp = Array.isArray(raw) ? raw[0] : (raw as Record<string, unknown> | null);
+            if (!sp) return null;
+            return {
+              id:          sp.id          as string,
+              projectId:   sp.project_id  as string,
+              name:        sp.name        as string,
+              description: (sp.description as string | undefined) ?? undefined,
+              createdBy:   (sp.created_by  as string | undefined) ?? undefined,
+              createdAt:   sp.created_at  as string,
+              archived:    (sp.archived   as boolean) ?? false,
+              color:       (sp.color as string | null) ?? undefined,
+            } as SubProject;
+          })
+          .filter((sp): sp is SubProject => {
+            if (sp === null || sp.archived || sp.projectId !== pid) return false;
+            if (seen.has(sp.id)) return false;
+            seen.add(sp.id);
+            return true;
+          });
 
-          setSubProjects(sps);
+        setSubProjects(sps);
 
-          // Restore persisted selection - validate it's still a valid sub-project
-          let stored: string | null = null;
-          let storedScope: ActiveScope = "lab";
-          try {
-            stored      = localStorage.getItem(STORAGE_KEY);
-            storedScope = (localStorage.getItem(SCOPE_STORAGE_KEY) ?? "lab") as ActiveScope;
-          } catch { /* storage blocked (private mode, quota exceeded) — use defaults */ }
+        // Restore persisted selection - validate it's still a valid group
+        const storedGroup = readStorage(STORAGE_KEY);
+        const storedScope = (readStorage(SCOPE_STORAGE_KEY) ?? "lab") as ActiveScope;
 
-          if (storedScope === "personal") {
-            setActiveScopeState("personal");
-          } else if (stored && sps.some((sp) => sp.id === stored)) {
-            setSubProjectId(stored);
-            setActiveScopeState("project");
-          } else {
-            setActiveScopeState("lab");
-          }
+        if (storedScope === "personal") {
+          setActiveScopeState("personal");
+        } else if (storedGroup && sps.some((sp) => sp.id === storedGroup)) {
+          setSubProjectId(storedGroup);
+          setActiveScopeState("project");
+        } else {
+          setActiveScopeState("lab");
         }
       } catch (err) {
         console.error("[ProjectContext] load error:", err);
@@ -158,7 +224,21 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
 
     load();
+  }, [loadDepartments]);
+
+  const setActiveLc = useCallback((id: string) => {
+    try {
+      localStorage.setItem(ACTIVE_LC_STORAGE_KEY, id);
+      // Groups and scope belong to the previous LC.
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(SCOPE_STORAGE_KEY);
+    } catch { /* ignore */ }
+    window.location.assign("/");
   }, []);
+
+  const refreshDepartments = useCallback(async () => {
+    if (projectId) await loadDepartments(projectId);
+  }, [projectId, loadDepartments]);
 
   const setActiveSubProject = useCallback((id: string | null) => {
     setSubProjectId(id);
@@ -177,9 +257,29 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setSubProjects((prev) => [...prev, sp]);
   }, []);
 
+  const active = lcs.find((m) => m.id === projectId) ?? null;
+  const role = active?.role ?? null;
+
   return (
     <ProjectContext.Provider
-      value={{ projectId, subProjectId, subProjects, activeScope: activeScopeState, setActiveSubProject, setActiveScope, addSubProject, isLoading }}
+      value={{
+        userId,
+        lcs,
+        projectId,
+        role,
+        departmentId: active?.departmentId ?? null,
+        departments,
+        ledDepartmentIds: ledDepartmentIds(role, userId, departments),
+        setActiveLc,
+        refreshDepartments,
+        subProjectId,
+        subProjects,
+        activeScope: activeScopeState,
+        setActiveSubProject,
+        setActiveScope,
+        addSubProject,
+        isLoading,
+      }}
     >
       {children}
     </ProjectContext.Provider>

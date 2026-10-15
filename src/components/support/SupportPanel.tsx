@@ -9,6 +9,9 @@ import {
 import Avatar from "@/components/ui/Avatar";
 import { resolveResources, hasNoCounselingResources } from "@/lib/support/institutions";
 import type { LabResource, ResolvedResource } from "@/lib/support/institutions";
+import { useProject } from "@/context/ProjectContext";
+import { ROLE_LABELS, toUserRole } from "@/lib/permissions";
+import type { UserRole } from "@/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,17 +21,18 @@ type Screen =
   | { id: "compose"; recipient: Member }
   | { id: "sent"; recipientName: string; msgId: string }
   | { id: "b" }
-  | { id: "b_pick"; filter: "pi" | "all" }
+  | { id: "b_pick"; filter: "leaders" | "all" }
   | { id: "b_message"; recipient: Member };
 
 interface Member {
   id: string;
   name: string;
-  role: "pi" | "researcher";
+  role: UserRole;
+  departmentId: string | null;
   avatarColor: string;
   avatarInitials: string;
   avatarUrl?: string;
-  contextNote?: string; // e.g. "PI", "on this task with you"
+  contextNote?: string; // e.g. "President", "on this task with you"
 }
 
 type SupportResource = LabResource;
@@ -132,7 +136,8 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   const [members, setMembers] = useState<Member[]>([]);
   const [resources, setResources] = useState<SupportResource[]>([]);
   const [institutionKey, setInstitutionKey] = useState<string | null>(null);
-  const [isCurrentUserPi, setIsCurrentUserPi] = useState(false);
+  const { role: myRole, departmentId: myDepartmentId, departments } = useProject();
+  const isCurrentUserPresident = myRole === "president";
   const [piInvitation, setPiInvitation] = useState<{ text: string; piName: string } | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
@@ -192,7 +197,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
         const [membQ, resQ, projQ] = await Promise.all([
           supabase
             .from("team_members")
-            .select("user_id, role, user_profiles(name, avatar_initials, avatar_color, avatar_url)")
+            .select("user_id, role, department_id, user_profiles(name, avatar_initials, avatar_color, avatar_url)")
             .eq("project_id", projectId),
           supabase
             .from("support_resources")
@@ -212,7 +217,8 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           return {
             id: row["user_id"] as string,
             name: prof?.["name"] ?? "Team member",
-            role: row["role"] as "pi" | "researcher",
+            role: toUserRole(row["role"]),
+            departmentId: (row["department_id"] as string | null) ?? null,
             avatarColor: prof?.["avatar_color"] ?? "#B4D4E3",
             avatarInitials: prof?.["avatar_initials"] ?? initials(prof?.["name"] ?? "TM"),
             avatarUrl: prof?.["avatar_url"] ?? undefined,
@@ -225,11 +231,10 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
         if (!projQ.error && projQ.data) {
           const pd = projQ.data as Record<string, unknown>;
           if (pd["support_invitation"]) {
-            const piMember = rawMembers.find((m) => m.role === "pi");
-            setPiInvitation({ text: pd["support_invitation"] as string, piName: piMember?.name ?? "PI" });
+            const president = rawMembers.find((m) => m.role === "president");
+            setPiInvitation({ text: pd["support_invitation"] as string, piName: president?.name ?? "Your LCP" });
           }
           if (pd["institution_key"]) setInstitutionKey(pd["institution_key"] as string);
-          if (pd["owner_id"]) setIsCurrentUserPi((pd["owner_id"] as string) === userId);
         }
       } catch { /* non-fatal */ } finally {
         setLoadingData(false);
@@ -244,7 +249,11 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   }, [projectId, userId]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
-  const pi = members.find((m) => m.role.toLowerCase() === "pi");
+  // The people a member would naturally reach out to: their department's VP, then the LCP.
+  const myVpId = departments.find((d) => d.id === myDepartmentId)?.vpUserId ?? null;
+  const leaders = members
+    .filter((m) => m.role === "president" || (myRole === "member" && m.id === myVpId))
+    .sort((a, b) => (a.role === "president" ? 1 : 0) - (b.role === "president" ? 1 : 0));
   const canGoBack = history.length > 0;
 
   return (
@@ -320,9 +329,9 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
             resources={resources}
             institutionKey={institutionKey}
             loading={loadingData}
-            pi={pi}
+            leaders={leaders}
             members={members}
-            isCurrentUserPi={isCurrentUserPi}
+            isCurrentUserPresident={isCurrentUserPresident}
             projectId={projectId}
             onBack={canGoBack ? back : undefined}
             onClose={onClose}
@@ -334,7 +343,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           <BPickScreen
             filter={screen.filter}
             members={members}
-            pi={pi}
+            leaders={leaders}
             onBack={back}
             onClose={onClose}
             onSelect={(recipient) => push({ id: "b_message", recipient })}
@@ -420,10 +429,9 @@ function SimplePickScreen({ members, onBack, onClose, onSelect }: {
   onSelect: (m: Member) => void;
 }) {
   const sorted = [...members].sort((a, b) => {
-    if (a.role === "pi" && b.role !== "pi") return -1;
-    if (b.role === "pi" && a.role !== "pi") return 1;
-    return a.name.localeCompare(b.name);
-  }).map((m) => ({ ...m, contextNote: m.role === "pi" ? "PI" : "Researcher" }));
+    const rank = (r: UserRole) => (r === "president" ? 0 : r === "vp" ? 1 : 2);
+    return rank(a.role) - rank(b.role) || a.name.localeCompare(b.name);
+  }).map((m) => ({ ...m, contextNote: ROLE_LABELS[m.role] }));
 
   return (
     <PanelShell title="Who would you like to reach?" onBack={onBack} onClose={onClose}>
@@ -780,23 +788,21 @@ function VoiceDraftTextarea({ value, onChange, rows = 8, placeholder }: {
 
 // ── Screen: B Pick - recipient selection from Track B ────────────────────────
 
-function BPickScreen({ filter, members, pi, onBack, onClose, onSelect }: {
-  filter: "pi" | "all";
+function BPickScreen({ filter, members, leaders, onBack, onClose, onSelect }: {
+  filter: "leaders" | "all";
   members: Member[];
-  pi: Member | undefined;
+  leaders: Member[];
   onBack: () => void;
   onClose: () => void;
   onSelect: (m: Member) => void;
 }) {
-  const candidates = filter === "pi"
-    ? (pi ? [pi] : members.filter(m => m.role.toLowerCase() === "pi"))
-    : members;
+  const candidates = filter === "leaders" ? leaders : members;
 
   return (
     <PanelShell title="Who can help?" onBack={onBack} onClose={onClose}>
       {candidates.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
-          {filter === "pi" ? "No PI found in this lab." : "No team members found."}
+          {filter === "leaders" ? "No VP or president found in this LC yet." : "No team members found."}
         </p>
       )}
       <div className="flex flex-col gap-2">
@@ -811,17 +817,17 @@ function BPickScreen({ filter, members, pi, onBack, onClose, onSelect }: {
 // ── Screen: B,Support resources ─────────────────────────────────────────────
 // Track B: no analytics, no logging, no INSERT/UPDATE triggered by viewing this screen.
 
-function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUserPi, projectId, onBack, onClose, onPickRecipient }: {
+function BScreen({ resources, institutionKey, loading, leaders, members, isCurrentUserPresident, projectId, onBack, onClose, onPickRecipient }: {
   resources: SupportResource[];
   institutionKey: string | null;
   loading: boolean;
-  pi: Member | undefined;
+  leaders: Member[];
   members: Member[];
-  isCurrentUserPi: boolean;
+  isCurrentUserPresident: boolean;
   projectId: string | null;
   onBack?: () => void;
   onClose: () => void;
-  onPickRecipient: (filter: "pi" | "all") => void;
+  onPickRecipient: (filter: "leaders" | "all") => void;
 }) {
   const resolved = resolveResources(resources, institutionKey, "US");
 
@@ -841,9 +847,6 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
     (grouped[r.category] ??= []).push(r);
   }
 
-  if (process.env.NODE_ENV === "development" && !pi && members.length > 0) {
-    console.warn("[SupportPanel] No PI found in lab members. Roles present:", members.map(m => m.role));
-  }
 
   return (
     <PanelShell title="Support resources" onBack={onBack} onClose={onClose}>
@@ -879,7 +882,7 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
         </section>
       ))}
 
-      {!loading && hasNoCounselingResources(resources, institutionKey) && isCurrentUserPi && (
+      {!loading && hasNoCounselingResources(resources, institutionKey) && isCurrentUserPresident && (
         <p style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 16 }}>
           Canopy doesn&rsquo;t have support resources for your institution yet.{" "}
           <a href="/team" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Add them</a>
@@ -889,12 +892,12 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
 
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, marginTop: 8 }}>
         <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 10 }}>
-          If you&rsquo;d rather talk to someone on the project
+          If you&rsquo;d rather talk to someone in your LC
         </p>
         <div className="flex flex-col gap-2">
-          {!isCurrentUserPi && (
+          {leaders.length > 0 && (
           <button
-            onClick={() => onPickRecipient("pi")}
+            onClick={() => onPickRecipient("leaders")}
             style={{
               height: 44, padding: "0 16px",
               backgroundColor: "transparent",
@@ -904,7 +907,7 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
               fontFamily: "var(--font-roboto)", textAlign: "left",
             }}
           >
-            Message my PI
+            Message my VP or LCP
           </button>
           )}
           {members.length > 0 && (

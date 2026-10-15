@@ -8,6 +8,7 @@ import { DateTimeFields, isoToLocalDate } from "@/components/ui/DateTimePicker";
 import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Avatar from "@/components/ui/Avatar";
 import ClientOnly from "@/components/ui/ClientOnly";
@@ -806,7 +807,7 @@ export default function RemindersPage() {
             const p = Array.isArray(row.user_profiles) ? row.user_profiles[0] : row.user_profiles;
             const profile = p as Record<string, string> | null;
             const name = profile?.name ?? "Team Member";
-            return { id: row.user_id as string, name, email: "", role: (row.role ?? "researcher") as User["role"], avatarColor: profile?.avatar_color ?? "#B4D4E3", avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"), avatarUrl: profile?.avatar_url ?? undefined };
+            return { id: row.user_id as string, name, email: "", role: toUserRole(row.role), avatarColor: profile?.avatar_color ?? "#B4D4E3", avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"), avatarUrl: profile?.avatar_url ?? undefined };
           }));
         }
       }

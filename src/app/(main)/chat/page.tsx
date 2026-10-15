@@ -102,7 +102,7 @@ export default function ChatPage() {
       setTeamMembers(data.filter(r => r.user_id !== currentUserId).map(r => {
         const p = (Array.isArray(r.user_profiles) ? r.user_profiles[0] : r.user_profiles) as Record<string, string> | null;
         const name = p?.name ?? "Unknown";
-        return { id: r.user_id as string, name, email: "", role: "researcher" as const, avatarColor: p?.avatar_color ?? "#CBD5E1", avatarInitials: computeInitials(name) || (p?.avatar_initials ?? "??"), avatarUrl: p?.avatar_url ?? undefined };
+        return { id: r.user_id as string, name, email: "", role: "member" as const, avatarColor: p?.avatar_color ?? "#CBD5E1", avatarInitials: computeInitials(name) || (p?.avatar_initials ?? "??"), avatarUrl: p?.avatar_url ?? undefined };
       }));
     }
     load();

@@ -33,20 +33,25 @@ export function mockSession() {
   })
 }
 
-export async function setupAuthMocks(page: Page, role: 'pi' | 'researcher') {
+export type MockRole = 'president' | 'vp' | 'member'
+
+export async function setupAuthMocks(page: Page, role: MockRole) {
   const session = mockSession()
   const profileData = {
     id: MOCK_USER_ID, name: 'Test User', role,
     avatar_color: '#B4D4E3', avatar_initials: 'TU',
     email: MOCK_EMAIL, bio: '',
   }
-  const membershipData = { project_id: 'project-abc', user_id: MOCK_USER_ID, role }
+  const membershipData = {
+    project_id: 'project-abc', user_id: MOCK_USER_ID, role, department_id: null,
+    joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' },
+  }
   const projectData = {
-    id: 'project-abc', name: 'Test Project', institution: 'Test Uni',
+    id: 'project-abc', name: 'AIESEC in Test City', institution: 'Test University',
     active_prompt_ids: ['jp2', 'jp7', 'jp11'],
   }
-  const inviteCodes = role === 'pi'
-    ? [{ id: 'code-1', code: 'CANOPY-ABCD', used_by: null }]
+  const inviteCodes = role === 'president'
+    ? [{ id: 'code-1', code: 'LC-ABCDEF', used_by: null }]
     : []
 
   await page.addInitScript(

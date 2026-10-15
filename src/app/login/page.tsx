@@ -259,7 +259,7 @@ export default function LoginPage() {
       if (!session?.user) { setChecking(false); return; }
       try {
         const { data: member, error: memberError } = await supabase
-          .from("team_members").select("id").eq("user_id", session.user.id).maybeSingle();
+          .from("team_members").select("id").eq("user_id", session.user.id).limit(1).maybeSingle();
         if (memberError) { setChecking(false); return; }
         if (member) {
           // Normal lab member - resolve any pending project invite then go home
@@ -318,7 +318,7 @@ export default function LoginPage() {
       }
 
       const { data: member, error: memberError } = await supabase
-        .from("team_members").select("id").eq("user_id", user.id).maybeSingle();
+        .from("team_members").select("id").eq("user_id", user.id).limit(1).maybeSingle();
       if (memberError) { setLoading(false); return; }
       if (member) {
         await resolveProjectInvite(user.id, user.email ?? "");

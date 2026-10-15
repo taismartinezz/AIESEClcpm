@@ -6,11 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare,
+  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
 import Avatar from "@/components/ui/Avatar";
@@ -43,6 +44,47 @@ const NAV_ITEMS = [
   { href: "/team",        label: "Team",       icon: Users           },
 ];
 
+
+// ── LC switcher (top of the workspace menu) ───────────────────────────────────
+
+function LcMenuSection({ onDone }: { onDone: () => void }) {
+  const { lcs, projectId, setActiveLc } = useProject();
+  return (
+    <>
+      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-secondary)", padding: "4px 14px 4px", margin: 0 }}>
+        Local Committees
+      </p>
+      {lcs.map((lc) => {
+        const active = lc.id === projectId;
+        return (
+          <button
+            key={lc.id}
+            onClick={() => { onDone(); if (!active) setActiveLc(lc.id); }}
+            className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
+            style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
+            aria-current={active ? "true" : undefined}
+          >
+            <span style={{ width: 14, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+              {active && <Check size={13} color="var(--color-navy)" />}
+            </span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 400, color: "var(--color-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lc.name}</span>
+            <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>{ROLE_LABELS[lc.role]}</span>
+          </button>
+        );
+      })}
+      <Link
+        href="/onboarding?add=1"
+        onClick={onDone}
+        className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
+        style={{ padding: "7px 14px", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)", textDecoration: "none" }}
+      >
+        <Plus size={13} />
+        <span style={{ fontSize: 13 }}>Create or join another LC</span>
+      </Link>
+      <div style={{ borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
+    </>
+  );
+}
 
 function NotifDot({ count }: { count: number }) {
   if (count === 0) return null;
@@ -162,7 +204,7 @@ function SidebarBody({
                 border: "none", cursor: "pointer",
                 fontFamily: "var(--font-roboto)", fontSize: 10, fontWeight: 700,
               }}
-              aria-label={`Workspace: ${wsDisplayName || "Lab"}`}
+              aria-label={`Workspace: ${wsDisplayName || "LC"}`}
               aria-expanded={wsOpen}
             >
               {wsInitials}
@@ -176,13 +218,14 @@ function SidebarBody({
               borderRadius: 10, boxShadow: "0 8px 32px rgba(27,46,75,0.18)",
               padding: "8px 0", minWidth: 200, maxHeight: 320, overflowY: "auto",
             }}>
+              <LcMenuSection onDone={() => setWsOpen(false)} />
               <button
                 onClick={() => { onLabHome?.(); setWsOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
                 style={{ padding: "7px 14px", border: "none", background: activeScope === "lab" ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
               >
                 <span style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: wsBg, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: activeScope === "lab" ? 700 : 400, color: "var(--color-body)" }}>Lab Home</span>
+                <span style={{ fontSize: 13, fontWeight: activeScope === "lab" ? 700 : 400, color: "var(--color-body)" }}>LC Home</span>
               </button>
               {subProjects.map(sp => {
                 const spActive = activeScope === "project" && activeSubProjectId === sp.id;
@@ -213,7 +256,7 @@ function SidebarBody({
                 style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)" }}
               >
                 <Plus size={13} />
-                <span style={{ fontSize: 13 }}>New project</span>
+                <span style={{ fontSize: 13 }}>New group</span>
               </button>
             </div>
           )}
@@ -347,7 +390,7 @@ function SidebarBody({
             {wsInitials}
           </span>
           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {wsDisplayName || "Lab"}
+            {wsDisplayName || "LC"}
           </span>
           <ChevronDown size={13} color="var(--color-secondary)" style={{ flexShrink: 0, transform: wsOpen ? "rotate(180deg)" : undefined }} />
         </button>
@@ -359,13 +402,14 @@ function SidebarBody({
             borderRadius: 10, boxShadow: "0 8px 32px rgba(27,46,75,0.18)",
             padding: "8px 0", maxHeight: 280, overflowY: "auto",
           }}>
+            <LcMenuSection onDone={() => setWsOpen(false)} />
             <button
               onClick={() => { onLabHome?.(); setWsOpen(false); }}
               className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
               style={{ padding: "7px 14px", border: "none", background: activeScope === "lab" ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
             >
               <span style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: wsBg, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: activeScope === "lab" ? 700 : 400, color: "var(--color-body)" }}>Lab Home</span>
+              <span style={{ fontSize: 13, fontWeight: activeScope === "lab" ? 700 : 400, color: "var(--color-body)" }}>LC Home</span>
             </button>
             {subProjects.map(sp => {
               const spActive = activeScope === "project" && activeSubProjectId === sp.id;
@@ -396,7 +440,7 @@ function SidebarBody({
               style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)" }}
             >
               <Plus size={13} />
-              <span style={{ fontSize: 13 }}>New project</span>
+              <span style={{ fontSize: 13 }}>New group</span>
             </button>
           </div>
         )}
@@ -462,7 +506,7 @@ function SidebarBody({
                   whiteSpace: "nowrap",
                 }}>
                   {shortName}
-                  {user.role === "pi" && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--color-secondary)", fontWeight: 400 }}>PI</span>}
+                  {user.role !== "member" && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--color-secondary)", fontWeight: 400 }}>{ROLE_LABELS[user.role]}</span>}
                 </span>
               </div>
             );
@@ -706,7 +750,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               id: u.id ?? "demo",
               name: u.name ?? "You",
               email: u.email ?? "",
-              role: (u.role ?? "researcher") as User["role"],
+              role: toUserRole(u.role),
               avatarColor: u.avatarColor ?? "#B4D4E3",
               avatarInitials: computeInitials(u.name ?? "") || (u.avatarInitials ?? "??"),
             }]);
@@ -899,7 +943,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               id: currentUserId,
               name,
               email: "",
-              role: (myProf.role as User["role"]) ?? "researcher",
+              role: toUserRole(myProf.role),
               avatarColor: (myProf.avatar_color as string) ?? "#B4D4E3",
               avatarInitials: computeInitials(name) || ((myProf.avatar_initials as string) ?? "??"),
               avatarUrl: (myProf.avatar_url as string) ?? undefined,

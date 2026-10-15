@@ -7,6 +7,7 @@ import {
   getUser, CURRENT_USER_ID, getStoredProject,
 } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import type { Task, CalendarEvent, DashboardPost, TaskStatus, User } from "@/types";
 import { useProject } from "@/context/ProjectContext";
 import TaskDetailPanel from "@/components/tasks/TaskDetailPanel";
@@ -150,7 +151,7 @@ function AddReminderModal({
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects, projectId: activeProjectId } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading } = useProject();
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalStatus, setModalStatus] = useState<TaskStatus | null>(null);
@@ -175,18 +176,15 @@ export default function DashboardPage() {
 
         const { data: up } = await supabase
           .from("user_profiles")
-          .select("project_id, name, projects(name)")
+          .select("name")
           .eq("id", user.id)
           .maybeSingle();
+        if (up?.name) setCurrentUserFirstName((up.name as string).trim().split(/\s+/)[0]);
 
-        if (!up?.project_id) { setLoading(false); return; }
-        const pid = up.project_id as string;
+        const pid = activeProjectId;
+        if (!pid) { if (!lcLoading) setLoading(false); return; }
         setProjectId(pid);
-
-        if (up.name) setCurrentUserFirstName((up.name as string).trim().split(/\s+/)[0]);
-
-        const proj = Array.isArray(up.projects) ? up.projects[0] : up.projects;
-        if (proj) setProjectName((proj as Record<string, string>).name ?? "");
+        setProjectName(lcs.find((lc) => lc.id === pid)?.name ?? "");
 
         // Fetch team members for avatar display
         const { data: members } = await supabase
@@ -202,7 +200,7 @@ export default function DashboardPage() {
               id: row.user_id as string,
               name: profile?.name ?? "Team Member",
               email: "",
-              role: (row.role ?? "researcher") as User["role"],
+              role: toUserRole(row.role),
               avatarColor: profile?.avatar_color ?? "#B4D4E3",
               avatarInitials: profile?.avatar_initials ?? "??",
               avatarUrl: profile?.avatar_url ?? undefined,
@@ -294,7 +292,8 @@ export default function DashboardPage() {
       setTasks(TASKS);
       setDashPosts(DASHBOARD_POSTS);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId, lcLoading]);
 
   // Reminders fetch: overdue + upcoming 7 days, re-runs on project switch
   useEffect(() => {

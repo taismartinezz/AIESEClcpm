@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { CURRENT_USER_ID, TEAM_MEMBERS, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
-import type { TeamMember, TaskStatus, LabRole } from "@/types";
+import type { TeamMember, TaskStatus, LabRole, Department, UserRole } from "@/types";
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, toUserRole } from "@/lib/permissions";
+import { groupDirectory } from "@/lib/team";
 import Avatar from "@/components/ui/Avatar";
 import { Video, X, Edit3, Check, Users, TrendingUp, ShieldCheck, Plus, Phone, Globe, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -163,7 +165,7 @@ function MeetingModal({ onClose }: { onClose: () => void }) {
       <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 360, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(27,46,75,0.18)" }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 17, color: "var(--color-navy)", margin: "0 0 8px" }}>Starting a Zoom meeting…</h2>
         <p style={{ fontSize: 13, color: "var(--color-secondary)", lineHeight: 1.5, marginBottom: 24 }}>
-          Your team will receive a Zoom link via Canopy notifications.
+          Share the meeting link with your team in Chat once it opens.
         </p>
         <div className="flex gap-2">
           <a
@@ -186,16 +188,36 @@ function MeetingModal({ onClose }: { onClose: () => void }) {
 // ── Member profile panel ──────────────────────────────────────────────────────
 
 function MemberPanel({
-  member, onClose, isPi, labRoles, onRoleChange,
+  member, onClose, isPresident, projectId, labRoles, departments, onMemberChange,
 }: {
   member: TeamMember;
   onClose: () => void;
-  isPi: boolean;
+  isPresident: boolean;
+  projectId: string | null;
   labRoles: LabRole[];
-  onRoleChange: (memberId: string, roleId: string | null, roleName: string | null) => void;
+  departments: Department[];
+  onMemberChange: (memberId: string, patch: Partial<TeamMember>) => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
   const [savingRole, setSavingRole] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const department = departments.find((d) => d.id === member.departmentId) ?? null;
+
+  async function saveMembership(patch: Record<string, unknown>, local: Partial<TeamMember>) {
+    if (!projectId) return;
+    setSavingRole(true);
+    setSaveError(null);
+    try {
+      const { error } = await supabase.from("team_members").update(patch)
+        .eq("user_id", member.id).eq("project_id", projectId);
+      if (error) throw new Error(error.message);
+      onMemberChange(member.id, local);
+    } catch (e) {
+      setSaveError(`Couldn't save: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSavingRole(false);
+    }
+  }
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 768); }
@@ -228,19 +250,18 @@ function MemberPanel({
               <Avatar user={member} size={48} />
               <div>
                 <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 17, color: "var(--color-body)", margin: 0 }}>{member.name}</h2>
-                {isPi && labRoles.length > 0 ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                {isPresident && labRoles.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 6 }}>
                     <div style={{ position: "relative" }}>
                       <select
-                        defaultValue={labRoles.find((r) => r.name === member.labRoleName)?.id ?? ""}
+                        value={labRoles.find((r) => r.name === member.labRoleName)?.id ?? ""}
                         disabled={savingRole}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const roleId = e.target.value || null;
-                          const roleName = labRoles.find((r) => r.id === roleId)?.name ?? null;
-                          setSavingRole(true);
-                          await supabase.from("team_members").update({ lab_role_id: roleId }).eq("user_id", member.id);
-                          setSavingRole(false);
-                          onRoleChange(member.id, roleId, roleName);
+                          const role = labRoles.find((r) => r.id === roleId);
+                          saveMembership({ lab_role_id: roleId }, {
+                            labRoleName: role?.name, role: role?.permissionLevel ?? member.role,
+                          });
                         }}
                         style={{ height: 30, fontSize: 12, color: "var(--color-body)", backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 6, outline: "none", cursor: savingRole ? "default" : "pointer", fontFamily: "var(--font-roboto)", appearance: "none", padding: "0 24px 0 8px" }}
                         aria-label={`Role for ${member.name}`}
@@ -251,13 +272,31 @@ function MemberPanel({
                       </select>
                       <ChevronDown size={11} color="var(--color-secondary)" style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                     </div>
+                    <div style={{ position: "relative" }}>
+                      <select
+                        value={member.departmentId ?? ""}
+                        disabled={savingRole}
+                        onChange={(e) => {
+                          const departmentId = e.target.value || null;
+                          saveMembership({ department_id: departmentId }, { departmentId });
+                        }}
+                        style={{ height: 30, fontSize: 12, color: "var(--color-body)", backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 6, outline: "none", cursor: savingRole ? "default" : "pointer", fontFamily: "var(--font-roboto)", appearance: "none", padding: "0 24px 0 8px", maxWidth: 200 }}
+                        aria-label={`Department for ${member.name}`}
+                      >
+                        <option value="">No department</option>
+                        {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                      <ChevronDown size={11} color="var(--color-secondary)" style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                    </div>
                     {savingRole && <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>Saving…</span>}
                   </div>
                 ) : (
-                  <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3, textTransform: "capitalize" }}>
-                    {member.labRoleName ?? (member.role === "pi" ? "Principal Investigator" : "Researcher")}
+                  <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3 }}>
+                    {member.labRoleName ?? ROLE_DESCRIPTIONS[member.role]}
+                    {department && <> · {department.name}</>}
                   </p>
                 )}
+                {saveError && <p role="alert" style={{ fontSize: 11, color: "var(--color-error)", margin: "6px 0 0" }}>{saveError}</p>}
               </div>
             </div>
             <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close">
@@ -302,7 +341,7 @@ function MemberPanel({
 
 // ── Member card ───────────────────────────────────────────────────────────────
 
-function MemberCard({ member, onClick, isCurrentUser }: { member: TeamMember; onClick: () => void; isCurrentUser: boolean }) {
+function MemberCard({ member, onClick, isCurrentUser, department }: { member: TeamMember; onClick: () => void; isCurrentUser: boolean; department?: Department | null }) {
   const totalTasks = Object.values(member.taskCounts).reduce((a, b) => a + b, 0);
 
   return (
@@ -326,8 +365,14 @@ function MemberCard({ member, onClick, isCurrentUser }: { member: TeamMember; on
             {member.name}
             {isCurrentUser && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--color-secondary)", marginLeft: 6 }}>(you)</span>}
           </p>
-          <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 2 }}>
-            {member.labRoleName ?? (member.role === "pi" ? "PI" : "Researcher")}
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span>{member.labRoleName ?? ROLE_LABELS[member.role]}</span>
+            {department && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: department.color }} />
+                {department.name}
+              </span>
+            )}
           </p>
         </div>
         <ChevronRight size={14} color="var(--color-secondary)" style={{ flexShrink: 0, opacity: 0.5 }} />
@@ -578,11 +623,12 @@ function SupportResourcesAdmin({
 // ── Team page ─────────────────────────────────────────────────────────────────
 
 export default function TeamPage() {
-  const { activeScope, subProjectId, subProjects, projectId } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId, role: myRole, departments } = useProject();
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [weeklyUpdate, setWeeklyUpdate] = useState<string | undefined>(undefined);
-  const [isPi, setIsPi] = useState(false);
+  const [demoRole, setDemoRole] = useState<UserRole | null>(null);
+  const isPresident = (isSupabaseConfigured ? myRole : demoRole) === "president";
   const [storedProjectName, setStoredProjectName] = useState("");
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -616,7 +662,7 @@ export default function TeamPage() {
 
     if (!isSupabaseConfigured) {
       const su = getStoredUser();
-      setIsPi(su.role === "pi");
+      setDemoRole(su.role);
       setTeam(TEAM_MEMBERS);
       setLoading(false);
       return;
@@ -625,13 +671,6 @@ export default function TeamPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) { setLoading(false); return; }
       setCurrentUserId(session.user.id);
-      // Fetch real role -- never trust mock data for the PI gate
-      const { data: prof } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      setIsPi((prof?.role as string | null) === "pi");
     });
   }, []);
 
@@ -668,7 +707,7 @@ export default function TeamPage() {
           id: (r as { id: string }).id,
           projectId,
           name: (r as { name: string }).name,
-          permissionLevel: (r as { permission_level: string }).permission_level as "pi" | "researcher",
+          permissionLevel: toUserRole((r as { permission_level: string }).permission_level),
           isSystem: (r as { is_system: boolean }).is_system,
           createdAt: (r as { created_at: string }).created_at,
         })));
@@ -714,7 +753,8 @@ export default function TeamPage() {
             id: uid,
             name: profile?.name ?? "Unknown",
             email: "",
-            role: row.role as TeamMember["role"],
+            role: toUserRole(row.role),
+            departmentId: (row.department_id as string | null) ?? null,
             avatarColor: profile?.avatar_color ?? "#B4D4E3",
             avatarInitials: profile?.avatar_initials ?? "??",
             avatarUrl: profile?.avatar_url ?? undefined,
@@ -738,7 +778,7 @@ export default function TeamPage() {
               id: currentUserId,
               name: myProfile.name ?? "Unknown",
               email: "",
-              role: (myProfile.role as TeamMember["role"]) ?? "researcher",
+              role: toUserRole(myProfile.role),
               avatarColor: myProfile.avatar_color ?? "#B4D4E3",
               avatarInitials: myProfile.avatar_initials ?? "??",
               avatarUrl: myProfile.avatar_url ?? undefined,
@@ -757,7 +797,7 @@ export default function TeamPage() {
 
   // Load support resources and institution_key for PI admin panel.
   useEffect(() => {
-    if (!isPi || !projectId || !isSupabaseConfigured) return;
+    if (!isPresident || !projectId || !isSupabaseConfigured) return;
     (async () => {
       const [resQ, projQ] = await Promise.all([
         supabase
@@ -774,7 +814,7 @@ export default function TeamPage() {
       setAdminResources((resQ.data ?? []) as LabResource[]);
       if (projQ.data?.institution_key) setInstitutionKey(projQ.data.institution_key as string);
     })();
-  }, [isPi, projectId]);
+  }, [isPresident, projectId]);
 
   // In project scope, fetch the full sub-project member list (includes external members
   // who may not be in team_members) directly from sub_project_members + user_profiles.
@@ -802,7 +842,7 @@ export default function TeamPage() {
           id:              row.user_id as string,
           name,
           email:           "",
-          role:            (prof?.role as "pi" | "researcher") ?? "researcher",
+          role:            toUserRole(prof?.role),
           avatarColor:     prof?.avatar_color ?? "#B4D4E3",
           avatarInitials:  prof?.avatar_initials ?? name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
           avatarUrl:       prof?.avatar_url ?? undefined,
@@ -833,7 +873,7 @@ export default function TeamPage() {
 
   // F2: PI wellbeing rollup -- fetched only when the user is a PI and we have a projectId
   useEffect(() => {
-    if (!isPi || !projectId || !isSupabaseConfigured) return;
+    if (!isPresident || !projectId || !isSupabaseConfigured) return;
     setRollupLoading(true);
     Promise.all([
       supabase.rpc("get_wellbeing_rollup", { p_project_id: projectId }),
@@ -846,7 +886,7 @@ export default function TeamPage() {
       }
       setRollupLoading(false);
     });
-  }, [isPi, projectId]);
+  }, [isPresident, projectId]);
 
   // In project scope use the directly-fetched list with project-scoped task counts.
   const visibleTeam = activeScope === "project"
@@ -863,7 +903,7 @@ export default function TeamPage() {
     ? (teamBadgeName ? `Showing members of ${teamBadgeName}.` : `${visibleTeam.length} member${visibleTeam.length !== 1 ? "s" : ""}`)
     : `${visibleTeam.length} member${visibleTeam.length !== 1 ? "s" : ""} · ${storedProjectName}`;
   const canManageProject = activeScope === "project" && subProjectId && projectId
-    && (isPi || (subProjects.find((sp) => sp.id === subProjectId)?.createdBy === currentUserId));
+    && (isPresident || (subProjects.find((sp) => sp.id === subProjectId)?.createdBy === currentUserId));
 
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-roboto)" }}>
@@ -903,7 +943,7 @@ export default function TeamPage() {
         <WeeklyUpdateBar current={weeklyUpdate} onSave={setWeeklyUpdate} />
 
         {/* PI wellbeing rollup -- only shown to PI */}
-        {isPi && (
+        {isPresident && (
           <WellbeingRollupPanel
             rows={rollupRows}
             overdueCount={overdueCount}
@@ -914,7 +954,7 @@ export default function TeamPage() {
         )}
 
         {/* PI support resources admin -- only shown to PI */}
-        {isPi && projectId && (
+        {isPresident && projectId && (
           <SupportResourcesAdmin
             projectId={projectId}
             piRows={adminResources}
@@ -993,19 +1033,34 @@ export default function TeamPage() {
         )}
         {!loading && visibleTeam.length === 0 && (
           <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 16 }}>
-            {activeScope === "project" ? "No members in this project yet." : "Your team will appear here once collaborators join."}
+            {activeScope === "project" ? "No members in this group yet." : "Your LC will appear here once members join."}
           </p>
         )}
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
-          {visibleTeam.map((member) => (
-            <MemberCard
-              key={member.id}
-              member={member}
-              onClick={() => setSelectedMember(member)}
-              isCurrentUser={member.id === currentUserId}
-            />
-          ))}
-        </div>
+        {groupDirectory(visibleTeam, departments, activeScope === "project").map((section) => (
+          <section key={section.key} aria-labelledby={`team-section-${section.key}`} style={{ marginBottom: 28 }}>
+            {section.title && (
+              <h2
+                id={`team-section-${section.key}`}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "0 0 12px" }}
+              >
+                {section.color && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: section.color }} />}
+                {section.title}
+                <span style={{ fontWeight: 400 }}>· {section.members.length}</span>
+              </h2>
+            )}
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
+              {section.members.map((member) => (
+                <MemberCard
+                  key={member.id}
+                  member={member}
+                  department={departments.find((d) => d.id === member.departmentId) ?? null}
+                  onClick={() => setSelectedMember(member)}
+                  isCurrentUser={member.id === currentUserId}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
 
       </div>
 
@@ -1013,18 +1068,20 @@ export default function TeamPage() {
         <MemberPanel
           member={selectedMember}
           onClose={closeMemberPanel}
-          isPi={isPi}
+          isPresident={isPresident}
+          projectId={projectId}
           labRoles={labRoles}
-          onRoleChange={(memberId, _roleId, roleName) => {
-            setTeam((prev) => prev.map((m) => m.id === memberId ? { ...m, labRoleName: roleName ?? undefined } : m));
-            setSelectedMember((prev) => prev && prev.id === memberId ? { ...prev, labRoleName: roleName ?? undefined } : prev);
+          departments={departments}
+          onMemberChange={(memberId, patch) => {
+            setTeam((prev) => prev.map((m) => m.id === memberId ? { ...m, ...patch } : m));
+            setSelectedMember((prev) => prev && prev.id === memberId ? { ...prev, ...patch } : prev);
           }}
         />
       )}
       {meetingModalOpen && <MeetingModal onClose={closeMeetingModal} />}
       {showMembersModal && activeScope === "project" && subProjectId && projectId && (() => {
         const activeSp = subProjects.find((sp) => sp.id === subProjectId);
-        const canManage = isPi || (activeSp?.createdBy != null && activeSp.createdBy === currentUserId);
+        const canManage = isPresident || (activeSp?.createdBy != null && activeSp.createdBy === currentUserId);
         return (
           <ProjectMembersModal
             subProjectId={subProjectId}

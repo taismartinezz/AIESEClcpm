@@ -1,8 +1,15 @@
 // ── User & Roles ──────────────────────────────────────────────────────────────
 
-export type UserRole = "pi" | "researcher";
+/**
+ * Permission level inside one Local Committee (LC). A person can hold a different
+ * level in each LC they belong to — always read it for the active LC.
+ *   president — the LCP: manages the LC, roles, invites, departments and settings
+ *   vp        — executive board member; leads one or more departments
+ *   member    — team member who reports to a VP
+ */
+export type UserRole = "president" | "vp" | "member";
 
-/** A role defined within a single lab. Built-in: PI, Researcher. Custom: anything the PI adds. */
+/** A role title within one LC. Built-in: President, VP, Member. Custom titles map to a level. */
 export interface LabRole {
   id: string;
   projectId: string;
@@ -10,6 +17,18 @@ export interface LabRole {
   permissionLevel: UserRole;
   isSystem: boolean;
   createdAt: string;
+}
+
+/** A functional area of an LC (oGV, Marketing, …). Each member belongs to one; VPs lead them. */
+export interface Department {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+  vpUserId: string | null;
+  /** The department whose VP is in charge of finance (Finance & Legality by default). */
+  isFinance: boolean;
+  sortOrder: number;
 }
 
 export interface User {
@@ -26,9 +45,10 @@ export interface User {
 
 // ── Project ───────────────────────────────────────────────────────────────────
 
+/** A group inside an LC (a project team, committee, …). Stored in `sub_projects`. */
 export interface SubProject {
   id: string;
-  projectId: string;     // FK → projects.id (the lab)
+  projectId: string;     // FK → projects.id (the LC)
   name: string;
   description?: string;
   createdBy?: string;
@@ -103,6 +123,7 @@ export interface Task {
   dueDate?: string;       // ISO date string
   scope?: "personal" | "project" | "lab";
   subProjectId?: string;
+  departmentId?: string | null;
   createdAt: string;
   updatedAt: string;
   comments: TaskComment[];
@@ -161,6 +182,7 @@ export interface TeamMember extends User {
   weeklyUpdate?: string;
   weeklyUpdatedAt?: string;
   labRoleName?: string;
+  departmentId?: string | null;
 }
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────

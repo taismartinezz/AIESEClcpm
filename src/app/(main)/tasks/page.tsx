@@ -9,6 +9,7 @@ import {
 import { LayoutGrid, List, Search, Plus, User as UserIcon, Users } from "lucide-react";
 import { TASKS as MOCK_TASKS, USERS, getStoredProject } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import type { Task, TaskStatus, User, UserRole } from "@/types";
 import Toast, { showToast } from "@/components/ui/Toast";
@@ -41,7 +42,7 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState>(null);
-  const { subProjects, activeScope, subProjectId: ctxSubProjectId } = useProject();
+  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading } = useProject();
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("canopy_tasks_sidebar_collapsed") === "true"; } catch { return false; }
@@ -100,14 +101,8 @@ export default function TasksPage() {
       if (!user) { setLoading(false); return; }
       setCurrentUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("project_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const pid = profile?.project_id as string | undefined;
-      if (!pid) { setLoading(false); return; }
+      const pid = lcId;
+      if (!pid) { if (!lcLoading) setLoading(false); return; }
       setProjectId(pid);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,7 +120,7 @@ export default function TasksPage() {
             id,
             name: p?.name ?? "Team Member",
             email: "",
-            role: (p?.role ?? "researcher") as UserRole,
+            role: toUserRole(p?.role),
             avatarColor: p?.avatar_color ?? avatarColorFromId(id),
             avatarInitials: p?.avatar_initials ?? "??",
             avatarUrl: p?.avatar_url ?? undefined,
@@ -202,7 +197,7 @@ export default function TasksPage() {
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lcId, lcLoading]);
 
   // Open a specific task when navigated from global search (?openTask=<id>)
   useEffect(() => {

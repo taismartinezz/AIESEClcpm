@@ -21,15 +21,15 @@ After(async () => {
 // ── Given ─────────────────────────────────────────────────────────────────────
 
 Given('I am logged in', async () => {
-  await setupAuthMocks(page, 'researcher')
+  await setupAuthMocks(page, 'member')
 })
 
-Given('I am logged in as a PI', async () => {
-  await setupAuthMocks(page, 'pi')
+Given('I am logged in as the LC president', async () => {
+  await setupAuthMocks(page, 'president')
 })
 
-Given('I am logged in as a researcher', async () => {
-  await setupAuthMocks(page, 'researcher')
+Given('I am logged in as a member', async () => {
+  await setupAuthMocks(page, 'member')
 })
 
 // ── When ──────────────────────────────────────────────────────────────────────
@@ -53,12 +53,12 @@ Then('I should see a profile section', async () => {
   assert.ok(await heading.isVisible(), 'Expected profile section heading to be visible')
 })
 
-Then('I should see my lab invite code', async () => {
-  const heading = page.getByRole('heading', { name: /lab.*invite/i })
-  assert.ok(await heading.isVisible(), 'Expected Lab & Invite section to be visible for PI')
+Then('I should see the LC invite section', async () => {
+  const heading = page.getByRole('heading', { name: /members.*invites/i })
+  assert.ok(await heading.isVisible(), 'Expected the members & invites section to be visible for the president')
 })
 
 Then('I should not see an invite code section', async () => {
-  const visible = await page.getByRole('heading', { name: /lab.*invite/i }).isVisible().catch(() => false)
-  assert.equal(visible, false, 'Expected Lab & Invite section to be hidden for researcher')
+  const visible = await page.getByRole('heading', { name: /members.*invites/i }).isVisible().catch(() => false)
+  assert.equal(visible, false, 'Expected the members & invites section to be hidden for a member')
 })

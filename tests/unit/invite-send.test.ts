@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 // Tables that the route touches:
-//   user_profiles (name), team_members (+ lab_roles join), invite_codes,
+//   user_profiles (name), team_members, invite_codes,
 //   lab_roles (name lookup), projects (name)
 
 type Row = Record<string, unknown>;
 
 const TABLES: Record<string, Row[]> = {
-  user_profiles: [{ id: "pi-user", name: "Tais Martinez" }],
+  user_profiles: [{ id: "lcp-user", name: "Tais Martinez" }],
   team_members: [],     // set per-test
-  lab_roles: [{ id: "role-researcher", name: "Researcher", permission_level: "researcher" }],
+  lab_roles: [{ id: "role-member", name: "Member", permission_level: "member" }],
   invite_codes: [],     // set per-test
-  projects: [{ id: "project-collab", name: "CollabLab" }],
+  projects: [{ id: "lc-lisbon", name: "AIESEC in Lisbon" }],
 };
 
 // Track update calls
@@ -64,7 +64,7 @@ vi.mock("@supabase/supabase-js", () => ({
         auth: {
           getUser: vi.fn((token: string) =>
             Promise.resolve({
-              data: { user: token === "valid-token" ? { id: "pi-user" } : null },
+              data: { user: token === "valid-token" ? { id: "lcp-user" } : null },
               error: null,
             })
           ),
@@ -109,20 +109,20 @@ describe("POST /api/invite/send", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
   });
 
-  it("PI whose user_profiles.project_id is null but has a team_members pi row sends successfully", async () => {
-    // Arrange: PI membership exists in team_members; user_profiles has no project_id
+  it("the LC president can send invites for their LC", async () => {
+    // Arrange: president membership exists in team_members
     TABLES.team_members = [
-      { user_id: "pi-user", project_id: "project-collab", role: "pi", lab_role_id: null, lab_roles: null },
+      { user_id: "lcp-user", project_id: "lc-lisbon", role: "president", lab_role_id: null },
     ];
     TABLES.invite_codes = [
       {
         id: "inv-1",
-        invited_email: "alice@lab.com",
+        invited_email: "alice@example.com",
         code: "CODE-1",
-        lab_role_id: "role-researcher",
+        lab_role_id: "role-member",
         email_sent_at: null,
         used_by: null,
-        project_id: "project-collab",
+        project_id: "lc-lisbon",
       },
     ];
 
@@ -134,20 +134,20 @@ describe("POST /api/invite/send", () => {
     expect(body.results.find((r) => r.id === "inv-1")?.ok).toBe(true);
   });
 
-  it("researcher is rejected with 403", async () => {
-    // Arrange: user has researcher-level role only
+  it("a member's invites are skipped, not sent", async () => {
+    // Arrange: user has member-level role only
     TABLES.team_members = [
-      { user_id: "pi-user", project_id: "project-collab", role: "researcher", lab_role_id: "role-researcher", lab_roles: { permission_level: "researcher" } },
+      { user_id: "lcp-user", project_id: "lc-lisbon", role: "member", lab_role_id: "role-member" },
     ];
     TABLES.invite_codes = [
       {
         id: "inv-2",
-        invited_email: "bob@lab.com",
+        invited_email: "bob@example.com",
         code: "CODE-2",
-        lab_role_id: "role-researcher",
+        lab_role_id: "role-member",
         email_sent_at: null,
         used_by: null,
-        project_id: "project-collab",
+        project_id: "lc-lisbon",
       },
     ];
 
@@ -156,15 +156,15 @@ describe("POST /api/invite/send", () => {
     const body = await res.json() as { ok: boolean; results?: { id: string; ok: boolean; skipped?: string }[] };
 
     // 200 with skipped, not 403, because the route skips per-invite rather than blanket-rejecting
-    // (caller IS a member, just not PI of that project)
+    // (caller IS a member, just not the president of that LC)
     expect(res.status).toBe(200);
-    expect(body.results?.find((r) => r.id === "inv-2")?.skipped).toBe("not PI of this project");
+    expect(body.results?.find((r) => r.id === "inv-2")?.skipped).toBe("not president of this LC");
   });
 
-  it("PI of lab A cannot send lab B's invite IDs (skipped, not errored)", async () => {
-    // Arrange: PI of project-collab tries to send an invite belonging to project-other
+  it("the president of LC A cannot send LC B's invite IDs (skipped, not errored)", async () => {
+    // Arrange: president of lc-lisbon tries to send an invite belonging to lc-porto
     TABLES.team_members = [
-      { user_id: "pi-user", project_id: "project-collab", role: "pi", lab_role_id: null, lab_roles: null },
+      { user_id: "lcp-user", project_id: "lc-lisbon", role: "president", lab_role_id: null },
     ];
     TABLES.invite_codes = [
       {
@@ -174,7 +174,7 @@ describe("POST /api/invite/send", () => {
         lab_role_id: null,
         email_sent_at: null,
         used_by: null,
-        project_id: "project-other",   // different lab
+        project_id: "lc-porto",   // different LC
       },
     ];
 
@@ -183,6 +183,6 @@ describe("POST /api/invite/send", () => {
     const body = await res.json() as { ok: boolean; results: { id: string; ok: boolean; skipped?: string }[] };
 
     expect(res.status).toBe(200);
-    expect(body.results.find((r) => r.id === "inv-3")?.skipped).toBe("not PI of this project");
+    expect(body.results.find((r) => r.id === "inv-3")?.skipped).toBe("not president of this LC");
   });
 });

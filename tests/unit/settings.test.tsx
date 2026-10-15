@@ -4,10 +4,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 // ── Shared mock state ─────────────────────────────────────────────────────────
 // We use module-level variables so each test can control the returned role.
 
-let mockRole = 'pi'
+let mockRole: 'president' | 'vp' | 'member' = 'president'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}))
+
+// The page reads the active LC and the caller's role in it from ProjectContext.
+vi.mock('@/context/ProjectContext', () => ({
+  useProject: () => ({
+    activeScope: 'lab',
+    projectId: 'project-abc',
+    role: mockRole,
+    departments: [],
+    refreshDepartments: vi.fn(),
+  }),
 }))
 
 vi.mock('@/lib/supabase', () => {
@@ -43,7 +54,7 @@ vi.mock('@/lib/supabase', () => {
             role: mockRole,
             avatar_color: '#B4D4E3',
             avatar_initials: 'TU',
-            bio: 'Researcher',
+            bio: 'oGV team member',
           })
         }
         if (table === 'team_members') {
@@ -59,9 +70,9 @@ vi.mock('@/lib/supabase', () => {
             order: vi.fn().mockReturnThis(),
             limit: vi.fn().mockReturnThis(),
             maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-            // For PI: return a list of codes
+            // For the president: return a list of codes
             then: vi.fn().mockImplementation((cb: (v: { data: { id: string; code: string; used_by: null }[] }) => void) =>
-              cb({ data: [{ id: 'code-1', code: 'CANOPY-ABCD', used_by: null }] })
+              cb({ data: [{ id: 'code-1', code: 'LC-ABCDEF', used_by: null }] })
             ),
           }
         }
@@ -91,52 +102,56 @@ describe('Settings page — Issue #15', () => {
   })
 
   it('renders without crashing and shows page heading', async () => {
-    mockRole = 'pi'
+    mockRole = 'president'
     await renderSettings()
     expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
   })
 
   it('shows profile section', async () => {
-    mockRole = 'pi'
+    mockRole = 'president'
     await renderSettings()
     expect(screen.getByRole('heading', { name: /profile/i })).toBeInTheDocument()
   })
 
   it('shows account section', async () => {
-    mockRole = 'pi'
+    mockRole = 'president'
     await renderSettings()
     expect(screen.getByRole('heading', { name: /account/i })).toBeInTheDocument()
   })
 
   it('shows notifications section', async () => {
-    mockRole = 'pi'
+    mockRole = 'president'
     await renderSettings()
     expect(screen.getByRole('heading', { name: /notifications/i })).toBeInTheDocument()
   })
 
-  it('shows Lab & Invite section for PI role', async () => {
-    mockRole = 'pi'
+  it('shows members & invites, departments and LC settings to the president', async () => {
+    mockRole = 'president'
     await renderSettings()
-    expect(screen.getByRole('heading', { name: /lab.*invite/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /members.*invites/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^departments$/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /lc settings/i })).toBeInTheDocument()
   })
 
-  it('hides Lab & Invite section for researcher role', async () => {
-    mockRole = 'researcher'
+  it.each(['vp', 'member'] as const)('hides LC administration from a %s', async (role) => {
+    mockRole = role
     await renderSettings()
-    expect(screen.queryByRole('heading', { name: /lab.*invite/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /members.*invites/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /^departments$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /lc settings/i })).not.toBeInTheDocument()
   })
 
   it('does not crash when project has no active_prompt_ids field', async () => {
     // The projects mock returns data without active_prompt_ids (undefined),
     // which exercises the defensive Array.isArray check in settings/page.tsx.
-    mockRole = 'pi'
+    mockRole = 'president'
     await renderSettings()
     expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
   })
 
   it('does not crash when all table queries return null data', async () => {
     // Simulates a new user who has no project, no settings, no invite codes yet.
-    mockRole = 'researcher'
+    mockRole = 'member'
     // All tables return null via the default makeQuery(null) fallback — only user_profiles
     // returns a row so the page doesn't redirect to /login.
     await renderSettings()
@@ -145,8 +160,8 @@ describe('Settings page — Issue #15', () => {
 
   it('does not crash when supabase returns an error on a query', async () => {
     // Simulates a transient DB error on the team_members lookup.
-    mockRole = 'pi'
-    // team_members error: membership is null, so the project branch is skipped entirely.
+    mockRole = 'president'
+    // team_members error: the role-title lookup fails; the rest of the page still renders.
     // The page should still render the profile and account sections.
     const { supabase: sbMock } = await import('@/lib/supabase')
     const originalFrom = sbMock.from
