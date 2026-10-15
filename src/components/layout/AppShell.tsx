@@ -39,12 +39,10 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 
 const NAV_ITEMS = [
   { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
   { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
   { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
   { href: "/goals",       label: "Goals",      icon: Target          },
   { href: "/partners",    label: "Partners",   icon: Handshake       },
-  { href: "/journal",     label: "Journal",    icon: BookOpen        },
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
   { href: "/finance",     label: "Finance",    icon: Wallet          },
@@ -53,6 +51,8 @@ const NAV_ITEMS = [
   { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
   { href: "/handover",    label: "Handover",   icon: ScrollText      },
   { href: "/team",        label: "Team",       icon: Users           },
+  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
+  { href: "/journal",     label: "Journal",    icon: BookOpen        },
 ];
 
 

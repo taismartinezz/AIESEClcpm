@@ -809,7 +809,7 @@ export default function SettingsPage() {
 
       {/* Departments — president only */}
       {isPresident && activeScope !== "personal" && (
-        <section style={sectionStyle} aria-labelledby="settings-departments-heading">
+        <section id="departments" style={sectionStyle} aria-labelledby="settings-departments-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
             <h2 id="settings-departments-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>

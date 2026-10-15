@@ -3,6 +3,7 @@ dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 import { SEED_LC_NAME, SEED_PEOPLE } from "./seed-data";
+import { SUGGESTED_DEPARTMENTS as SEED_DEPARTMENTS } from "../src/lib/departments";
 import { resetSeed } from "./reset";
 
 // Creates a demo Local Committee in the Supabase project from .env.local:
@@ -58,7 +59,7 @@ async function seed() {
     console.log(`  ✓ ${person.role.padEnd(9)} ${person.email}`);
   }
 
-  // 2. The LC (triggers seed system roles and the default departments)
+  // 2. The LC (triggers seed the system roles) and its departments
   const president = SEED_PEOPLE.find((p) => p.role === "president")!;
   const { data: lc, error: lcErr } = await supabase
     .from("projects")
@@ -67,6 +68,9 @@ async function seed() {
     .single();
   if (lcErr) throw lcErr;
   const lcId = lc.id as string;
+  // New LCs start without departments; the demo LC uses the classic eight.
+  const { error: seedDepErr } = await supabase.from("departments").insert(SEED_DEPARTMENTS.map((d, i) => ({ ...d, project_id: lcId, sort_order: i + 1 })));
+  if (seedDepErr) throw seedDepErr;
 
   const { data: deps, error: depErr } = await supabase.from("departments").select("id, name").eq("project_id", lcId);
   if (depErr) throw depErr;

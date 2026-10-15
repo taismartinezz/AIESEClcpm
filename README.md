@@ -14,7 +14,7 @@ Everyone can belong to several LCs and has a role **in each one**:
 | **VP** | executive board | lead one or more departments and see their departments' wellbeing averages |
 | **Member** | team member | belongs to one department and reports to its VP |
 
-**Departments.** Each LC starts with the eight AIESEC departments (oGV, oGTa, iGV, iGTa, Marketing, Talent Management, Finance & Legality, Business Development). The president can rename, recolour, add or delete them and choose which VP leads each one.
+**Departments.** A new LC starts without departments: the president creates them in Settings → Departments (e.g. oGX, oGT, oGV, Marketing…), with the usual AIESEC departments offered as one-click suggestions. The president chooses which VP leads each one, which exchange products it runs (for the pipeline) and which one handles finance.
 
 **Groups.** Inside an LC you can create groups (a project team, an organising committee, …) with their own tasks, reminders, chat channel and bookmarks.
 

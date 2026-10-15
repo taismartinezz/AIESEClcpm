@@ -33,16 +33,6 @@ const STEPS: TourStep[] = [
     body: "Track LC work on a board from Backlog to Done. Assign teammates, tag a department and set due dates.",
   },
   {
-    selector: 'a[href="/checkin"]',
-    title: "Check-in",
-    body: "A one-minute check-in every two weeks. Your answers only ever count towards anonymous averages for your department.",
-  },
-  {
-    selector: 'a[href="/journal"]',
-    title: "Journal",
-    body: "An optional private diary. Only you can read it.",
-  },
-  {
     selector: 'a[href="/reminders"]',
     title: "Reminders",
     body: "Keep track of deadlines and follow-ups. Create reminders from here or with the + New button on the dashboard.",
@@ -51,6 +41,16 @@ const STEPS: TourStep[] = [
     selector: 'a[href="/team"]',
     title: "Team",
     body: "Meet your executive board and departments, and share your weekly update.",
+  },
+  {
+    selector: 'a[href="/checkin"]',
+    title: "Check-in",
+    body: "A one-minute check-in every two weeks. Your answers only ever count towards anonymous averages for your department.",
+  },
+  {
+    selector: 'a[href="/journal"]',
+    title: "Journal",
+    body: "An optional private diary. Only you can read it.",
   },
 ];
 

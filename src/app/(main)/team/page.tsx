@@ -874,6 +874,13 @@ export default function TeamPage() {
             {activeScope === "project" ? "No members in this group yet." : "Your LC will appear here once members join."}
           </p>
         )}
+        {isPresident && isSupabaseConfigured && departments.length === 0 && activeScope !== "project" && (
+          <p role="status" style={{ fontSize: 13, color: "var(--color-body)", marginBottom: 16, padding: "10px 14px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)" }}>
+            Your LC has no departments yet.{" "}
+            <a href="/settings#departments" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Create them in Settings</a>{" "}
+            (e.g. oGX, oGT, oGV) so you can place members and assign VPs.
+          </p>
+        )}
         {groupDirectory(visibleTeam, departments, activeScope === "project").map((section) => (
           <section key={section.key} aria-labelledby={`team-section-${section.key}`} style={{ marginBottom: 28 }}>
             {section.title && (

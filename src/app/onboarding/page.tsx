@@ -351,7 +351,7 @@ function WellbeingPreview({ role }: { role: "president" | "member" }) {
 
 // ── Supabase sync ─────────────────────────────────────────────────────────────
 // Creating an LC: insert the project (DB triggers seed the President/VP/Member
-// roles and the default departments), then join it as president.
+// roles), then join it as president. The president creates departments later.
 // Joining an LC: save the profile, then call join_lc_with_code(), which checks the
 // code server-side and assigns the invite's role — never a client-chosen one.
 

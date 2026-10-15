@@ -35,6 +35,8 @@ export async function createLc(db: PGlite, presidentId: string, name = "LC Test"
     );
     return lcId;
   });
+  // New LCs start empty; tests use the classic AIESEC departments.
+  await db.query("select seed_default_departments($1)", [id]);
 
   const { rows: deps } = await db.query<{ id: string; name: string }>(
     "select id, name from departments where project_id = $1", [id],
