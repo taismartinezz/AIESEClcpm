@@ -7,7 +7,7 @@ import { resetSeed } from "./reset";
 
 // Creates a demo Local Committee in the Supabase project from .env.local:
 // a president, three VPs, six members, departments with leads, a few tasks and
-// eight weeks of check-in scores so the wellbeing dashboards have data.
+// eight check-in periods of scores so the wellbeing dashboards have data.
 //
 // Run: SEED_PASSWORD='…' npm run db:seed
 // Never point this at a production project — it creates real auth accounts.
@@ -102,21 +102,21 @@ async function seed() {
   }
   console.log(`  ✓ ${tasks.length} tasks`);
 
-  // 5. Eight weeks of check-in scores (journal text left empty)
+  // 5. Eight check-in periods of scores (two weeks each by default). Written as
+  //    the service role, so the database files each row under its period.
   const entries: Record<string, unknown>[] = [];
-  for (let week = 0; week < 8; week++) {
-    const createdAt = new Date(Date.now() - week * 7 * 86_400_000).toISOString();
+  for (let period = 0; period < 8; period++) {
+    const at = new Date(Date.now() - period * 14 * 86_400_000).toISOString().slice(0, 10);
     SEED_PEOPLE.forEach((person, i) => {
       entries.push({
-        user_id: ids[person.email], project_id: lcId, created_at: createdAt,
-        content: { prompts: [], checkin: [] },
-        checkin_scores: CHECKIN_IDS.map((questionId, q) => ({ questionId, score: score(week * 31 + i * 7 + q) })),
+        user_id: ids[person.email], project_id: lcId, period_start: at,
+        scores: CHECKIN_IDS.map((questionId, q) => ({ questionId, score: score(period * 31 + i * 7 + q) })),
       });
     });
   }
-  const { error: jErr } = await supabase.from("journal_entries").insert(entries);
+  const { error: jErr } = await supabase.from("checkins").insert(entries);
   if (jErr) throw jErr;
-  console.log(`  ✓ ${entries.length} weekly check-ins`);
+  console.log(`  ✓ ${entries.length} check-ins`);
 
   // 6. Finance: a few ledger lines and one pending claim (with a placeholder receipt)
   const { data: cats } = await supabase.from("finance_categories").select("id, name").eq("project_id", lcId);

@@ -188,7 +188,7 @@ export const TEAM_MEMBERS: TeamMember[] = USERS.map((u, i) => ({
 export const NOTIFICATIONS: Notification[] = [
   { id: "n1", type: "task_comment", recipientId: "u1", message: "Lena Fischer commented on Design recruitment posters for the oGV info session", read: false, createdAt: hoursAgo(1), linkTo: "/tasks" },
   { id: "n2", type: "task_assigned", recipientId: "u1", message: "You were assigned Post weekly exchange story on Instagram", read: true, createdAt: hoursAgo(30), linkTo: "/tasks" },
-  { id: "n3", type: "journal_reminder", recipientId: "u1", message: "This week's check-in is ready when you are.", read: false, createdAt: hoursAgo(36), linkTo: "/journal" },
+  { id: "n3", type: "journal_reminder", recipientId: "u1", message: "Your check-in for this fortnight is ready when you are.", read: false, createdAt: hoursAgo(36), linkTo: "/checkin" },
 ];
 
 // ── Reminders ─────────────────────────────────────────────────────────────────

@@ -5,33 +5,37 @@ import Link from "next/link";
 import { Activity, AlertTriangle, ShieldCheck, HeartPulse, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
-  CHECKIN_QUESTIONS, currentWeekStart, summarize, toSeries,
+  CHECKIN_QUESTIONS, DEFAULT_CADENCE, periodStart, privacyMessage, summarize, thisPeriod, toSeries,
+  type CheckinCadence,
   type PulseRow, type PulseSeries, type PulseSummary,
 } from "@/lib/wellbeing";
 import type { Department } from "@/types";
 import PulseTrend from "./PulseTrend";
 
-export const PRIVACY_MESSAGE = "Not enough responses this week to protect privacy";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-type PulseState = { loading: boolean; error: string | null; series: PulseSeries[] };
+type PulseState = { loading: boolean; error: string | null; series: PulseSeries[]; cadence: CheckinCadence };
 
-const IDLE: PulseState = { loading: false, error: null, series: [] };
+const IDLE: PulseState = { loading: false, error: null, series: [], cadence: DEFAULT_CADENCE };
 
 function usePulse(rpc: "get_exec_pulse" | "get_member_pulse", projectId: string | null): PulseState {
-  const [state, setState] = useState<PulseState>({ loading: true, error: null, series: [] });
+  const [state, setState] = useState<PulseState>({ loading: true, error: null, series: [], cadence: DEFAULT_CADENCE });
   const enabled = Boolean(projectId) && isSupabaseConfigured;
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase.rpc(rpc, { p_project_id: projectId });
-        if (error) throw new Error(error.message);
-        if (!cancelled) setState({ loading: false, error: null, series: toSeries((data ?? []) as PulseRow[]) });
+        const [pulse, proj] = await Promise.all([
+          supabase.rpc(rpc, { p_project_id: projectId }),
+          supabase.from("projects").select("checkin_period_weeks").eq("id", projectId).maybeSingle(),
+        ]);
+        if (pulse.error) throw new Error(pulse.error.message);
+        const cadence = ((proj.data?.checkin_period_weeks as number) === 1 ? 1 : 2) as CheckinCadence;
+        if (!cancelled) setState({ loading: false, error: null, series: toSeries((pulse.data ?? []) as PulseRow[]), cadence });
       } catch (e) {
-        if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : String(e), series: [] });
+        if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : String(e), series: [], cadence: DEFAULT_CADENCE });
       }
     })();
     return () => { cancelled = true; };
@@ -70,7 +74,7 @@ function ErrorNote({ message }: { message: string }) {
   return <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: 0 }}>Couldn&apos;t load the pulse: {message}</p>;
 }
 
-function Headline({ summary }: { summary: PulseSummary }) {
+function Headline({ summary, cadence }: { summary: PulseSummary; cadence: CheckinCadence }) {
   const current = summary.current;
   const showsThisWeek = current && !current.suppressed && current.overall != null;
   return (
@@ -78,10 +82,10 @@ function Headline({ summary }: { summary: PulseSummary }) {
       {showsThisWeek ? (
         <p style={{ margin: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
           <span style={{ fontSize: 28, fontWeight: 600, color: "var(--color-body)", fontVariantNumeric: "tabular-nums" }}>{current!.overall!.toFixed(1)}</span>
-          <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>/ 5 this week · {current!.respondents} responses</span>
+          <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>/ 5 {thisPeriod(cadence)} · {current!.respondents} responses</span>
         </p>
       ) : (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--color-body)" }}>{PRIVACY_MESSAGE}.</p>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--color-body)" }}>{privacyMessage(cadence)}.</p>
       )}
       <Change summary={summary} />
     </div>
@@ -92,8 +96,8 @@ function Change({ summary }: { summary: PulseSummary }) {
   if (summary.change == null) return null;
   const { change, dropped } = summary;
   const text = Math.abs(change) < 0.05
-    ? "Same as the 4-week average"
-    : `${change > 0 ? "+" : "−"}${Math.abs(change).toFixed(1)} vs 4-week average`;
+    ? "Same as the average of the last 4 check-ins"
+    : `${change > 0 ? "+" : "−"}${Math.abs(change).toFixed(1)} vs the last 4 check-ins`;
   return (
     <p style={{ display: "flex", alignItems: "center", gap: 4, margin: "4px 0 0", fontSize: 11, fontWeight: dropped ? 600 : 400, color: dropped ? "var(--color-warning)" : "var(--color-secondary)" }}>
       {dropped && <AlertTriangle size={12} aria-hidden="true" />}
@@ -118,12 +122,12 @@ function QuestionBreakdown({ summary }: { summary: PulseSummary }) {
   );
 }
 
-function SeriesBody({ series, label }: { series: PulseSeries | undefined; label: string }) {
+function SeriesBody({ series, label, cadence }: { series: PulseSeries | undefined; label: string; cadence: CheckinCadence }) {
   const summary = summarize(series);
   return (
     <>
-      <Headline summary={summary} />
-      {series && <PulseTrend weeks={series.weeks} label={label} />}
+      <Headline summary={summary} cadence={cadence} />
+      {series && <PulseTrend periods={series.periods} label={label} cadence={cadence} />}
       <QuestionBreakdown summary={summary} />
     </>
   );
@@ -152,7 +156,7 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
             <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--color-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dept.name}</span>
             {summary.dropped && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: "var(--color-warning)" }}>
-                <AlertTriangle size={11} aria-hidden="true" /> −{Math.abs(summary.change!).toFixed(1)} vs 4-wk avg
+                <AlertTriangle size={11} aria-hidden="true" /> −{Math.abs(summary.change!).toFixed(1)} vs last 4
               </span>
             )}
             <span style={{ fontSize: visible ? 13 : 10, fontWeight: visible ? 600 : 400, color: visible ? "var(--color-body)" : "var(--color-secondary)", fontVariantNumeric: "tabular-nums", textAlign: "right", maxWidth: 150 }}>
@@ -169,30 +173,30 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
 
 /** President only: the executive board's average. */
 export function ExecPulseCard({ projectId }: { projectId: string | null }) {
-  const { loading, error, series } = usePulse("get_exec_pulse", projectId);
+  const { loading, error, series, cadence } = usePulse("get_exec_pulse", projectId);
   return (
     <Card title="Exec Pulse" subtitle="How your VPs are doing — only you see this" icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />}>
-      {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : <SeriesBody series={series[0]} label="Exec Pulse" />}
+      {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : <SeriesBody series={series[0]} label="Exec Pulse" cadence={cadence} />}
     </Card>
   );
 }
 
 /** President: whole-LC member average plus a per-department breakdown. */
 export function MemberPulseCard({ projectId, departments }: { projectId: string | null; departments: Department[] }) {
-  const { loading, error, series } = usePulse("get_member_pulse", projectId);
+  const { loading, error, series, cadence } = usePulse("get_member_pulse", projectId);
   const total = series.find((s) => s.groupId === null);
   const flagged = departments.filter((d) => summarize(series.find((s) => s.groupId === d.id)).dropped).length;
   return (
     <Card
       title="Member Pulse"
-      subtitle={flagged ? `${flagged} department${flagged === 1 ? "" : "s"} dropped noticeably this week` : "All members, by department"}
+      subtitle={flagged ? `${flagged} department${flagged === 1 ? "" : "s"} dropped noticeably ${thisPeriod(cadence)}` : "All members, by department"}
       icon={<HeartPulse size={15} color="var(--color-navy)" aria-hidden="true" />}
     >
       {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : (
         <>
-          <SeriesBody series={total} label="Member Pulse, whole LC" />
+          <SeriesBody series={total} label="Member Pulse, whole LC" cadence={cadence} />
           <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "14px 0 6px" }}>
-            By department · this week
+            By department · {thisPeriod(cadence)}
           </h3>
           <DepartmentRows series={series} departments={departments} />
         </>
@@ -203,17 +207,17 @@ export function MemberPulseCard({ projectId, departments }: { projectId: string 
 
 /** VP: the departments they lead (RLS-limited server-side to exactly those). */
 export function DepartmentPulseCard({ projectId, departments }: { projectId: string | null; departments: Department[] }) {
-  const { loading, error, series } = usePulse("get_member_pulse", projectId);
+  const { loading, error, series, cadence } = usePulse("get_member_pulse", projectId);
   const led = departments.filter((d) => series.some((s) => s.groupId === d.id));
   const title = led.length > 1 ? "My Departments' Pulse" : "My Department's Pulse";
   return (
-    <Card title={title} subtitle={led.length ? led.map((d) => d.name).join(" · ") : "Your members' weekly check-in"} icon={<HeartPulse size={15} color="var(--color-navy)" aria-hidden="true" />}>
+    <Card title={title} subtitle={led.length ? led.map((d) => d.name).join(" · ") : "Your members' check-in"} icon={<HeartPulse size={15} color="var(--color-navy)" aria-hidden="true" />}>
       {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : led.length === 0 ? (
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
           You don&apos;t lead a department yet. Your LCP can assign you one in Settings → Departments.
         </p>
       ) : led.length === 1 ? (
-        <SeriesBody series={series.find((s) => s.groupId === led[0].id)} label={led[0].name} />
+        <SeriesBody series={series.find((s) => s.groupId === led[0].id)} label={led[0].name} cadence={cadence} />
       ) : (
         <DepartmentRows series={series} departments={led} />
       )}
@@ -221,29 +225,31 @@ export function DepartmentPulseCard({ projectId, departments }: { projectId: str
   );
 }
 
-/** Members (and VPs): a nudge to do this week's check-in. Shows no pulse data. */
+/** Members (and VPs): a nudge to do this period's check-in. Shows no pulse data. */
 export function CheckinNudgeCard({ projectId, userId }: { projectId: string | null; userId: string | null }) {
-  const [done, setDone] = useState<boolean | null>(null);
+  const [state, setState] = useState<{ done: boolean; cadence: CheckinCadence } | null>(null);
   useEffect(() => {
     if (!projectId || !userId || !isSupabaseConfigured) return;
     let cancelled = false;
     (async () => {
+      const { data: proj } = await supabase.from("projects").select("checkin_period_weeks").eq("id", projectId).maybeSingle();
+      const cadence = ((proj?.checkin_period_weeks as number) === 1 ? 1 : 2) as CheckinCadence;
       const { count, error } = await supabase
-        .from("journal_entries")
+        .from("checkins")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("project_id", projectId)
-        .not("checkin_scores", "is", null)
-        .gte("created_at", currentWeekStart().toISOString());
-      if (!cancelled) setDone(error ? false : (count ?? 0) > 0);
+        .eq("period_start", periodStart(cadence).toISOString().slice(0, 10));
+      if (!cancelled) setState({ done: !error && (count ?? 0) > 0, cadence });
     })();
     return () => { cancelled = true; };
   }, [projectId, userId]);
 
-  if (done !== false) return null;
+  if (!state || state.done) return null;
+  const when = thisPeriod(state.cadence);
   return (
     <Link
-      href="/journal"
+      href="/checkin"
       style={{
         display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textDecoration: "none",
         backgroundColor: "var(--color-navy-dim)", border: "1px solid var(--color-border)", borderRadius: 10,
@@ -251,7 +257,9 @@ export function CheckinNudgeCard({ projectId, userId }: { projectId: string | nu
     >
       <HeartPulse size={18} color="var(--color-navy)" aria-hidden="true" />
       <span style={{ flex: 1 }}>
-        <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>This week&apos;s check-in is waiting</span>
+        <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>
+          Your check-in for {when} is waiting
+        </span>
         <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", marginTop: 2 }}>
           About a minute. Only averages are ever shared, never your answers.
         </span>

@@ -33,9 +33,14 @@ const STEPS: TourStep[] = [
     body: "Track LC work on a board from Backlog to Done. Assign teammates, tag a department and set due dates.",
   },
   {
+    selector: 'a[href="/checkin"]',
+    title: "Check-in",
+    body: "A one-minute check-in every two weeks. Your answers only ever count towards anonymous averages for your department.",
+  },
+  {
     selector: 'a[href="/journal"]',
     title: "Journal",
-    body: "Your weekly check-in and private journal. Your journal is visible only to you; your check-in only ever counts towards averages.",
+    body: "An optional private diary. Only you can read it.",
   },
   {
     selector: 'a[href="/reminders"]',

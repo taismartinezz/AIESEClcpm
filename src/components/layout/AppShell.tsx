@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy,
+  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
@@ -39,6 +39,7 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 
 const NAV_ITEMS = [
   { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
   { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
   { href: "/journal",     label: "Journal",    icon: BookOpen        },
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },

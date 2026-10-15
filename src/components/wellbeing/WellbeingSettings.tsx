@@ -17,6 +17,7 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
   const [execMin, setExecMin] = useState(3);
   const [deptMin, setDeptMin] = useState(3);
   const [disabled, setDisabled] = useState<string[]>([]);
+  const [cadence, setCadence] = useState<1 | 2>(2);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
@@ -26,7 +27,7 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
     (async () => {
       const { data, error } = await supabase
         .from("projects")
-        .select("min_exec_respondents, min_wellbeing_respondents, checkin_disabled_questions")
+        .select("min_exec_respondents, min_wellbeing_respondents, checkin_disabled_questions, checkin_period_weeks")
         .eq("id", projectId)
         .maybeSingle();
       if (cancelled) return;
@@ -35,6 +36,7 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
         setExecMin((data.min_exec_respondents as number) ?? 3);
         setDeptMin((data.min_wellbeing_respondents as number) ?? 3);
         setDisabled((data.checkin_disabled_questions as string[]) ?? []);
+        setCadence((data.checkin_period_weeks as number) === 1 ? 1 : 2);
       }
     })();
     return () => { cancelled = true; };
@@ -52,6 +54,7 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
         min_exec_respondents: execMin,
         min_wellbeing_respondents: deptMin,
         checkin_disabled_questions: disabled,
+        checkin_period_weeks: cadence,
       }).eq("id", projectId);
       if (error) throw new Error(error.message);
       setMessage({ text: "Wellbeing settings saved.", error: false });
@@ -66,10 +69,22 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+        <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 8 }}>How often does your LC check in?</legend>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {([2, 1] as const).map((w) => (
+            <label key={w} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-body)", cursor: "pointer" }}>
+              <input type="radio" name="checkin-cadence" checked={cadence === w} onChange={() => setCadence(w)} style={{ accentColor: "var(--color-navy)" }} />
+              {w === 2 ? "Every two weeks (recommended)" : "Every week"}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <div>
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          A week&apos;s average is only shown when at least this many people answered. Lower numbers show
-          more weeks but make it easier to guess who said what; 3 is the recommended minimum.
+          A check-in&apos;s average is only shown when at least this many people answered. Lower numbers show
+          more check-ins but make it easier to guess who said what; 3 is the recommended minimum.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-body)" }}>

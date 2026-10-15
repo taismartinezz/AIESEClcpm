@@ -8,7 +8,7 @@ import { createUser, createLc, addMember, type Lc } from "./fixtures";
 //   Marketing (VP Vera):  3 members  → above threshold (3)
 //   oGV       (VP Omar):  2 members  → below threshold → suppressed
 //   Exec board: Vera, Omar, Kai (3 VPs) → above exec threshold
-// Everyone, including the president, submits a check-in this week.
+// Everyone, including the president, submits a check-in this period.
 
 let db: PGlite;
 let lc: Lc;
@@ -17,15 +17,16 @@ const u: Record<string, string> = {};
 const MKT = "Marketing";
 const OGV = "Outgoing Global Volunteer";
 
-async function checkIn(userId: string, scores: Record<string, number>, weeksAgo = 0) {
+async function checkIn(userId: string, scores: Record<string, number>, periodsAgo = 0) {
+  // As the service role (no auth.uid()), so history can be written for past periods.
   await db.query(
-    `insert into journal_entries (user_id, project_id, content, checkin_scores, created_at)
-     values ($1, $2, '{}'::jsonb, $3::jsonb, date_trunc('week', now()) - make_interval(weeks => $4) + interval '1 day')`,
-    [userId, lc.id, JSON.stringify(Object.entries(scores).map(([questionId, score]) => ({ questionId, score }))), weeksAgo],
+    `insert into checkins (user_id, project_id, period_start, scores)
+     values ($1, $2, checkin_period_start($2, now()) - $4 * (select checkin_period_weeks * 7 from projects where id = $2), $3::jsonb)`,
+    [userId, lc.id, JSON.stringify(Object.entries(scores).map(([questionId, score]) => ({ questionId, score }))), periodsAgo],
   );
 }
 
-type MemberRow = { department_id: string | null; week_start: Date; question_id: string | null; avg_score: string | null; respondent_count: number | null; suppressed: boolean };
+type MemberRow = { department_id: string | null; period_start: Date; question_id: string | null; avg_score: string | null; respondent_count: number | null; suppressed: boolean };
 type ExecRow = Omit<MemberRow, "department_id">;
 
 const memberPulse = (who: string, dept: string | null = null) =>
@@ -34,10 +35,10 @@ const memberPulse = (who: string, dept: string | null = null) =>
 const execPulse = (who: string) =>
   asUser(db, who, async (tx) => (await tx.query<ExecRow>("select * from get_exec_pulse($1)", [lc.id])).rows);
 
-const weekKey = (d: Date) => new Date(d).toISOString();
-const thisWeek = <T extends { week_start: Date }>(rows: T[]): T[] => {
-  const latest = rows.map((r) => weekKey(r.week_start)).sort().at(-1);
-  return rows.filter((r) => weekKey(r.week_start) === latest);
+const periodKey = (d: Date) => new Date(d).toISOString();
+const thisWeek = <T extends { period_start: Date }>(rows: T[]): T[] => {
+  const latest = rows.map((r) => periodKey(r.period_start)).sort().at(-1);
+  return rows.filter((r) => periodKey(r.period_start) === latest);
 };
 
 beforeAll(async () => {
@@ -108,9 +109,9 @@ describe("Member Pulse", () => {
     ]);
   });
 
-  it("returns 8 weeks, with weeks nobody answered suppressed", async () => {
+  it("returns 8 check-in periods, with periods nobody answered suppressed", async () => {
     const rows = await memberPulse(u.vera);
-    expect(new Set(rows.map((r) => weekKey(r.week_start))).size).toBe(8);
+    expect(new Set(rows.map((r) => periodKey(r.period_start))).size).toBe(8);
     expect(rows.filter((r) => r.suppressed)).toHaveLength(7);
   });
 
@@ -169,11 +170,42 @@ describe("Exec Pulse", () => {
   });
 });
 
+describe("cadence", () => {
+  it("defaults to periods of two weeks that start on a Monday", async () => {
+    const { rows } = await db.query<{ start: Date; dow: number; weeks: number }>(
+      `select checkin_period_start($1, now()) as start, extract(isodow from checkin_period_start($1, now()))::int as dow,
+              checkin_period_weeks as weeks from projects where id = $1`, [lc.id]);
+    expect(rows[0].dow).toBe(1);
+    expect(rows[0].weeks).toBe(2);
+    const { rows: next } = await db.query<{ same: boolean }>(
+      `select checkin_period_start($1, now() + interval '14 days') = checkin_period_start($1, now()) + 14 as same`, [lc.id]);
+    expect(next[0].same).toBe(true);
+  });
+
+  it("members can only record the current period and can update it", async () => {
+    const rows = await asUser(db, u.m3, async (tx) => {
+      await tx.query(`update checkins set scores = '[{"questionId":"energy","score":2}]' where user_id = $1`, [u.m3]);
+      return (await tx.query<{ scores: unknown }>("select scores from checkins where user_id = $1", [u.m3])).rows;
+    });
+    expect(rows).toEqual([{ scores: [{ questionId: "energy", score: 2 }] }]);
+  });
+
+  it("an old period can't be edited", async () => {
+    await checkIn(u.g1, { energy: 3 }, 2);
+    await expect(asUser(db, u.g1, (tx) => tx.query(
+      `update checkins set scores = '[{"questionId":"energy","score":5}]'
+       where user_id = $1 and period_start < checkin_period_start(project_id, now())`, [u.g1],
+    ))).rejects.toThrow(/period has ended/);
+  });
+});
+
 describe("raw scores stay private", () => {
-  it("nobody can read another person's journal entries or scores", async () => {
-    const rows = await asUser(db, u.pres, async (tx) =>
-      (await tx.query("select id from journal_entries where user_id <> $1", [u.pres])).rows);
-    expect(rows).toEqual([]);
+  it("nobody can read another person's check-ins or journal entries", async () => {
+    const rows = await asUser(db, u.pres, async (tx) => ({
+      checkins: (await tx.query("select id from checkins where user_id <> $1", [u.pres])).rows,
+      journal: (await tx.query("select id from journal_entries where user_id <> $1", [u.pres])).rows,
+    }));
+    expect(rows).toEqual({ checkins: [], journal: [] });
   });
 
   it("the internal scoring function and the old rollups are not callable", async () => {
@@ -184,7 +216,7 @@ describe("raw scores stay private", () => {
   });
 });
 
-describe("weekly check-in reminder", () => {
+describe("check-in reminder", () => {
   it("exists for VPs and members but not the president", async () => {
     const { rows } = await db.query<{ user_id: string }>(
       "select user_id from reminders where project_id = $1 and kind = 'weekly_checkin'", [lc.id]);
@@ -194,7 +226,7 @@ describe("weekly check-in reminder", () => {
     expect(owners.has(u.pres)).toBe(false);
   });
 
-  it("rolls forward a week instead of staying completed", async () => {
+  it("rolls forward to the next period instead of staying completed", async () => {
     const after = await asUser(db, u.m2, async (tx) => {
       const before = (await tx.query<{ due_at: Date }>(
         "select due_at from reminders where user_id = $1 and kind = 'weekly_checkin'", [u.m2])).rows[0].due_at;
