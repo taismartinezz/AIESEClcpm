@@ -542,7 +542,8 @@ export default function TeamPage() {
 
   // Query team_members once we have both userId and projectId (from context).
   useEffect(() => {
-    if (!currentUserId || !projectId) return;
+    // Demo mode keeps the mock roster set above; only a real database is queried.
+    if (!isSupabaseConfigured || !currentUserId || !projectId) return;
 
     (async () => {
       // 1. Team roster for this project + the project's display name + lab roles

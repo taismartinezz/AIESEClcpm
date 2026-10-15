@@ -4069,3 +4069,1070 @@ create policy "sign-up visibility by role" on tabling_signups
 
 notify pgrst, 'reload schema';
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261017001_checkins_biweekly.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 034: Check-ins get their own table and a two-week cadence.
+--
+--   * checkins: one row per person, per LC, per check-in period. Owner-only RLS;
+--     answers can be changed until the period ends. Journal entries no longer
+--     carry scores (journal_entries.checkin_scores is kept for history).
+--   * projects.checkin_period_weeks: 2 (default, every two weeks) or 1 (weekly).
+--     Periods are anchored to Monday 2024-01-01 so every LC's fortnights line up
+--     and never shift.
+--   * Exec Pulse / Member Pulse now aggregate per period over the last 8 periods
+--     (16 weeks at the default cadence). Same role checks, thresholds,
+--     suppression and opt-out as migration 030.
+--   * The check-in reminder is due on the Friday of each period's last week and
+--     rolls forward one period when completed or when the check-in is submitted.
+
+-- ── 1. Cadence ────────────────────────────────────────────────────────────────
+
+alter table projects add column if not exists checkin_period_weeks integer not null default 2;
+alter table projects drop constraint if exists projects_checkin_period_weeks_check;
+alter table projects add constraint projects_checkin_period_weeks_check check (checkin_period_weeks in (1, 2));
+
+-- First day (a Monday) of the check-in period containing p_at.
+create or replace function checkin_period_start(p_project_id uuid, p_at timestamptz default now())
+returns date
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  with cfg as (
+    select coalesce((select checkin_period_weeks from projects where id = p_project_id), 2) * 7 as days
+  )
+  select (date '2024-01-01'
+          + (floor((date_trunc('week', p_at)::date - date '2024-01-01')::numeric / cfg.days) * cfg.days)::integer)
+  from cfg;
+$$;
+
+-- ── 2. Check-ins ─────────────────────────────────────────────────────────────
+
+create table if not exists checkins (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  project_id   uuid not null references projects(id) on delete cascade,
+  period_start date not null,
+  scores       jsonb not null check (jsonb_typeof(scores) = 'array' and jsonb_array_length(scores) > 0),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (user_id, project_id, period_start)
+);
+
+create index if not exists checkins_project_period_idx on checkins (project_id, period_start);
+
+-- People record the current period only, and can edit it until it ends.
+-- (Without an auth.uid() — service role, seed scripts — a given date is
+-- normalised to its period, so history can be imported.)
+create or replace function _checkins_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current date := checkin_period_start(new.project_id, now());
+begin
+  if not exists (select 1 from team_members where project_id = new.project_id and user_id = new.user_id) then
+    raise exception 'Check-ins are only for members of this LC';
+  end if;
+  if auth.uid() is not null then
+    if tg_op = 'UPDATE' and old.period_start <> v_current then
+      raise exception 'That check-in period has ended';
+    end if;
+    new.period_start := v_current;
+  else
+    new.period_start := checkin_period_start(new.project_id, coalesce(new.period_start::timestamptz, now()));
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_checkins_guard on checkins;
+create trigger trg_checkins_guard
+  before insert or update on checkins
+  for each row execute function _checkins_guard();
+
+alter table checkins enable row level security;
+
+drop policy if exists "own check-ins only" on checkins;
+create policy "own check-ins only" on checkins
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Copy existing journal check-ins (latest entry per person per period).
+insert into checkins (user_id, project_id, period_start, scores, created_at)
+select distinct on (je.user_id, je.project_id, checkin_period_start(je.project_id, je.created_at))
+       je.user_id, je.project_id, checkin_period_start(je.project_id, je.created_at), je.checkin_scores, je.created_at
+from   journal_entries je
+join   team_members tm on tm.project_id = je.project_id and tm.user_id = je.user_id
+where  je.project_id is not null
+  and  jsonb_typeof(je.checkin_scores) = 'array'
+  and  jsonb_array_length(je.checkin_scores) > 0
+order  by je.user_id, je.project_id, checkin_period_start(je.project_id, je.created_at), je.created_at desc
+on conflict (user_id, project_id, period_start) do nothing;
+
+-- ── 3. Pulse functions on periods ────────────────────────────────────────────
+-- Return columns change (week_start → period_start), so drop and recreate.
+
+drop function if exists get_member_pulse(uuid, uuid);
+drop function if exists get_exec_pulse(uuid);
+drop function if exists _pulse_scores(uuid, text, integer);
+
+create function _pulse_scores(p_project_id uuid, p_role text, p_periods integer)
+returns table (user_id uuid, department_id uuid, period_start date, question_id text, score numeric)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  with population as (
+    select tm.user_id, tm.department_id
+    from   team_members tm
+    left join user_settings us on us.user_id = tm.user_id
+    where  tm.project_id = p_project_id
+      and  tm.role = p_role
+      and  coalesce(us.wellbeing_opted_in, true)
+  ),
+  cfg as (
+    select coalesce(checkin_disabled_questions, '{}') as disabled,
+           checkin_period_weeks * 7 as days
+    from   projects where id = p_project_id
+  )
+  select c.user_id,
+         pop.department_id,
+         c.period_start,
+         elem->>'questionId',
+         avg((elem->>'score')::numeric)
+  from   checkins c
+  join   population pop on pop.user_id = c.user_id
+  cross join cfg
+  cross join lateral jsonb_array_elements(c.scores) as elem
+  where  c.project_id = p_project_id
+    and  c.period_start >= checkin_period_start(p_project_id, now()) - (p_periods - 1) * cfg.days
+    and  (elem->>'score') ~ '^[1-5]$'
+    and  not ((elem->>'questionId') = any (cfg.disabled))
+  group  by 1, 2, 3, 4;
+$$;
+
+revoke execute on function _pulse_scores(uuid, text, integer) from public, anon, authenticated;
+
+create function get_member_pulse(p_project_id uuid, p_department_id uuid default null)
+returns table (
+  department_id    uuid,
+  period_start     date,
+  question_id      text,
+  avg_score        numeric,
+  respondent_count integer,
+  suppressed       boolean
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_role          text := lc_role(p_project_id);
+  v_min           integer;
+  v_days          integer;
+  v_allowed       uuid[];
+  v_include_total boolean;
+begin
+  if v_role = 'president' then
+    select array_agg(d.id) into v_allowed from departments d where d.project_id = p_project_id;
+    v_include_total := p_department_id is null;
+  elsif v_role = 'vp' then
+    select array_agg(x) into v_allowed from led_department_ids(p_project_id) as x;
+    v_include_total := false;
+  else
+    return;
+  end if;
+
+  if p_department_id is not null then
+    if not (p_department_id = any (coalesce(v_allowed, '{}'::uuid[]))) then
+      return;
+    end if;
+    v_allowed := array[p_department_id];
+  end if;
+
+  select min_wellbeing_respondents, checkin_period_weeks * 7 into v_min, v_days from projects where id = p_project_id;
+
+  return query
+  with scores as (
+    select * from _pulse_scores(p_project_id, 'member', 8)
+  ),
+  periods as (
+    select generate_series(
+      checkin_period_start(p_project_id, now()) - 7 * v_days,
+      checkin_period_start(p_project_id, now()),
+      make_interval(days => v_days)
+    )::date as period_start
+  ),
+  groups as (
+    select g.id as department_id from unnest(coalesce(v_allowed, '{}'::uuid[])) as g(id)
+    union all
+    select null::uuid where v_include_total
+  ),
+  counts as (
+    select g.department_id, p.period_start,
+           (select count(distinct s.user_id)
+              from scores s
+             where s.period_start = p.period_start
+               and (g.department_id is null or s.department_id = g.department_id))::integer as n
+    from groups g cross join periods p
+  ),
+  agg as (
+    select g.department_id, s.period_start, s.question_id, avg(s.score) as avg_score
+    from groups g
+    join scores s on (g.department_id is null or s.department_id = g.department_id)
+    group by 1, 2, 3
+  )
+  select c.department_id, c.period_start, a.question_id, round(a.avg_score, 2), c.n, false
+  from   counts c
+  join   agg a on a.department_id is not distinct from c.department_id and a.period_start = c.period_start
+  where  c.n >= v_min
+  union all
+  select c.department_id, c.period_start, null::text, null::numeric, null::integer, true
+  from   counts c
+  where  c.n < v_min
+  order  by 1 nulls first, 2, 3;
+end;
+$$;
+
+create function get_exec_pulse(p_project_id uuid)
+returns table (
+  period_start     date,
+  question_id      text,
+  avg_score        numeric,
+  respondent_count integer,
+  suppressed       boolean
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_min  integer;
+  v_days integer;
+begin
+  if not is_lc_president(p_project_id) then
+    return;
+  end if;
+
+  select min_exec_respondents, checkin_period_weeks * 7 into v_min, v_days from projects where id = p_project_id;
+
+  return query
+  with scores as (
+    select * from _pulse_scores(p_project_id, 'vp', 8)
+  ),
+  periods as (
+    select generate_series(
+      checkin_period_start(p_project_id, now()) - 7 * v_days,
+      checkin_period_start(p_project_id, now()),
+      make_interval(days => v_days)
+    )::date as period_start
+  ),
+  counts as (
+    select p.period_start,
+           (select count(distinct s.user_id) from scores s where s.period_start = p.period_start)::integer as n
+    from periods p
+  ),
+  agg as (
+    select s.period_start, s.question_id, avg(s.score) as avg_score
+    from scores s
+    group by 1, 2
+  )
+  select c.period_start, a.question_id, round(a.avg_score, 2), c.n, false
+  from   counts c
+  join   agg a on a.period_start = c.period_start
+  where  c.n >= v_min
+  union all
+  select c.period_start, null::text, null::numeric, null::integer, true
+  from   counts c
+  where  c.n < v_min
+  order  by 1, 2;
+end;
+$$;
+
+revoke execute on function get_member_pulse(uuid, uuid) from public, anon;
+revoke execute on function get_exec_pulse(uuid)         from public, anon;
+grant  execute on function get_member_pulse(uuid, uuid) to authenticated;
+grant  execute on function get_exec_pulse(uuid)         to authenticated;
+
+-- ── 4. Reminder follows the cadence ──────────────────────────────────────────
+
+-- Friday 17:00 UTC of the last week of the period containing p_from, or of the
+-- next period if that moment has passed.
+create or replace function _next_checkin_due(p_project_id uuid, p_from timestamptz)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with cfg as (select checkin_period_weeks * 7 as days from projects where id = p_project_id),
+  due as (
+    select checkin_period_start(p_project_id, p_from)::timestamptz
+           + make_interval(days => cfg.days - 3, hours => 17) as at, cfg.days
+    from cfg
+  )
+  select case when at > p_from then at else at + make_interval(days => days) end from due;
+$$;
+
+create or replace function _sync_checkin_reminder()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    delete from reminders where user_id = old.user_id and project_id = old.project_id and kind = 'weekly_checkin';
+    return old;
+  end if;
+  if new.role in ('vp', 'member') then
+    insert into reminders (user_id, project_id, scope, title, due_at, recurrence, kind, email_enabled, sent, completed)
+    values (new.user_id, new.project_id, 'personal', 'Check-in', _next_checkin_due(new.project_id, now()),
+            'weekly', 'weekly_checkin', false, false, false)
+    on conflict (user_id, project_id) where kind = 'weekly_checkin' do nothing;
+  else
+    delete from reminders where user_id = new.user_id and project_id = new.project_id and kind = 'weekly_checkin';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function _roll_checkin_reminder()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.kind = 'weekly_checkin' and new.completed and not old.completed then
+    new.completed    := false;
+    new.completed_at := null;
+    new.due_at       := _next_checkin_due(new.project_id, greatest(coalesce(old.due_at, now()), now()) + interval '1 second');
+  end if;
+  return new;
+end;
+$$;
+
+-- Submitting (or updating) a check-in moves the reminder to the next period.
+create or replace function _checkin_recorded()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  -- Due date inside the period after the one just answered.
+  v_next timestamptz := _next_checkin_due(
+    new.project_id,
+    (new.period_start + (select checkin_period_weeks * 7 from projects where id = new.project_id))::timestamptz);
+begin
+  update reminders
+     set due_at = v_next
+   where user_id = new.user_id and project_id = new.project_id and kind = 'weekly_checkin' and due_at < v_next;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_checkin_recorded on checkins;
+create trigger trg_checkin_recorded
+  after insert or update on checkins
+  for each row execute function _checkin_recorded();
+
+-- Journal entries no longer drive the reminder.
+drop trigger if exists trg_checkin_submitted on journal_entries;
+drop function if exists _checkin_submitted();
+drop function if exists _next_checkin_due(timestamptz);
+
+-- Retitle and re-time existing check-in reminders for the new cadence.
+update reminders r
+   set title = 'Check-in', due_at = _next_checkin_due(r.project_id, now())
+ where r.kind = 'weekly_checkin' and not r.completed;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261017002_pipeline_goals.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 035: Exchange pipeline and term goals (KPIs).
+--
+--   departments.products   which AIESEC products a department runs
+--                          (ogv, ogta, ogte, igv, igta, igte).
+--   exchanges              one exchange participant (EP) moving through
+--                          Signed up → Applied → Accepted → Approved →
+--                          Realized → Finished. Holds personal data, so only
+--                          the president, the department running the product
+--                          (its VP and members) and the person who owns the
+--                          exchange can see it.
+--   goals                  term targets per department (or the whole LC).
+--                          'pipeline' goals count exchanges that reached a
+--                          stage in the goal's date range; 'manual' goals are
+--                          updated by hand. Every LC member can see goals and
+--                          their progress (via goal_progress(), which returns
+--                          counts only); the president and the department's
+--                          VP manage them.
+
+-- ── 1. Products per department ───────────────────────────────────────────────
+
+alter table departments add column if not exists products text[] not null default '{}';
+alter table departments drop constraint if exists departments_products_check;
+alter table departments add constraint departments_products_check
+  check (products <@ array['ogv', 'ogta', 'ogte', 'igv', 'igta', 'igte']);
+
+update departments set products = case name
+    when 'Outgoing Global Volunteer'      then array['ogv']
+    when 'Outgoing Global Talent/Teacher' then array['ogta', 'ogte']
+    when 'Incoming Global Volunteer'      then array['igv']
+    when 'Incoming Global Talent/Teacher' then array['igta', 'igte']
+  end
+where products = '{}'
+  and name in ('Outgoing Global Volunteer', 'Outgoing Global Talent/Teacher',
+               'Incoming Global Volunteer', 'Incoming Global Talent/Teacher');
+
+create or replace function seed_default_departments(p_project_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into departments (project_id, name, color, is_finance, sort_order, products)
+  values
+    (p_project_id, 'Outgoing Global Volunteer',       '#F85A40', false, 1, array['ogv']),
+    (p_project_id, 'Outgoing Global Talent/Teacher',  '#0CB9C1', false, 2, array['ogta', 'ogte']),
+    (p_project_id, 'Incoming Global Volunteer',       '#D9442B', false, 3, array['igv']),
+    (p_project_id, 'Incoming Global Talent/Teacher',  '#0A8F96', false, 4, array['igta', 'igte']),
+    (p_project_id, 'Marketing',                       '#FFC845', false, 5, '{}'),
+    (p_project_id, 'Talent Management',               '#00C16E', false, 6, '{}'),
+    (p_project_id, 'Finance & Legality',              '#037EF3', true,  7, '{}'),
+    (p_project_id, 'Business Development',            '#7552CC', false, 8, '{}')
+  on conflict (project_id, name) do nothing;
+$$;
+revoke execute on function seed_default_departments(uuid) from public, anon, authenticated;
+
+-- ── 2. Exchanges ──────────────────────────────────────────────────────────────
+
+create table if not exists exchanges (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  product       text not null check (product in ('ogv', 'ogta', 'ogte', 'igv', 'igta', 'igte')),
+  stage         text not null default 'signed_up'
+                check (stage in ('signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished')),
+  person_name   text not null check (length(trim(person_name)) > 0),
+  email         text,
+  phone         text,
+  opportunity   text,          -- project or position
+  host_entity   text,          -- host LC / country (outgoing) or home LC / country (incoming)
+  expa_id       text,
+  expa_url      text check (expa_url is null or expa_url ~* '^https://'),
+  department_id uuid references departments(id) on delete set null,
+  owner_id      uuid references user_profiles(id) on delete set null,
+  notes         text,
+  signed_up_at  date not null default current_date,
+  applied_at    date,
+  accepted_at   date,
+  approved_at   date,
+  realized_at   date,
+  finished_at   date,
+  created_by    uuid references user_profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists exchanges_project_product_idx on exchanges (project_id, product, stage);
+
+-- Fill in the department running the product, date every stage reached, and
+-- keep owner / department inside the LC.
+create or replace function _exchanges_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rank integer := array_position(array['signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished'], new.stage);
+begin
+  if new.department_id is null then
+    select id into new.department_id from departments
+    where project_id = new.project_id and new.product = any (products)
+    order by sort_order limit 1;
+  elsif not exists (select 1 from departments where id = new.department_id and project_id = new.project_id) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  if new.owner_id is not null and not exists (
+    select 1 from team_members where project_id = new.project_id and user_id = new.owner_id
+  ) then
+    raise exception 'The owner must be a member of this LC';
+  end if;
+
+  -- Reaching a stage implies the earlier ones; keep dates already recorded.
+  if v_rank >= 2 then new.applied_at  := coalesce(new.applied_at,  current_date); end if;
+  if v_rank >= 3 then new.accepted_at := coalesce(new.accepted_at, current_date); end if;
+  if v_rank >= 4 then new.approved_at := coalesce(new.approved_at, current_date); end if;
+  if v_rank >= 5 then new.realized_at := coalesce(new.realized_at, current_date); end if;
+  if v_rank >= 6 then new.finished_at := coalesce(new.finished_at, current_date); end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_exchanges_guard on exchanges;
+create trigger trg_exchanges_guard
+  before insert or update on exchanges
+  for each row execute function _exchanges_guard();
+
+-- Who may see / work on an exchange.
+create or replace function can_work_on_exchange(p_project_id uuid, p_department_id uuid, p_owner_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_lc_president(p_project_id)
+      or p_owner_id = auth.uid()
+      or exists (
+           select 1 from team_members tm
+           where tm.project_id = p_project_id and tm.user_id = auth.uid()
+             and p_department_id is not null and tm.department_id = p_department_id
+         )
+      or p_department_id in (select led_department_ids(p_project_id));
+$$;
+
+alter table exchanges enable row level security;
+
+drop policy if exists "department sees its exchanges" on exchanges;
+create policy "department sees its exchanges" on exchanges
+  for select using (can_work_on_exchange(project_id, department_id, owner_id));
+
+drop policy if exists "department adds exchanges" on exchanges;
+create policy "department adds exchanges" on exchanges
+  for insert with check (
+    auth_is_project_member(project_id)
+    and created_by = auth.uid()
+    and (
+      is_lc_president(project_id)
+      or exists (
+        select 1 from departments d
+        where d.project_id = exchanges.project_id and exchanges.product = any (d.products)
+          and (d.vp_user_id = auth.uid()
+               or d.id = (select tm.department_id from team_members tm where tm.project_id = exchanges.project_id and tm.user_id = auth.uid()))
+      )
+    )
+  );
+
+drop policy if exists "department updates exchanges" on exchanges;
+create policy "department updates exchanges" on exchanges
+  for update using (can_work_on_exchange(project_id, department_id, owner_id))
+  with check (can_work_on_exchange(project_id, department_id, owner_id));
+
+drop policy if exists "president or department VP deletes exchanges" on exchanges;
+create policy "president or department VP deletes exchanges" on exchanges
+  for delete using (is_lc_president(project_id) or department_id in (select led_department_ids(project_id)));
+
+-- ── 3. Goals ──────────────────────────────────────────────────────────────────
+
+create table if not exists goals (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  department_id uuid references departments(id) on delete cascade,   -- null = whole LC
+  title         text not null check (length(trim(title)) > 0),
+  metric        text not null check (metric in ('manual', 'pipeline')),
+  product       text check (product in ('ogv', 'ogta', 'ogte', 'igv', 'igta', 'igte')),
+  stage         text check (stage in ('signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished')),
+  target        numeric not null check (target > 0),
+  current_value numeric not null default 0 check (current_value >= 0),
+  unit          text,
+  starts_on     date not null,
+  ends_on       date not null,
+  created_by    uuid references user_profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  constraint goals_dates check (ends_on >= starts_on),
+  constraint goals_pipeline_needs_stage check (metric = 'manual' or stage is not null)
+);
+
+create index if not exists goals_project_idx on goals (project_id, ends_on);
+
+create or replace function _goals_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_id is not null and not exists (
+    select 1 from departments where id = new.department_id and project_id = new.project_id
+  ) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_goals_guard on goals;
+create trigger trg_goals_guard
+  before insert or update on goals
+  for each row execute function _goals_guard();
+
+alter table goals enable row level security;
+
+drop policy if exists "lc members see goals" on goals;
+create policy "lc members see goals" on goals
+  for select using (auth_is_project_member(project_id));
+
+drop policy if exists "president or department VP manages goals" on goals;
+create policy "president or department VP manages goals" on goals
+  for all using (
+    is_lc_president(project_id) or (department_id is not null and department_id in (select led_department_ids(project_id)))
+  ) with check (
+    is_lc_president(project_id) or (department_id is not null and department_id in (select led_department_ids(project_id)))
+  );
+
+-- Progress for every goal in the LC: counts only, so members see KPI progress
+-- without seeing the exchange participants behind it.
+create or replace function goal_progress(p_project_id uuid)
+returns table (goal_id uuid, current numeric)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  if not auth_is_project_member(p_project_id) then
+    return;
+  end if;
+  return query
+  select g.id,
+         case when g.metric = 'manual' then g.current_value
+         else (
+           select count(*)::numeric
+           from   exchanges e
+           where  e.project_id = g.project_id
+             and  (g.product is not null and e.product = g.product
+                   or g.product is null and (g.department_id is null or e.department_id = g.department_id))
+             and  (case g.stage
+                     when 'signed_up' then e.signed_up_at
+                     when 'applied'   then e.applied_at
+                     when 'accepted'  then e.accepted_at
+                     when 'approved'  then e.approved_at
+                     when 'realized'  then e.realized_at
+                     when 'finished'  then e.finished_at
+                   end) between g.starts_on and g.ends_on
+         ) end
+  from goals g
+  where g.project_id = p_project_id;
+end;
+$$;
+
+revoke execute on function goal_progress(uuid) from public, anon;
+grant  execute on function goal_progress(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261017003_partners.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 036: Partner CRM (Business Development, iGT and anyone working with companies).
+--
+--   partners            company / organisation, stage, owner, next follow-up.
+--   partner_contacts    people at the partner (names, emails, phones).
+--   partner_activities  dated log of calls, emails, meetings and notes.
+--
+-- Visibility: the executive board (president and VPs) sees every partner;
+-- other members see their own department's partners and the ones they own.
+-- Contacts and activities follow their partner.
+
+create table if not exists partners (
+  id             uuid primary key default gen_random_uuid(),
+  project_id     uuid not null references projects(id) on delete cascade,
+  name           text not null check (length(trim(name)) > 0),
+  industry       text,
+  website        text check (website is null or website ~* '^https?://'),
+  stage          text not null default 'lead'
+                 check (stage in ('lead', 'contacted', 'meeting', 'proposal', 'negotiation', 'partner', 'lost')),
+  department_id  uuid references departments(id) on delete set null,
+  owner_id       uuid references user_profiles(id) on delete set null,
+  next_follow_up date,
+  notes          text,
+  created_by     uuid references user_profiles(id) on delete set null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists partners_project_stage_idx on partners (project_id, stage);
+create index if not exists partners_follow_up_idx on partners (project_id, owner_id, next_follow_up);
+
+create table if not exists partner_contacts (
+  id          uuid primary key default gen_random_uuid(),
+  partner_id  uuid not null references partners(id) on delete cascade,
+  name        text not null check (length(trim(name)) > 0),
+  role_title  text,
+  email       text,
+  phone       text,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists partner_activities (
+  id          uuid primary key default gen_random_uuid(),
+  partner_id  uuid not null references partners(id) on delete cascade,
+  kind        text not null default 'note' check (kind in ('note', 'call', 'email', 'meeting')),
+  body        text not null check (length(trim(body)) > 0),
+  happened_on date not null default current_date,
+  author_id   uuid references user_profiles(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists partner_activities_partner_idx on partner_activities (partner_id, happened_on desc);
+
+create or replace function _partners_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_id is not null and not exists (
+    select 1 from departments where id = new.department_id and project_id = new.project_id
+  ) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  if new.owner_id is not null and not exists (
+    select 1 from team_members where project_id = new.project_id and user_id = new.owner_id
+  ) then
+    raise exception 'The owner must be a member of this LC';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_partners_guard on partners;
+create trigger trg_partners_guard
+  before insert or update on partners
+  for each row execute function _partners_guard();
+
+-- The caller's own department in an LC (null if none).
+create or replace function my_department_id(p_project_id uuid)
+returns uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select department_id from team_members where project_id = p_project_id and user_id = auth.uid();
+$$;
+
+-- Partner visibility from the row's own columns (usable while the row is being
+-- inserted, unlike a lookup by id).
+create or replace function partner_visible(p_project_id uuid, p_department_id uuid, p_owner_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_lc_exec(p_project_id)
+      or p_owner_id = auth.uid()
+      or (p_department_id is not null and p_department_id = my_department_id(p_project_id));
+$$;
+
+-- Can the caller see / work on an existing partner? (for contacts and activities)
+create or replace function can_work_on_partner(p_partner_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from partners p
+    where p.id = p_partner_id and partner_visible(p.project_id, p.department_id, p.owner_id)
+  );
+$$;
+
+alter table partners           enable row level security;
+alter table partner_contacts   enable row level security;
+alter table partner_activities enable row level security;
+
+drop policy if exists "partners visible to exec, department and owner" on partners;
+create policy "partners visible to exec, department and owner" on partners
+  for select using (partner_visible(project_id, department_id, owner_id));
+
+drop policy if exists "members add partners for their department" on partners;
+create policy "members add partners for their department" on partners
+  for insert with check (
+    created_by = auth.uid()
+    and auth_is_project_member(project_id)
+    and (
+      is_lc_exec(project_id)
+      or department_id = my_department_id(project_id)
+    )
+  );
+
+drop policy if exists "people who can see a partner can update it" on partners;
+create policy "people who can see a partner can update it" on partners
+  for update using (partner_visible(project_id, department_id, owner_id)) with check (auth_is_project_member(project_id));
+
+drop policy if exists "president, department VP or creator deletes partners" on partners;
+create policy "president, department VP or creator deletes partners" on partners
+  for delete using (
+    is_lc_president(project_id)
+    or created_by = auth.uid()
+    or (department_id is not null and department_id in (select led_department_ids(project_id)))
+  );
+
+drop policy if exists "contacts follow their partner" on partner_contacts;
+create policy "contacts follow their partner" on partner_contacts
+  for all using (can_work_on_partner(partner_id)) with check (can_work_on_partner(partner_id));
+
+drop policy if exists "activities follow their partner" on partner_activities;
+create policy "activities follow their partner" on partner_activities
+  for select using (can_work_on_partner(partner_id));
+
+drop policy if exists "log activity on visible partners" on partner_activities;
+create policy "log activity on visible partners" on partner_activities
+  for insert with check (can_work_on_partner(partner_id) and author_id = auth.uid());
+
+drop policy if exists "authors edit their own activity" on partner_activities;
+create policy "authors edit their own activity" on partner_activities
+  for delete using (author_id = auth.uid());
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261017004_drive_handover.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 037: LC Drive (Bookmarks with folders and files) and term handover.
+--
+--   drive_folders     LC-wide folders, seeded per LC: Templates, Brand kit,
+--                     Job descriptions, Important links, Handover. Every
+--                     member sees them; the exec board manages them.
+--   bookmarks         now "drive items": a link or an uploaded file, optionally
+--                     in a folder. Personal items are visible only to their
+--                     owner (previously any LC member could read them).
+--   storage 'lc-drive' private bucket for uploaded files, opened through
+--                     signed URLs; LC members read, the uploader or the exec
+--                     board deletes.
+--   handover_notes    one note per department per term (plus LC-wide notes from
+--                     the president) for whoever takes over next. The exec board
+--                     reads all; a department's members read theirs; the
+--                     department's VP (or the president) writes.
+
+-- ── 1. Folders ────────────────────────────────────────────────────────────────
+
+create table if not exists drive_folders (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references projects(id) on delete cascade,
+  name        text not null check (length(trim(name)) > 0),
+  sort_order  integer not null default 0,
+  created_by  uuid references user_profiles(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  unique (project_id, name)
+);
+
+create or replace function seed_default_drive_folders(p_project_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into drive_folders (project_id, name, sort_order)
+  select p_project_id, f.name, f.ord
+  from unnest(array['Templates', 'Brand kit', 'Job descriptions', 'Important links', 'Handover'])
+       with ordinality as f(name, ord)
+  on conflict (project_id, name) do nothing;
+$$;
+revoke execute on function seed_default_drive_folders(uuid) from public, anon, authenticated;
+
+create or replace function _seed_lc_drive_folders()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform seed_default_drive_folders(new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_seed_lc_drive_folders on projects;
+create trigger trg_seed_lc_drive_folders
+  after insert on projects
+  for each row execute function _seed_lc_drive_folders();
+
+select seed_default_drive_folders(p.id)
+from projects p
+where not exists (select 1 from drive_folders f where f.project_id = p.id);
+
+alter table drive_folders enable row level security;
+
+drop policy if exists "lc members see folders" on drive_folders;
+create policy "lc members see folders" on drive_folders
+  for select using (auth_is_project_member(project_id));
+
+drop policy if exists "exec manages folders" on drive_folders;
+create policy "exec manages folders" on drive_folders
+  for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+-- ── 2. Drive items (bookmarks) ───────────────────────────────────────────────
+
+alter table bookmarks
+  add column if not exists folder_id    uuid references drive_folders(id) on delete set null,
+  add column if not exists kind         text not null default 'link',
+  add column if not exists storage_path text,
+  add column if not exists file_name    text,
+  add column if not exists mime_type    text,
+  add column if not exists size_bytes   bigint;
+
+alter table bookmarks drop constraint if exists bookmarks_kind_check;
+alter table bookmarks add constraint bookmarks_kind_check check (
+  (kind = 'link' and storage_path is null)
+  or (kind = 'file' and storage_path is not null)
+);
+
+create or replace function _bookmarks_folder_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.folder_id is not null and not exists (
+    select 1 from drive_folders where id = new.folder_id and project_id = new.project_id
+  ) then
+    raise exception 'Folder does not belong to this LC';
+  end if;
+  if new.kind = 'file' and split_part(new.storage_path, '/', 1) <> new.project_id::text then
+    raise exception 'File is not stored under this LC';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_bookmarks_folder_guard on bookmarks;
+create trigger trg_bookmarks_folder_guard
+  before insert or update on bookmarks
+  for each row execute function _bookmarks_folder_guard();
+
+-- Personal items were readable by every LC member; keep them private.
+drop policy if exists "project members can read bookmarks" on bookmarks;
+create policy "project members can read bookmarks" on bookmarks
+  for select using (
+    (coalesce(scope, 'lab') <> 'personal' and auth_is_project_member(project_id))
+    or (scope = 'personal' and added_by = auth.uid())
+    or (
+      scope = 'project'
+      and sub_project_id is not null
+      and exists (
+        select 1 from sub_project_members spm
+        where spm.sub_project_id = bookmarks.sub_project_id and spm.user_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "members can update shared bookmarks" on bookmarks;
+create policy "members can update shared bookmarks" on bookmarks
+  for update using (
+    (scope = 'personal' and added_by = auth.uid())
+    or (coalesce(scope, 'lab') <> 'personal' and auth_is_project_member(project_id))
+  ) with check (auth_is_project_member(project_id) or added_by = auth.uid());
+
+-- ── 3. Files bucket ──────────────────────────────────────────────────────────
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('lc-drive', 'lc-drive', false, 26214400)
+on conflict (id) do update set public = false;
+
+drop policy if exists "lc-drive: members upload to their LC" on storage.objects;
+create policy "lc-drive: members upload to their LC" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'lc-drive' and auth_is_project_member(_try_uuid((storage.foldername(name))[1]))
+  );
+
+drop policy if exists "lc-drive: members read their LC" on storage.objects;
+create policy "lc-drive: members read their LC" on storage.objects
+  for select to authenticated using (
+    bucket_id = 'lc-drive'
+    and auth_is_project_member(_try_uuid((storage.foldername(name))[1]))
+    -- personal files stay with their owner
+    and not exists (
+      select 1 from bookmarks b
+      where b.storage_path = storage.objects.name and b.scope = 'personal' and b.added_by <> auth.uid()
+    )
+  );
+
+drop policy if exists "lc-drive: uploader or exec deletes" on storage.objects;
+create policy "lc-drive: uploader or exec deletes" on storage.objects
+  for delete to authenticated using (
+    bucket_id = 'lc-drive'
+    and (owner = auth.uid() or is_lc_exec(_try_uuid((storage.foldername(name))[1])))
+  );
+
+-- ── 4. Handover notes ────────────────────────────────────────────────────────
+
+create table if not exists handover_notes (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  department_id uuid references departments(id) on delete cascade,   -- null = LC-wide (president)
+  term_label    text not null check (length(trim(term_label)) > 0),  -- e.g. "2026/27"
+  title         text not null check (length(trim(title)) > 0),
+  body          text not null default '',
+  updated_by    uuid references user_profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique nulls not distinct (project_id, department_id, term_label)
+);
+
+create or replace function _handover_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_id is not null and not exists (
+    select 1 from departments where id = new.department_id and project_id = new.project_id
+  ) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  new.updated_at := now();
+  new.updated_by := coalesce(auth.uid(), new.updated_by);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_handover_guard on handover_notes;
+create trigger trg_handover_guard
+  before insert or update on handover_notes
+  for each row execute function _handover_guard();
+
+alter table handover_notes enable row level security;
+
+drop policy if exists "handover readable by exec and the department" on handover_notes;
+create policy "handover readable by exec and the department" on handover_notes
+  for select using (
+    is_lc_exec(project_id)
+    or (department_id is not null and department_id = my_department_id(project_id))
+  );
+
+drop policy if exists "handover written by the department VP or president" on handover_notes;
+create policy "handover written by the department VP or president" on handover_notes
+  for all using (
+    is_lc_president(project_id) or (department_id is not null and department_id in (select led_department_ids(project_id)))
+  ) with check (
+    is_lc_president(project_id) or (department_id is not null and department_id in (select led_department_ids(project_id)))
+  );
+
+notify pgrst, 'reload schema';
+

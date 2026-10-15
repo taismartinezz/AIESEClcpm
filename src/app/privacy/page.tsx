@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <h2 style={h2}>What this app is</h2>
           <p style={para}>
             {APP_NAME} is a workspace for AIESEC Local Committees (LCs): tasks, reminders, chat,
-            bookmarks and a private wellbeing journal. Each LC&rsquo;s data is visible only to that
+            shared files and a private wellbeing journal. Each LC&rsquo;s data is visible only to that
             LC&rsquo;s members, enforced by the database, not only by the interface.
           </p>
         </section>
@@ -39,9 +39,9 @@ export default function PrivacyPage() {
           <h2 style={h2}>What we store</h2>
           <ul style={list}>
             <li><strong>Account:</strong> your name, email address, and your role and department in each LC you join.</li>
-            <li><strong>LC workspace:</strong> tasks, reminders, bookmarks, chat messages and posts you add.</li>
+            <li><strong>LC workspace:</strong> tasks, reminders, LC Drive links and files, chat messages and posts you add.</li>
             <li><strong>Journal:</strong> your free-text entries are encrypted and readable only by you.</li>
-            <li><strong>Weekly check-in:</strong> your 1–5 scores, stored separately from your journal text so they can be averaged.</li>
+            <li><strong>Check-in:</strong> your 1–5 answers (every two weeks by default), stored separately from your journal so they can be averaged.</li>
           </ul>
         </section>
 
@@ -51,8 +51,8 @@ export default function PrivacyPage() {
             <li>Nobody ever sees your individual answers or your journal text.</li>
             <li>Members&rsquo; scores are averaged per department. Your VP sees your department&rsquo;s average; your LCP sees every department&rsquo;s average.</li>
             <li>VPs&rsquo; scores are averaged into an executive-board average that only the LCP sees.</li>
-            <li>An average is hidden for any week with fewer respondents than the LC&rsquo;s privacy threshold (3 by default).</li>
-            <li>You can stop your scores being counted at any time from the Journal page.</li>
+            <li>An average is hidden for any check-in period with fewer respondents than the LC&rsquo;s privacy threshold (3 by default).</li>
+            <li>You can stop your scores being counted at any time from the Check-in page.</li>
           </ul>
         </section>
 

@@ -5,16 +5,18 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store,
+  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { USERS, getStoredProject, getStoredUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
+import SupportPanel from "@/components/support/SupportPanel";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
@@ -37,14 +39,19 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 
 const NAV_ITEMS = [
   { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
   { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
+  { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
+  { href: "/goals",       label: "Goals",      icon: Target          },
+  { href: "/partners",    label: "Partners",   icon: Handshake       },
   { href: "/journal",     label: "Journal",    icon: BookOpen        },
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
   { href: "/finance",     label: "Finance",    icon: Wallet          },
   { href: "/attendance",  label: "Attendance", icon: UserCheck       },
   { href: "/tabling",     label: "Tabling",    icon: Store           },
-  { href: "/bookmarks",   label: "Bookmarks",  icon: Bookmark        },
+  { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
+  { href: "/handover",    label: "Handover",   icon: ScrollText      },
   { href: "/team",        label: "Team",       icon: Users           },
 ];
 
@@ -133,6 +140,7 @@ function SidebarBody({
   onPersonal,
   onCreateProject,
   onSettings,
+  onGetHelp,
   profileInitials = "??",
   projectName = "",
   projectColor = "",
@@ -156,6 +164,7 @@ function SidebarBody({
   onPersonal?: () => void;
   onCreateProject?: () => void;
   onSettings?: () => void;
+  onGetHelp?: () => void;
   profileInitials?: string;
   projectName?: string;
   projectColor?: string;
@@ -307,6 +316,18 @@ function SidebarBody({
         </nav>
 
         <Divider />
+
+        {/* Get help — support resources, reachable from every page */}
+        <Tooltip label="Get help" placement="right">
+          <button
+            onClick={onGetHelp}
+            style={{ ...ICON_BTN, background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)" }}
+            className="hover:bg-[var(--color-navy-dim)]"
+            aria-label="Get help"
+          >
+            <LifeBuoy size={16} />
+          </button>
+        </Tooltip>
 
         {/* Settings */}
         <Tooltip label="Settings" placement="right">
@@ -518,8 +539,17 @@ function SidebarBody({
         </div>
       </div>
 
-      {/* Footer: settings + personal workspace */}
+      {/* Footer: get help + settings + personal workspace */}
       <div className="px-2 pb-2 shrink-0" style={{ borderTop: "1px solid var(--color-border)", paddingTop: 4 }}>
+        <button
+          onClick={onGetHelp}
+          className="flex items-center gap-2.5 w-full rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
+          style={{ padding: "6px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)", fontSize: 13, minHeight: 36, textAlign: "left" }}
+          aria-label="Get help"
+        >
+          <LifeBuoy size={14} />
+          <span>Get help</span>
+        </button>
         <button
           onClick={onSettings}
           className="flex items-center gap-2.5 w-full rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
@@ -702,6 +732,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { show: showOnboarding, close: closeOnboarding } = useOnboarding();
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpKey, setHelpKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -744,22 +776,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           router.replace("/login");
           return;
         }
-        try {
-          const stored = localStorage.getItem("aiesec_user");
-          if (stored) {
-            const u = JSON.parse(stored);
-            setProfile(u);
-            // Show the current user as their own team member in demo mode
-            setTeam([{
-              id: u.id ?? "demo",
-              name: u.name ?? "You",
-              email: u.email ?? "",
-              role: toUserRole(u.role),
-              avatarColor: u.avatarColor ?? "#B4D4E3",
-              avatarInitials: computeInitials(u.name ?? "") || (u.avatarInitials ?? "??"),
-            }]);
-          }
-        } catch { /* use null profile */ }
+        // Demo mode: the fictional LC from src/lib/mock-data, so the sidebar,
+        // Team and Tasks all show the same people.
+        const me = getStoredUser();
+        setProfile({ ...me, avatar_initials: me.avatarInitials, avatar_color: me.avatarColor });
+        setProject(getStoredProject());
+        setTeam(USERS.map((u) => (u.id === me.id ? me : u)));
         setAuthed(true);
         return;
       }
@@ -900,7 +922,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // ── Project data + team - driven by projectId from context ────────────────
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isSupabaseConfigured) return;
     let canceled = false;
 
     async function loadProjectData() {
@@ -999,7 +1021,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const nav: Record<string, string> = {
           d: "/", t: "/tasks", j: "/journal", c: "/chat",
           r: "/reminders",
-          b: "/bookmarks", m: "/team",
+          b: "/drive", m: "/team",
         };
         const dest = nav[e.key.toLowerCase()];
         if (dest) { e.preventDefault(); router.push(dest); }
@@ -1103,6 +1125,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onPersonal={() => { setActiveSubProject(null); setActiveScope("personal"); }}
           onCreateProject={() => setShowCreate(true)}
           onSettings={() => router.push("/settings")}
+          onGetHelp={() => { setHelpKey((k) => k + 1); setHelpOpen(true); }}
           profileInitials={computeInitials(profile?.name ?? "") || (profile?.avatar_initials ?? "??")}
           projectName={project?.name ?? ""}
           projectColor={project?.color ?? ""}
@@ -1205,6 +1228,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onPersonal={() => { setActiveSubProject(null); setActiveScope("personal"); }}
           onCreateProject={() => setShowCreate(true)}
           onSettings={() => router.push("/settings")}
+          onGetHelp={() => { setHelpKey((k) => k + 1); setHelpOpen(true); }}
           profileInitials={computeInitials(profile?.name ?? "") || (profile?.avatar_initials ?? "??")}
           projectName={project?.name ?? ""}
           projectColor={project?.color ?? ""}
@@ -1383,6 +1407,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
     <Toast />
+    {helpOpen && (
+      <SupportPanel key={helpKey} onClose={() => setHelpOpen(false)} userId={profile?.id ?? ""} projectId={projectId} />
+    )}
     {projectId && <GlobalSearch projectId={projectId} />}
     {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} />}
     {showOnboarding && authed && <OnboardingModal onClose={closeOnboarding} />}

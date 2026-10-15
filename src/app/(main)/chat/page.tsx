@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { USERS, CURRENT_USER_ID } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { useUndoToast } from "@/context/UndoToastContext";
@@ -79,8 +80,8 @@ export default function ChatPage() {
   // Auth
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setCurrentUserId("demo-user"); setCurrentUserName("You");
-      setTeamMembers([buildUser("demo-pi", "Dr. Sarah Chen"), buildUser("demo-ra", "Marcus Johnson"), buildUser("demo-grad", "Priya Patel")]);
+      setCurrentUserId("u1"); setCurrentUserName("You");
+      setTeamMembers(USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => buildUser(u.id, u.name)));
       return;
     }
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -225,11 +226,11 @@ export default function ChatPage() {
 
     if (!isSupabaseConfigured) {
       setMessages([
-        { id: "d1", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Good morning! LC meeting moved to Thursday.", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 2, reactions: [{ emoji: "👍", count: 3, hasReacted: true }], mentionedUserIds: [], isPinned: false, threadLastReplierId: "demo-ra", attachments: [] },
-        { id: "d2", channel: key, senderId: "demo-ra", senderName: "Marcus Johnson", content: "Thanks for the heads up! I'll update my calendar.", createdAt: new Date(Date.now() - 3300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-        { id: "d3", channel: key, senderId: "demo-grad", senderName: "Priya Patel", content: "Will the agenda be the same? I was going to present my prelim results.", createdAt: new Date(Date.now() - 2400000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [{ emoji: "🎉", count: 2, hasReacted: false }], mentionedUserIds: [], isPinned: true, attachments: [] },
-        { id: "d4", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Yes! Priya you're still presenting first - looking forward to it.", createdAt: new Date(Date.now() - 1800000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: ["demo-grad"], isPinned: false, attachments: [] },
-        { id: "d5", channel: key, senderId: "demo-user", senderName: "You", content: "See everyone Thursday!", createdAt: new Date(Date.now() - 300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
+        { id: "d1", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Good morning! LC meeting moved to Thursday, 19:00. Bring your department updates.", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 2, reactions: [{ emoji: "👍", count: 3, hasReacted: true }], mentionedUserIds: [], isPinned: false, threadLastReplierId: "u2", attachments: [] },
+        { id: "d2", channel: key, senderId: "u2", senderName: "Kwame Mensah", content: "Noted! oGV will share this week's applications and approvals.", createdAt: new Date(Date.now() - 3300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
+        { id: "d3", channel: key, senderId: "u4", senderName: "Priya Nair", content: "Can we add 5 minutes for the info-session plan? Posters are almost ready.", createdAt: new Date(Date.now() - 2400000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [{ emoji: "🎉", count: 2, hasReacted: false }], mentionedUserIds: [], isPinned: true, attachments: [] },
+        { id: "d4", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Yes! Priya, you're up first. Great work on the sign-ups this week 🙌", createdAt: new Date(Date.now() - 1800000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: ["u4"], isPinned: false, attachments: [] },
+        { id: "d5", channel: key, senderId: "u1", senderName: "You", content: "See everyone Thursday!", createdAt: new Date(Date.now() - 300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
       ]);
       setLoading(false); return;
     }

@@ -17,7 +17,7 @@ import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
 import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
-import { FinanceSnapshotCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
+import { FinanceSnapshotCard, FollowUpsCard, GoalsCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
 import { isFinanceLead } from "@/lib/permissions";
 
 // ── Add Reminder modal ────────────────────────────────────────────────────────
@@ -493,11 +493,13 @@ export default function DashboardPage() {
         />
 
         {/* LC modules: finance, events and tabling — by role */}
-        {role && (
+        {role && isSupabaseConfigured && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <GoalsCard projectId={activeProjectId} departments={departments} departmentId={lcs.find((l) => l.id === activeProjectId)?.departmentId ?? null} />
             {financeLead && <FinanceSnapshotCard projectId={activeProjectId} />}
             {(role === "president" || role === "vp") && <UpcomingNeedsCard projectId={activeProjectId} />}
             {role === "member" && <MyNextCard projectId={activeProjectId} userId={ctxUserId} />}
+            <FollowUpsCard projectId={activeProjectId} userId={ctxUserId} />
           </div>
         )}
 

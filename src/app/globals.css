@@ -65,11 +65,13 @@
   --priority-low-text:    #166534;
   --priority-low-bg:      #A7D7BC;
 
-  /* Typography — Inter, 4 sizes */
-  --font-inter: var(--font-inter), system-ui, sans-serif;
+  /* Typography — Lato (AIESEC's brand typeface), 4 sizes.
+     --font-lato is set by next/font in app/layout.tsx; the older token names
+     (--font-inter/--font-lora/--font-roboto) all point at it. */
+  --font-inter: var(--font-lato), system-ui, sans-serif;
   /* Kept for backwards-compat with any remaining Lora/Roboto refs */
-  --font-lora:   var(--font-inter), system-ui, sans-serif;
-  --font-roboto: var(--font-inter), system-ui, sans-serif;
+  --font-lora:   var(--font-lato), system-ui, sans-serif;
+  --font-roboto: var(--font-lato), system-ui, sans-serif;
 
   /* Font sizes (used semantically) */
   --text-xs:   11px;  /* captions, counts, badge labels */
@@ -120,7 +122,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Typography helpers (all point to Inter now) ── */
+/* ── Typography helpers (all point to Lato) ── */
 .font-inter  { font-family: var(--font-inter); }
 .font-lora   { font-family: var(--font-inter); }
 .font-roboto { font-family: var(--font-inter); }

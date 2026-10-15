@@ -73,3 +73,70 @@ test.describe('Tabling page', () => {
     await expect(page.getByRole('button', { name: /new slot/i })).toBeVisible()
   })
 })
+
+test.describe('Pipeline and goals', () => {
+  const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: null, is_finance: false, sort_order: 1, products: ['ogv'] }
+  const ex = { id: 'ex1', project_id: 'project-abc', product: 'ogv', stage: 'approved', person_name: 'Marta S.', email: null, phone: null, opportunity: 'Teaching English', host_entity: 'AIESEC in Bogotá', expa_id: null, expa_url: null, department_id: 'dep-ogv', owner_id: null, notes: null, signed_up_at: '2026-09-01', applied_at: '2026-09-05', accepted_at: '2026-09-10', approved_at: '2026-09-20', realized_at: null, finished_at: null, updated_at: new Date().toISOString() }
+
+  test('the president sees every product and the exchange in its stage column', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [ex] } })
+    await page.goto('/pipeline')
+    await expect(page.getByRole('tab', { name: /iGTe/ })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('region', { name: 'Approved: 1' }).getByText('Marta S.')).toBeVisible()
+  })
+
+  test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { departments: [OGV] })
+    await page.goto('/pipeline')
+    await expect(page.getByText(/doesn.t run an exchange product/)).toBeVisible({ timeout: 10000 })
+  })
+
+  test('goals show progress bars with their numbers', async ({ page }) => {
+    const goal = { id: 'g1', project_id: 'project-abc', department_id: null, title: 'New members recruited', metric: 'manual', product: null, stage: null, target: 15, current_value: 6, unit: 'members', starts_on: '2026-02-01', ends_on: '2027-01-31' }
+    await setupAuthMocks(page, 'member', { tables: { goals: [goal] }, rpc: { goal_progress: [{ goal_id: 'g1', current: 6 }] } })
+    await page.goto('/goals')
+    await expect(page.getByRole('progressbar', { name: 'New members recruited' })).toHaveAttribute('aria-valuenow', '6', { timeout: 10000 })
+    await expect(page.getByText('6 / 15')).toBeVisible()
+    await expect(page.getByRole('button', { name: /new goal/i })).toHaveCount(0)
+  })
+})
+
+test.describe('Partners', () => {
+  test('shows partners by stage and flags overdue follow-ups', async ({ page }) => {
+    const partner = { id: 'p1', project_id: 'project-abc', name: 'Demo Bank', industry: 'Banking', website: null, stage: 'meeting', department_id: null, owner_id: 'mock-user-id', next_follow_up: '2020-01-01', notes: null, updated_at: new Date().toISOString() }
+    await setupAuthMocks(page, 'vp', { tables: { partners: [partner] } })
+    await page.goto('/partners')
+    await expect(page.getByRole('button', { name: 'Demo Bank' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/overdue/)).toBeVisible()
+    await expect(page.getByText('1 of your partners need a follow-up this week.')).toBeVisible()
+  })
+})
+
+test.describe('LC Drive and handover', () => {
+  test('the Drive lists folders and files, and /bookmarks redirects to it', async ({ page }) => {
+    const folders = [{ id: 'f1', name: 'Templates', sort_order: 1 }, { id: 'f2', name: 'Brand kit', sort_order: 2 }]
+    const items = [
+      { id: 'b1', project_id: 'project-abc', scope: 'lab', folder_id: 'f2', kind: 'link', url: 'https://example.com/brand', title: 'Brand guidelines', added_by: 'mock-user-id', added_at: new Date().toISOString() },
+      { id: 'b2', project_id: 'project-abc', scope: 'lab', folder_id: 'f1', kind: 'file', url: '', storage_path: 'project-abc/x-proposal.pdf', file_name: 'proposal.pdf', size_bytes: 204800, title: 'Proposal template', added_by: 'mock-user-id', added_at: new Date().toISOString() },
+    ]
+    await setupAuthMocks(page, 'member', { tables: { drive_folders: folders, bookmarks: items } })
+    await page.goto('/bookmarks')
+    await expect(page).toHaveURL(/\/drive$/)
+    await expect(page.getByRole('heading', { name: 'LC Drive' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Proposal template')).toBeVisible()
+    await expect(page.getByText('proposal.pdf · 200 KB')).toBeVisible()
+    await page.getByRole('navigation', { name: 'Drive folders' }).getByRole('button', { name: /Brand kit/ }).click()
+    await expect(page.getByText('Brand guidelines')).toBeVisible()
+    await expect(page.getByText('Proposal template')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'New folder' })).toHaveCount(0)
+  })
+
+  test('the president writes the LC-wide handover from the template', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { rpc: { lc_term_start: '2026-02-01' }, tables: { handover_notes: [] } })
+    await page.goto('/handover')
+    await expect(page.getByRole('heading', { name: 'Handover' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByLabel('Term')).toHaveValue('2026/27')
+    await page.getByRole('button', { name: /write handover/i }).first().click()
+    await expect(page.getByLabel(/Handover for LC-wide/)).toHaveValue(/What we did this term/)
+  })
+})

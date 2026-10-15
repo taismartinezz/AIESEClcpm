@@ -1,6 +1,6 @@
 # AIESEClcpm
 
-Project management and wellbeing for **AIESEC Local Committees (LCs)**. One place for an LC's tasks, reminders, chat and shared links, plus a private weekly check-in that shows the LCP and VPs how their teams are doing without ever exposing anyone's individual answers.
+Project management and wellbeing for **AIESEC Local Committees (LCs)**. One place for an LC's tasks, reminders, chat and shared links, plus a private check-in that shows the LCP and VPs how their teams are doing without ever exposing anyone's individual answers.
 
 > The product name lives in one constant, `APP_NAME` in `src/lib/brand.ts`. Change it there to rebrand.
 
@@ -22,10 +22,12 @@ Everyone can belong to several LCs and has a role **in each one**:
 
 - **Dashboard**: today's agenda, LC wins and opportunities, and role-aware wellbeing cards.
 - **Tasks**: a board running Backlog → To do → In progress → Review → Done, with assignees, due dates, subtasks, files, comments and an optional department tag and filter.
-- **Journal**: the weekly check-in, then a private, end-to-end encrypted journal.
+- **Check-in**: a one-minute check-in every two weeks (or weekly, per LC). One answer per person per period, editable until the period ends.
+- **Journal**: an optional private diary, encrypted so only its author can read it.
 - **Chat**: LC-wide, group and direct messages.
-- **Reminders**: personal, LC-wide and group reminders, including an automatic weekly check-in reminder.
-- **Bookmarks**: shared links for the LC or a group.
+- **Reminders**: personal, LC-wide and group reminders, including an automatic check-in reminder.
+- **LC Drive**: links and uploaded files (templates, brand kit, job descriptions…) in LC folders, plus personal and group items. `/bookmarks` redirects here.
+- **Handover**: one note per department per term for whoever takes over next.
 - **Team**: the directory, grouped into Executive Board and one section per department.
 - **Finance**: income and expense ledger with running balance, month and year-to-date totals, spend by category and department, filters and CSV export. Any member can submit an **expense claim** with a receipt photo or PDF; the person in charge of finance approves or rejects it (a rejection needs a reason), and an approved claim creates the matching ledger entry. Members see only their own claims; other VPs see their departments' claims and spend.
 - **Attendance**: LC events and conferences. VPs and the LCP log who attended (searchable, or a whole department at once); views by event, by member (with totals per event type this term) and a sortable, exportable table. Members see only their own history; VPs see their departments.
@@ -36,11 +38,11 @@ Everyone can belong to several LCs and has a role **in each one**:
 ## Wellbeing and privacy
 
 - Journal text is encrypted in the browser and readable only by its author.
-- Check-in scores (1–5) are only ever shown as **averages**: per question, per week and as an 8-week trend.
+- Check-in scores (1–5) are only ever shown as **averages**: per question, per check-in period (two weeks by default) and as a trend over the last 8 periods.
 - **Member Pulse**: members' averages per department. Each VP sees their own departments; the LCP sees every department and the LC total.
 - **Exec Pulse**: VPs' averages, seen only by the LCP. The LCP's own answers are never counted anywhere.
-- A week is hidden ("Not enough responses this week to protect privacy") when fewer people than the LC's threshold responded (default 3 for the executive board and for each department; the president can change both).
-- These rules are enforced in Postgres (SECURITY DEFINER functions that check the caller's role, plus RLS), not just in the interface. Anyone can opt out of being counted from the Journal page.
+- A period is hidden ("Not enough responses this fortnight to protect privacy") when fewer people than the LC's threshold responded (default 3 for the executive board and for each department; the president can change both).
+- These rules are enforced in Postgres (SECURITY DEFINER functions that check the caller's role, plus RLS), not just in the interface. Anyone can opt out of being counted from the Check-in page.
 
 ## Tech stack
 

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { useProject } from "@/context/ProjectContext";
 import {
-  CHECKIN_LABELS, JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
+  JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
 } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
-import type { JournalEntry, CheckinResponse } from "@/types";
-import { activeQuestions, audienceCopy, questionText, CHECKIN_QUESTIONS } from "@/lib/wellbeing";
+import type { JournalEntry } from "@/types";
 import {
   Lock, Mic, MicOff, HelpingHand, Search, Plus, X, Phone,
-  ChevronLeft, ChevronRight, Users, Building2, Loader2, CalendarDays, ChevronDown, BookOpen,
-  AlertCircle, Bell,
+  ChevronLeft, ChevronRight, Users, Building2, Loader2, BookOpen,
+  AlertCircle, HeartPulse,
 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
@@ -73,13 +73,6 @@ function formatFullDate(isoDate: string) {
 function getTodayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// Returns "Monday, July 14" style label for 7 days after lastDate
-function nextCheckinDay(lastDate: string) {
-  const d = new Date(lastDate + "T00:00:00");
-  d.setDate(d.getDate() + 7);
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
 const DRAFT_KEY = "aiesec_journal_draft";
@@ -312,44 +305,6 @@ function PromptCard({
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── Weekly check-in card ──────────────────────────────────────────────────────
-
-const SCORE_COLOR = "var(--color-navy)";
-const SCORE_LABELS = CHECKIN_LABELS as unknown as Record<number, string>;
-
-function CheckinCard({ question, response, onScore }: {
-  question: { id: string; text: string };
-  response?: CheckinResponse;
-  onScore: (score: 1 | 2 | 3 | 4 | 5) => void;
-}) {
-  const selected = response?.score;
-  return (
-    <div style={{ backgroundColor: "var(--color-surface)", border: `2px solid ${selected !== undefined ? SCORE_COLOR : "var(--color-border)"}`, borderRadius: 10, padding: "16px 16px", transition: "border-color 0.2s" }}>
-      <p style={{ fontSize: 13, color: "var(--color-body)", lineHeight: 1.5, marginBottom: 14 }}>{question.text}</p>
-      <div className="flex items-center gap-1.5 md:gap-2">
-        {([1, 2, 3, 4, 5] as const).map((score) => {
-          const isSelected = selected === score;
-          return (
-            <button key={score} onClick={() => onScore(score)}
-              className="flex flex-col items-center gap-1.5 flex-1 py-2 rounded-lg transition-all"
-              style={{ border: `1px solid ${isSelected ? SCORE_COLOR : "var(--color-border)"}`, backgroundColor: isSelected ? "rgba(2,99,196,0.08)" : "transparent", cursor: "pointer", minHeight: 52 }}
-              aria-label={`${score}: ${SCORE_LABELS[score]}`} aria-pressed={isSelected}
-            >
-              <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: isSelected ? SCORE_COLOR : "var(--color-border)", backgroundColor: isSelected ? SCORE_COLOR : "transparent" }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: isSelected ? SCORE_COLOR : "var(--color-secondary)", textAlign: "center", lineHeight: 1.2 }}>{score}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex justify-between mt-2">
-        <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>Strongly Disagree</span>
-        <span className="hidden md:block" style={{ fontSize: 10, color: "var(--color-secondary)" }}>Neutral</span>
-        <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>Strongly Agree</span>
       </div>
     </div>
   );
@@ -641,11 +596,7 @@ function NudgeBanner({ overdueCount, onSupportClick, onDismiss }: {
 
 export default function JournalPage() {
   const todayISO = getTodayISO();
-  const { projectId, role } = useProject();
-  const [disabledQuestions, setDisabledQuestions] = useState<string[]>([]);
-  const [optedIn, setOptedIn] = useState(true);
-  const [optInError, setOptInError] = useState<string | null>(null);
-  const questions = useMemo(() => activeQuestions(disabledQuestions), [disabledQuestions]);
+  const { projectId } = useProject();
 
   const [entries, setEntries]               = useState<JournalEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
@@ -658,8 +609,6 @@ export default function JournalPage() {
   const [defaultResponse, setDefaultResponse] = useState("");
   const [addedPrompts, setAddedPrompts]     = useState<AddedPrompt[]>([]);
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
-  const [checkinResponses, setCheckinResponses] = useState<CheckinResponse[]>([]);
-  const [checkinExpanded, setCheckinExpanded]   = useState(false);
   const [listCollapsed, setListCollapsed]       = useState(() => {
     try { return localStorage.getItem("journal_sidebar_collapsed") === "true"; } catch { return false; }
   });
@@ -681,50 +630,6 @@ export default function JournalPage() {
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [overdueCount, setOverdueCount]         = useState(0);
   const [nudgeDismissed, setNudgeDismissed]     = useState(false);
-
-  const checkinTotal    = questions.length;
-  const checkinAnswered = checkinResponses.filter((r) => questions.some((q) => q.id === r.questionId)).length;
-
-  async function handleOptInChange(next: boolean) {
-    const previous = optedIn;
-    setOptedIn(next);
-    setOptInError(null);
-    if (!isSupabaseConfigured) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user?.id;
-      if (!uid) throw new Error("not signed in");
-      const { error } = await supabase.from("user_settings").upsert(
-        { user_id: uid, wellbeing_opted_in: next, updated_at: new Date().toISOString() },
-        { onConflict: "user_id" },
-      );
-      if (error) throw new Error(error.message);
-    } catch (e) {
-      setOptedIn(previous);
-      setOptInError(`Couldn't save your choice: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  // ── Weekly check-in cadence ───────────────────────────────────────────────
-  // Derive last completion from journal_entries (newest entry with non-empty checkin)
-  const lastCheckinDate = useMemo<string | null>(() => {
-    for (const entry of entries) { // sorted newest-first
-      if (entry.checkin.length > 0) return entry.date;
-    }
-    return null;
-  }, [entries]);
-
-  const daysSinceLastCheckin = useMemo(() => {
-    if (!lastCheckinDate) return Infinity;
-    const last  = new Date(lastCheckinDate + "T00:00:00");
-    const today = new Date(todayISO + "T00:00:00");
-    return Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
-  }, [lastCheckinDate, todayISO]);
-
-  const isCheckinDue   = daysSinceLastCheckin >= 7;
-  const showFullCheckin = isCheckinDue || checkinExpanded;
-
-  // ─────────────────────────────────────────────────────────────────────────
 
   const filteredEntries = entries.filter((e) =>
     !search || e.prompts.some((p) => p.response.toLowerCase().includes(search.toLowerCase()))
@@ -750,11 +655,9 @@ export default function JournalPage() {
       const draft = JSON.parse(raw) as {
         defaultResponse?: string;
         addedPrompts?: AddedPrompt[];
-        checkinResponses?: CheckinResponse[];
       };
       if (draft.defaultResponse) setDefaultResponse(draft.defaultResponse);
       if (Array.isArray(draft.addedPrompts)) setAddedPrompts(draft.addedPrompts);
-      if (Array.isArray(draft.checkinResponses)) setCheckinResponses(draft.checkinResponses);
     } catch {
       // corrupt draft — ignore
     }
@@ -787,8 +690,6 @@ export default function JournalPage() {
   function resetToNew() {
     setDefaultResponse("");
     setAddedPrompts([]);
-    setCheckinResponses([]);
-    setCheckinExpanded(false);
     setSelectedEntryId("new");
     setSaveMsg(null);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -796,7 +697,7 @@ export default function JournalPage() {
   }
 
   function handleSaveDraft() {
-    const draft = { defaultResponse, addedPrompts, checkinResponses, timestamp: Date.now() };
+    const draft = { defaultResponse, addedPrompts, timestamp: Date.now() };
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       setSaveMsg({ text: "Draft saved.", color: "var(--color-secondary)" });
@@ -826,11 +727,9 @@ export default function JournalPage() {
     setSaving(true);
 
     try {
-      // Only answers to questions the LC currently asks are stored as scores.
-      const activeResponses = checkinResponses.filter((r) => questions.some((q) => q.id === r.questionId));
       const hasResponse = defaultResponse.trim() || addedPrompts.some((p) => p.response.trim());
-      if (!hasResponse && activeResponses.length === 0) {
-        setSaveMsg({ text: "Answer the check-in or write a reflection to save.", color: "var(--color-error)" });
+      if (!hasResponse) {
+        setSaveMsg({ text: "Write at least one reflection to save.", color: "var(--color-error)" });
         setTimeout(() => setSaveMsg(null), 3000);
         return;
       }
@@ -843,7 +742,7 @@ export default function JournalPage() {
       const content = {
         date: todayISO,
         prompts: allPrompts,
-        checkin: activeResponses,
+        checkin: [],
         isDraft: false,
       };
 
@@ -867,15 +766,11 @@ export default function JournalPage() {
         setTimeout(() => setSaveMsg(null), 5000);
         return;
       }
-
-      // checkin_scores is stored as plaintext JSON (only questionId + score, no free-text)
-      // so get_member_pulse / get_exec_pulse can average it; the content blob is encrypted.
       const result = await supabase
         .from("journal_entries")
         .insert({
           user_id: resolvedUserId,
           content: storedContent,
-          checkin_scores: activeResponses.length > 0 ? activeResponses : null,
           ...(projectId ? { project_id: projectId } : {}),
         })
         .select()
@@ -909,8 +804,6 @@ export default function JournalPage() {
       setEntries((prev) => [newEntry, ...prev]);
       setDefaultResponse("");
       setAddedPrompts([]);
-      setCheckinResponses([]);
-      setCheckinExpanded(false);
       setSelectedEntryId(newEntry.id);
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
 
@@ -933,10 +826,6 @@ export default function JournalPage() {
       const user = session?.user ?? null;
       if (!user) { setLoadingEntries(false); return; }
       setAuthUserId(user.id);
-
-      const { data: settings } = await supabase
-        .from("user_settings").select("wellbeing_opted_in").eq("user_id", user.id).maybeSingle();
-      if (settings && settings.wellbeing_opted_in === false) setOptedIn(false);
 
       // Fetch per-user encryption key from server
       let encKey: CryptoKey | null = null;
@@ -1006,7 +895,7 @@ export default function JournalPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load the LC's prompt and check-in configuration (set by the president)
+  // Load the LC's journal prompt configuration (set by the president)
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
     let cancelled = false;
@@ -1014,11 +903,10 @@ export default function JournalPage() {
       try {
         const { data: proj } = await supabase
           .from("projects")
-          .select("active_prompt_ids, custom_prompts, checkin_disabled_questions")
+          .select("active_prompt_ids, custom_prompts")
           .eq("id", projectId)
           .maybeSingle();
         if (!proj || cancelled) return;
-        setDisabledQuestions((proj.checkin_disabled_questions as string[] | null) ?? []);
         const ids = (proj.active_prompt_ids as string[] | null) ?? ACTIVE_PROMPT_IDS;
         const customs = (proj.custom_prompts as { id: string; text: string }[] | null) ?? [];
         const fromPresets = JOURNAL_PROMPTS.filter((p) => ids.includes(p.id)).map((p) => p.text);
@@ -1047,36 +935,6 @@ export default function JournalPage() {
       setOverdueCount(count ?? 0);
     });
   }, []);
-
-  // F4: check-in reminder notification (>10 days since last check-in)
-  useEffect(() => {
-    if (loadingEntries || !isSupabaseConfigured) return;
-    if (daysSinceLastCheckin <= 10) return;
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const uid = session?.user?.id;
-      if (!uid) return;
-      const { data: settings } = await supabase
-        .from("user_settings")
-        .select("last_checkin_reminder_sent_at")
-        .eq("user_id", uid)
-        .maybeSingle();
-      const lastSent = settings?.last_checkin_reminder_sent_at as string | null;
-      const cooloffMs = 7 * 24 * 60 * 60 * 1000;
-      if (lastSent && Date.now() - new Date(lastSent).getTime() < cooloffMs) return;
-      await supabase.from("notifications").insert({
-        user_id: uid,
-        type: "checkin_reminder",
-        title: "Your journal is here when you're ready",
-        body: "Whenever you have a moment, a quick check-in can help you reflect on how things are going.",
-        read: false,
-      });
-      await supabase.from("user_settings").upsert(
-        { user_id: uid, last_checkin_reminder_sent_at: new Date().toISOString() },
-        { onConflict: "user_id" }
-      );
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingEntries]);
 
   const journalSections: ScopeSection[] = [
     {
@@ -1169,101 +1027,20 @@ export default function JournalPage() {
             )}
           </div>
 
-          {/* Weekly check-in */}
-          <div className="mb-8">
-            {isViewingEntry && viewedEntry ? (
-              // Past entry: only render if that entry had check-in data
-              viewedEntry.checkin.length > 0 ? (
-                <>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
-                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.4 }}>Only you can see your individual answers.</p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
-                      {viewedEntry.checkin.length} / {checkinTotal} answered
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {CHECKIN_QUESTIONS.filter((q) => viewedEntry.checkin.some((r) => r.questionId === q.id)).map((q) => {
-                      const existing = viewedEntry.checkin.find((r) => r.questionId === q.id);
-                      return <CheckinCard key={q.id} question={{ id: q.id, text: questionText(q, role) }} response={existing} onScore={() => {}} />;
-                    })}
-                  </div>
-                </>
-              ) : null
-            ) : (
-              // New entry - apply 7-day cadence
-              showFullCheckin ? (
-                <>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
-                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.45 }}>
-                        About a minute. {audienceCopy(role)}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
-                      {checkinAnswered} / {checkinTotal} answered
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {questions.map((q) => {
-                      const existing = checkinResponses.find((r) => r.questionId === q.id);
-                      return (
-                        <CheckinCard key={q.id} question={{ id: q.id, text: questionText(q, role) }} response={existing} onScore={(score) => {
-                          setCheckinResponses((prev) => [
-                            ...prev.filter((r) => r.questionId !== q.id),
-                            { questionId: q.id, score },
-                          ]);
-                        }} />
-                      );
-                    })}
-                  </div>
-                  {role !== "president" && (
-                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 14, fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.45, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={optedIn}
-                        onChange={(e) => handleOptInChange(e.target.checked)}
-                        style={{ marginTop: 2, accentColor: "var(--color-navy)" }}
-                      />
-                      <span>
-                        Count my answers in the anonymous averages. Turn this off and your check-in stays
-                        here, just for you.
-                      </span>
-                    </label>
-                  )}
-                  {optInError && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", marginTop: 6 }}>{optInError}</p>}
-                  {/* Collapse link when user manually expanded a not-yet-due check-in */}
-                  {!isCheckinDue && checkinExpanded && (
-                    <button
-                      onClick={() => setCheckinExpanded(false)}
-                      style={{ marginTop: 12, fontSize: 12, color: "var(--color-secondary)", border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "var(--font-roboto)" }}
-                    >
-                      Collapse
-                    </button>
-                  )}
-                </>
-              ) : (
-                // Pill/banner when check-in is not yet due
-                <button
-                  onClick={() => setCheckinExpanded(true)}
-                  className="w-full flex items-center gap-3 text-left transition-colors hover:bg-[rgba(2,99,196,0.03)]"
-                  style={{ padding: "10px 14px", borderRadius: 8, border: "1px dashed var(--color-border)", backgroundColor: "var(--color-canvas)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
-                >
-                  <CalendarDays size={14} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "var(--color-secondary)", flex: 1, lineHeight: 1.45 }}>
-                    {lastCheckinDate
-                      ? `Weekly check-in available on ${nextCheckinDay(lastCheckinDate)} · You last completed it ${daysSinceLastCheckin} day${daysSinceLastCheckin === 1 ? "" : "s"} ago`
-                      : "Weekly check-in · Start your first check-in"}
-                  </span>
-                  <ChevronDown size={13} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
-                </button>
-              )
-            )}
-          </div>
-
+          {/* The check-in lives on its own page; the journal is an optional private diary. */}
+          {!isViewingEntry && (
+            <Link
+              href="/checkin"
+              className="flex items-center gap-3 mb-8"
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid var(--color-border)", backgroundColor: "var(--color-navy-dim)", textDecoration: "none" }}
+            >
+              <HeartPulse size={15} color="var(--color-navy)" aria-hidden="true" />
+              <span style={{ flex: 1, fontSize: 12, color: "var(--color-body)", lineHeight: 1.45 }}>
+                Looking for the check-in? It has its own page now. This journal stays private: only you can read it.
+              </span>
+              <ChevronRight size={14} color="var(--color-navy)" aria-hidden="true" />
+            </Link>
+          )}
           {/* Reflections */}
           <div className="mb-8">
             <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 16 }}>

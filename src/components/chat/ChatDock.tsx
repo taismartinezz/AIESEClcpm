@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquare, X, ChevronDown, Hash, Send } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
+import { USERS, CURRENT_USER_ID } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { computeInitials } from "@/lib/utils";
@@ -114,13 +115,9 @@ export default function ChatDock() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setCurrentUserId("demo-user");
+      setCurrentUserId("u1");
       setCurrentUserName("You");
-      setTeamMembers([
-        buildUser("demo-pi", "Dr. Sarah Chen"),
-        buildUser("demo-ra", "Marcus Johnson"),
-        buildUser("demo-grad", "Priya Patel"),
-      ]);
+      setTeamMembers(USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => buildUser(u.id, u.name)));
       return;
     }
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -210,8 +207,8 @@ export default function ChatDock() {
 
     if (!isSupabaseConfigured) {
       setMessages([
-        { id: "d1", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Good morning!", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-        { id: "d2", channel: key, senderId: "demo-user", senderName: "You", content: "Morning!", createdAt: new Date(Date.now() - 3600000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
+        { id: "d1", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Good morning!", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
+        { id: "d2", channel: key, senderId: "u1", senderName: "You", content: "Morning!", createdAt: new Date(Date.now() - 3600000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
       ]);
       setLoadingMsgs(false);
       return;

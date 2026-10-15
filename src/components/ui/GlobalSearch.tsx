@@ -24,7 +24,7 @@ const TYPE_ICON: Record<SearchResult["type"], React.ReactNode> = {
 };
 
 const TYPE_LABEL: Record<SearchResult["type"], string> = {
-  task: "Task", reminder: "Reminder", bookmark: "Bookmark", journal: "Journal", chat: "Chat", event: "Event",
+  task: "Task", reminder: "Reminder", bookmark: "Drive", journal: "Journal", chat: "Chat", event: "Event",
 };
 
 const TYPE_COLOR: Record<SearchResult["type"], string> = {
@@ -83,7 +83,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
     const [tasksRes, remindersRes, bookmarksRes, journalRes, chatRes] = await Promise.all([
       supabase.from("tasks").select("id, title, status").eq("project_id", projectId).ilike("title", term).limit(5),
       supabase.from("reminders").select("id, title, due_date").eq("project_id", projectId).ilike("title", term).limit(5),
-      supabase.from("bookmarks").select("id, title, url").eq("project_id", projectId).ilike("title", term).limit(5),
+      supabase.from("bookmarks").select("id, title, url, kind, file_name").eq("project_id", projectId).ilike("title", term).limit(5),
       supabase.from("journal_entries").select("id, title, created_at").ilike("title", term).limit(5),
       supabase.from("chat_messages").select("id, content, created_at").eq("project_id", projectId).is("deleted_at", null).ilike("content", term).limit(5),
     ]);
@@ -95,7 +95,8 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
       hits.push({ id: r.id as string, type: "reminder", title: r.title as string, subtitle: r.due_date ? new Date(r.due_date as string).toLocaleDateString() : undefined, url: "/reminders" });
     }
     for (const b of bookmarksRes.data ?? []) {
-      hits.push({ id: b.id as string, type: "bookmark", title: b.title as string, subtitle: b.url as string, url: b.url as string });
+      const isFile = b.kind === "file";
+      hits.push({ id: b.id as string, type: "bookmark", title: b.title as string, subtitle: (isFile ? b.file_name : b.url) as string, url: isFile ? "/drive" : b.url as string });
     }
     for (const j of journalRes.data ?? []) {
       const subtitle = j.created_at ? new Date(j.created_at as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : undefined;
@@ -120,7 +121,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
 
   function navigate(result: SearchResult) {
     setOpen(false);
-    if (result.type === "bookmark") {
+    if (result.type === "bookmark" && /^https?:/i.test(result.url)) {
       window.open(result.url, "_blank", "noopener,noreferrer");
     } else {
       window.location.href = result.url;
@@ -152,7 +153,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search tasks, reminders, bookmarks, chat…"
+            placeholder="Search tasks, reminders, the Drive, chat…"
             style={{ flex: 1, fontSize: 15, border: "none", outline: "none", background: "transparent", color: "var(--color-body)", fontFamily: "var(--font-inter)" }}
           />
           <button onClick={() => setOpen(false)} style={{ display: "flex", background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)", padding: 2 }}>
@@ -192,7 +193,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
             <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: 0 }}>Search across</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-                {(["Tasks", "Papers", "Reminders", "Bookmarks"] as const).map((l) => (
+                {(["Tasks", "Reminders", "Drive", "Chat"] as const).map((l) => (
                   <span key={l} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", color: "var(--color-secondary)" }}>{l}</span>
                 ))}
               </div>

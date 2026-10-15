@@ -25,9 +25,12 @@ vi.mock('@/lib/supabase', () => {
   const makeQuery = (tableData: Record<string, unknown> | null) => ({
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
+    // Awaiting the query itself (no .single()) resolves to an empty list.
+    then: (resolve: (v: { data: unknown[]; error: null }) => unknown) => Promise.resolve(resolve({ data: [], error: null })),
     update: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data: null, error: null }),
     maybeSingle: vi.fn().mockResolvedValue({ data: tableData, error: null }),

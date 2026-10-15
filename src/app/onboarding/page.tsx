@@ -298,13 +298,13 @@ function WellbeingPreview({ role }: { role: "president" | "member" }) {
     <div>
       {role === "president" ? (
         <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Your VPs and members answer a one-minute weekly check-in. You&apos;ll see averages for the
+          Your VPs and members answer a one-minute check-in every two weeks. You&apos;ll see averages for the
           executive board and for each department, never anyone&apos;s individual answers, and only
           for weeks when enough people responded to keep everyone anonymous.
         </p>
       ) : (
         <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Each week you&apos;ll get a one-minute check-in. Your VP and LCP see the average for your
+          Every two weeks you&apos;ll get a one-minute check-in. Your VP and LCP see the average for your
           department, never your individual answers, and only when enough people have responded.
         </p>
       )}
@@ -1473,8 +1473,8 @@ export default function OnboardingPage() {
           <StepDots current={5} total={JOIN_STEPS} />
           <SectionTitle
             large={isLarge}
-            title="Weekly check-ins"
-            subtitle="A quick preview of what to expect each week."
+            title="Check-ins"
+            subtitle="A quick preview of what to expect every two weeks."
           />
           <WellbeingPreview role="member" />
           <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
