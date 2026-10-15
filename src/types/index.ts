@@ -341,3 +341,37 @@ export interface AttendanceRecord {
   recordedBy: string | null;
   recordedAt: string;
 }
+
+// ── Tabling ───────────────────────────────────────────────────────────────────
+
+export type TablingStatus = "signed_up" | "attended" | "no_show";
+
+export interface TablingSlot {
+  id: string;
+  projectId: string;
+  startsAt: string;        // ISO timestamp
+  endsAt: string;
+  location: string;
+  purpose: string;
+  capacity: number;
+  taken: number;           // non-walk-in sign-ups (visible to everyone)
+  departmentId: string | null;
+  seriesId: string | null;
+  createdBy: string | null;
+}
+
+export interface TablingSignup {
+  slotId: string;
+  userId: string;
+  status: TablingStatus;
+  walkIn: boolean;
+  signedUpAt: string;
+}
+
+export interface TablingReportRow {
+  userId: string;
+  hours: number;
+  attended: number;
+  noShows: number;
+  upcoming: number;
+}

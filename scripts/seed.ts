@@ -155,6 +155,23 @@ async function seed() {
   if (attErr) throw attErr;
   console.log(`  ✓ ${evRows?.length ?? 0} events, ${attendanceRows.length} attendance records`);
 
+  // 8. Tabling: a weekly series of slots for the next four weeks (as the oGX VP)
+  const ogxVp = SEED_PEOPLE.find((p) => p.leads?.includes("Outgoing Global Volunteer"))!;
+  const firstSlot = new Date(Date.now() + 2 * 86_400_000);
+  firstSlot.setUTCHours(11, 0, 0, 0);
+  const vpClient = createClient(url!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "", { auth: { persistSession: false } });
+  const { error: signInErr } = await vpClient.auth.signInWithPassword({ email: ogxVp.email, password: password! });
+  if (signInErr) throw signInErr;
+  const { data: created, error: slotErr } = await vpClient.rpc("create_tabling_slots", {
+    p_project_id: lcId, p_starts_at: firstSlot.toISOString(),
+    p_ends_at: new Date(firstSlot.getTime() + 2 * 3_600_000).toISOString(),
+    p_location: "Library entrance", p_purpose: "oGV recruitment", p_capacity: 3,
+    p_department_id: depId["Outgoing Global Volunteer"],
+    p_repeat_until: new Date(firstSlot.getTime() + 21 * 86_400_000).toISOString().slice(0, 10),
+  });
+  if (slotErr) throw slotErr;
+  console.log(`  ✓ ${created} tabling slots`);
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 

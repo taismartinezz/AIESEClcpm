@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck,
+  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
@@ -43,6 +43,7 @@ const NAV_ITEMS = [
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
   { href: "/finance",     label: "Finance",    icon: Wallet          },
   { href: "/attendance",  label: "Attendance", icon: UserCheck       },
+  { href: "/tabling",     label: "Tabling",    icon: Store           },
   { href: "/bookmarks",   label: "Bookmarks",  icon: Bookmark        },
   { href: "/team",        label: "Team",       icon: Users           },
 ];
