@@ -73,3 +73,30 @@ test.describe('Tabling page', () => {
     await expect(page.getByRole('button', { name: /new slot/i })).toBeVisible()
   })
 })
+
+test.describe('Pipeline and goals', () => {
+  const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: null, is_finance: false, sort_order: 1, products: ['ogv'] }
+  const ex = { id: 'ex1', project_id: 'project-abc', product: 'ogv', stage: 'approved', person_name: 'Marta S.', email: null, phone: null, opportunity: 'Teaching English', host_entity: 'AIESEC in Bogotá', expa_id: null, expa_url: null, department_id: 'dep-ogv', owner_id: null, notes: null, signed_up_at: '2026-09-01', applied_at: '2026-09-05', accepted_at: '2026-09-10', approved_at: '2026-09-20', realized_at: null, finished_at: null, updated_at: new Date().toISOString() }
+
+  test('the president sees every product and the exchange in its stage column', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [ex] } })
+    await page.goto('/pipeline')
+    await expect(page.getByRole('tab', { name: /iGTe/ })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('region', { name: 'Approved: 1' }).getByText('Marta S.')).toBeVisible()
+  })
+
+  test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { departments: [OGV] })
+    await page.goto('/pipeline')
+    await expect(page.getByText(/doesn.t run an exchange product/)).toBeVisible({ timeout: 10000 })
+  })
+
+  test('goals show progress bars with their numbers', async ({ page }) => {
+    const goal = { id: 'g1', project_id: 'project-abc', department_id: null, title: 'New members recruited', metric: 'manual', product: null, stage: null, target: 15, current_value: 6, unit: 'members', starts_on: '2026-02-01', ends_on: '2027-01-31' }
+    await setupAuthMocks(page, 'member', { tables: { goals: [goal] }, rpc: { goal_progress: [{ goal_id: 'g1', current: 6 }] } })
+    await page.goto('/goals')
+    await expect(page.getByRole('progressbar', { name: 'New members recruited' })).toHaveAttribute('aria-valuenow', '6', { timeout: 10000 })
+    await expect(page.getByText('6 / 15')).toBeVisible()
+    await expect(page.getByRole('button', { name: /new goal/i })).toHaveCount(0)
+  })
+})

@@ -4,7 +4,7 @@ import { groupDirectory } from "@/lib/team";
 import type { Department, TeamMember } from "@/types";
 
 const dep = (id: string, name: string, vpUserId: string | null = null): Department => ({
-  id, projectId: "lc", name, color: "#037EF3", vpUserId, isFinance: false, sortOrder: 0,
+  id, projectId: "lc", name, color: "#037EF3", vpUserId, isFinance: false, sortOrder: 0, products: [],
 });
 const person = (id: string, role: TeamMember["role"], departmentId: string | null = null): TeamMember => ({
   id, name: id, email: "", role, avatarColor: "#fff", avatarInitials: "XX", departmentId,

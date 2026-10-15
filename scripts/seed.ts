@@ -172,6 +172,27 @@ async function seed() {
   if (slotErr) throw slotErr;
   console.log(`  ✓ ${created} tabling slots`);
 
+  // 9. Exchange pipeline and term goals
+  const ogvMember = SEED_PEOPLE.find((p) => p.department === "Outgoing Global Volunteer")!;
+  const pipeline = [
+    { person_name: "Marta S.", stage: "approved", opportunity: "Teaching kids English", host_entity: "AIESEC in Bogotá" },
+    { person_name: "Leo K.", stage: "applied", opportunity: "Climate education", host_entity: "AIESEC in Nairobi" },
+    { person_name: "Inês P.", stage: "realized", opportunity: "Women empowerment project", host_entity: "AIESEC in Hanoi" },
+    { person_name: "Tom R.", stage: "signed_up", opportunity: null, host_entity: null },
+  ];
+  const { error: exErr } = await supabase.from("exchanges").insert(pipeline.map((e) => ({
+    ...e, project_id: lcId, product: "ogv", owner_id: ids[ogvMember.email], created_by: ids[ogvMember.email],
+  })));
+  if (exErr) throw exErr;
+  const { data: termStart } = await supabase.rpc("lc_term_start", { p_project_id: lcId });
+  const termEnd = new Date(new Date(termStart as string).getTime() + 364 * 86_400_000).toISOString().slice(0, 10);
+  const { error: goalErr } = await supabase.from("goals").insert([
+    { project_id: lcId, department_id: depId["Outgoing Global Volunteer"], title: "oGV approvals", metric: "pipeline", product: "ogv", stage: "approved", target: 20, starts_on: termStart, ends_on: termEnd, created_by: ids[president.email] },
+    { project_id: lcId, department_id: null, title: "New members recruited", metric: "manual", target: 15, current_value: 6, unit: "members", starts_on: termStart, ends_on: termEnd, created_by: ids[president.email] },
+  ]);
+  if (goalErr) throw goalErr;
+  console.log(`  ✓ ${pipeline.length} exchanges and 2 goals`);
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 

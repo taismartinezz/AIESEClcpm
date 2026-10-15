@@ -96,6 +96,7 @@ function mapDepartment(row: Record<string, unknown>): Department {
     vpUserId:   (row.vp_user_id as string | null) ?? null,
     isFinance:  (row.is_finance as boolean) ?? false,
     sortOrder:  (row.sort_order as number) ?? 0,
+    products:   (row.products as string[] | null) ?? [],
   };
 }
 
@@ -114,7 +115,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const loadDepartments = useCallback(async (pid: string) => {
     const { data, error } = await supabase
       .from("departments")
-      .select("id, project_id, name, color, vp_user_id, is_finance, sort_order")
+      .select("id, project_id, name, color, vp_user_id, is_finance, sort_order, products")
       .eq("project_id", pid)
       .order("sort_order")
       .order("name");

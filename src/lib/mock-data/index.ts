@@ -35,14 +35,14 @@ export const PROJECT: Project = {
 };
 
 export const DEPARTMENTS: Department[] = [
-  { id: "d-ogv",  projectId: "p1", name: "Outgoing Global Volunteer",      color: "#F85A40", vpUserId: "u2", isFinance: false, sortOrder: 1 },
-  { id: "d-ogta", projectId: "p1", name: "Outgoing Global Talent/Teacher", color: "#0CB9C1", vpUserId: "u2", isFinance: false, sortOrder: 2 },
-  { id: "d-igv",  projectId: "p1", name: "Incoming Global Volunteer",      color: "#D9442B", vpUserId: null, isFinance: false, sortOrder: 3 },
-  { id: "d-igta", projectId: "p1", name: "Incoming Global Talent/Teacher", color: "#0A8F96", vpUserId: null, isFinance: false, sortOrder: 4 },
-  { id: "d-mkt",  projectId: "p1", name: "Marketing",                      color: "#FFC845", vpUserId: "u3", isFinance: false, sortOrder: 5 },
-  { id: "d-tm",   projectId: "p1", name: "Talent Management",              color: "#00C16E", vpUserId: null, isFinance: false, sortOrder: 6 },
-  { id: "d-fl",   projectId: "p1", name: "Finance & Legality",             color: "#037EF3", vpUserId: null, isFinance: true,  sortOrder: 7 },
-  { id: "d-bd",   projectId: "p1", name: "Business Development",           color: "#7552CC", vpUserId: null, isFinance: false, sortOrder: 8 },
+  { id: "d-ogv",  projectId: "p1", name: "Outgoing Global Volunteer",      color: "#F85A40", vpUserId: "u2", isFinance: false, sortOrder: 1, products: ["ogv"] },
+  { id: "d-ogta", projectId: "p1", name: "Outgoing Global Talent/Teacher", color: "#0CB9C1", vpUserId: "u2", isFinance: false, sortOrder: 2, products: ["ogta", "ogte"] },
+  { id: "d-igv",  projectId: "p1", name: "Incoming Global Volunteer",      color: "#D9442B", vpUserId: null, isFinance: false, sortOrder: 3, products: ["igv"] },
+  { id: "d-igta", projectId: "p1", name: "Incoming Global Talent/Teacher", color: "#0A8F96", vpUserId: null, isFinance: false, sortOrder: 4, products: ["igta", "igte"] },
+  { id: "d-mkt",  projectId: "p1", name: "Marketing",                      color: "#FFC845", vpUserId: "u3", isFinance: false, sortOrder: 5, products: [] },
+  { id: "d-tm",   projectId: "p1", name: "Talent Management",              color: "#00C16E", vpUserId: null, isFinance: false, sortOrder: 6, products: [] },
+  { id: "d-fl",   projectId: "p1", name: "Finance & Legality",             color: "#037EF3", vpUserId: null, isFinance: true,  sortOrder: 7, products: [] },
+  { id: "d-bd",   projectId: "p1", name: "Business Development",           color: "#7552CC", vpUserId: null, isFinance: false, sortOrder: 8, products: [] },
 ];
 
 /** Which department each demo member belongs to. */

@@ -29,6 +29,8 @@ export interface Department {
   /** The department whose VP is in charge of finance (Finance & Legality by default). */
   isFinance: boolean;
   sortOrder: number;
+  /** AIESEC products this department runs (ogv, ogta, ogte, igv, igta, igte). */
+  products: string[];
 }
 
 export interface User {
@@ -374,4 +376,45 @@ export interface TablingReportRow {
   attended: number;
   noShows: number;
   upcoming: number;
+}
+
+// ── Exchange pipeline & goals ─────────────────────────────────────────────────
+
+export interface Exchange {
+  id: string;
+  projectId: string;
+  product: import("@/lib/products").ProductCode;
+  stage: import("@/lib/products").ExchangeStage;
+  personName: string;
+  email: string | null;
+  phone: string | null;
+  opportunity: string | null;
+  hostEntity: string | null;
+  expaId: string | null;
+  expaUrl: string | null;
+  departmentId: string | null;
+  ownerId: string | null;
+  notes: string | null;
+  signedUpAt: string | null;
+  appliedAt: string | null;
+  acceptedAt: string | null;
+  approvedAt: string | null;
+  realizedAt: string | null;
+  finishedAt: string | null;
+  updatedAt: string;
+}
+
+export interface Goal {
+  id: string;
+  projectId: string;
+  departmentId: string | null;
+  title: string;
+  metric: "manual" | "pipeline";
+  product: import("@/lib/products").ProductCode | null;
+  stage: import("@/lib/products").ExchangeStage | null;
+  target: number;
+  currentValue: number;
+  unit: string | null;
+  startsOn: string;
+  endsOn: string;
 }

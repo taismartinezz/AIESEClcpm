@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Receipt, Store, Wallet } from "lucide-react";
+import { ArrowRight, CalendarDays, Receipt, Store, Target, Wallet } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { formatMoney, mapClaim, mapEntry, totals } from "@/lib/finance";
 import { formatEventDates, mapEvent, EVENT_TYPE_LABELS } from "@/lib/attendance";
 import { formatTimeRange, mapSlot } from "@/lib/tabling";
 import type { ExpenseClaim, FinanceEntry, LcEvent, TablingSlot } from "@/types";
 import { ClaimStatusBadge } from "@/components/finance/ClaimsView";
+import { GoalBar, useGoals, type GoalWithProgress } from "@/components/goals/GoalsShared";
 
 function Card({ title, href, icon, children }: { title: string; href: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -200,6 +201,30 @@ export function MyNextCard({ projectId, userId }: { projectId: string | null; us
           )}
         </>
       )}
+    </Card>
+  );
+}
+
+// ── Everyone: term goals ─────────────────────────────────────────────────────
+
+export function GoalsCard({ projectId, departments, departmentId }: {
+  projectId: string | null; departments: import("@/types").Department[]; departmentId: string | null;
+}) {
+  const { goals, error, loading } = useGoals(projectId);
+  // My department's goals first, then whole-LC goals, then the rest; at most six.
+  const rank = (g: GoalWithProgress) => (g.departmentId === departmentId && departmentId ? 0 : g.departmentId ? 2 : 1);
+  const shown = [...goals].sort((a, b) => rank(a) - rank(b)).slice(0, 6);
+  const color = (id: string | null) => departments.find((d) => d.id === id)?.color;
+  return (
+    <Card title="Goals this term" href="/goals" icon={<Target size={15} color="var(--color-navy)" aria-hidden="true" />}>
+      <Status error={error} loaded={!loading} />
+      {!loading && !error && (shown.length === 0 ? (
+        <p style={muted}>No goals set yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {shown.map((g) => <GoalBar key={g.id} goal={g} color={color(g.departmentId)} />)}
+        </div>
+      ))}
     </Card>
   );
 }
