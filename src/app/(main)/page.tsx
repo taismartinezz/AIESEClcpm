@@ -17,6 +17,8 @@ import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
 import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
+import { FinanceSnapshotCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
+import { isFinanceLead } from "@/lib/permissions";
 
 // ── Add Reminder modal ────────────────────────────────────────────────────────
 
@@ -152,7 +154,8 @@ function AddReminderModal({
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments, userId: ctxUserId } = useProject();
+  const financeLead = isFinanceLead(role, ctxUserId, departments);
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalStatus, setModalStatus] = useState<TaskStatus | null>(null);
@@ -239,6 +242,21 @@ export default function DashboardPage() {
             departmentId: (row.department_id as string | null) ?? null,
           })));
         }
+
+        // Upcoming LC events (next 30 days) for the agenda
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const in30 = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+        const { data: evRows, error: evError } = await supabase
+          .from("lc_events")
+          .select("id, name, starts_on, project_id")
+          .eq("project_id", pid)
+          .gte("starts_on", todayIso)
+          .lte("starts_on", in30)
+          .order("starts_on");
+        if (evError) console.error("[Dashboard] events error:", evError);
+        setDashEvents((evRows ?? []).map((row) => ({
+          id: row.id as string, title: row.name as string, date: row.starts_on as string, projectId: row.project_id as string,
+        })));
 
         // Fetch lab wins
         const { data: winsData, error: winsError } = await supabase
@@ -473,6 +491,15 @@ export default function DashboardPage() {
           userId={userId}
           loading={loading}
         />
+
+        {/* LC modules: finance, events and tabling — by role */}
+        {role && (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {financeLead && <FinanceSnapshotCard projectId={activeProjectId} />}
+            {(role === "president" || role === "vp") && <UpcomingNeedsCard projectId={activeProjectId} />}
+            {role === "member" && <MyNextCard projectId={activeProjectId} userId={ctxUserId} />}
+          </div>
+        )}
 
         {(role === "president" || role === "vp") && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
