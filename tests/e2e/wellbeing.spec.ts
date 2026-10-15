@@ -55,7 +55,6 @@ test.describe('Wellbeing on the dashboard', () => {
     await expect(member.getByText('1 department dropped noticeably this week')).toBeVisible()
     await expect(member.getByText(/vs 4-wk avg/)).toBeVisible()
     await expect(member.getByText('Not enough responses')).toBeVisible()
-    await page.getByRole('button', { name: /skip tour/i }).click().catch(() => {})
     await member.scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'test-results/dashboard-president.png', fullPage: true })
   })

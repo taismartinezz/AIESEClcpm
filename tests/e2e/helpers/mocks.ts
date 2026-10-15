@@ -39,6 +39,8 @@ export interface MockOptions {
   /** Responses for supabase.rpc(name, …), keyed by function name. */
   rpc?: Record<string, unknown>
   departments?: Record<string, unknown>[]
+  /** Rows returned for other REST tables, keyed by table name. */
+  tables?: Record<string, unknown[]>
 }
 
 export async function setupAuthMocks(page: Page, role: MockRole, options: MockOptions = {}) {
@@ -62,13 +64,16 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
 
   const rpc = options.rpc ?? {}
   const departments = options.departments ?? []
+  const tables = options.tables ?? {}
 
   await page.addInitScript(
-    ({ session, profileData, membershipData, projectData, inviteCodes, rpc, departments }) => {
-      // 1. Auth storage: return fake session so Supabase reads from cache first
+    ({ session, profileData, membershipData, projectData, inviteCodes, rpc, departments, tables }) => {
+      // 1. Auth storage: return fake session so Supabase reads from cache first,
+      //    and mark the first-run tour as seen so it doesn't cover the page
       const _origGet = Storage.prototype.getItem
       Storage.prototype.getItem = function (key) {
         if (typeof key === 'string' && /^sb-.+-auth-token$/.test(key)) return session
+        if (key === 'aiesec_tour_v2') return 'done'
         return _origGet.call(this, key)
       }
 
@@ -108,12 +113,14 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
         if (url.includes('/rest/v1/departments'))    return ok(departments)
         const rpcMatch = url.match(/\/rest\/v1\/rpc\/([a-z_]+)/)
         if (rpcMatch) return ok((rpc as Record<string, unknown>)[rpcMatch[1]] ?? [])
+        const tableMatch = url.match(/\/rest\/v1\/([a-z_]+)/)
+        if (tableMatch && (tables as Record<string, unknown[]>)[tableMatch[1]]) return ok((tables as Record<string, unknown[]>)[tableMatch[1]])
         if (url.includes('/rest/v1/'))               return ok([])
 
         // Next.js assets and anything else can pass through
         return _origFetch.call(this, input, init)
       }
     },
-    { session, profileData, membershipData, projectData, inviteCodes, rpc, departments }
+    { session, profileData, membershipData, projectData, inviteCodes, rpc, departments, tables }
   )
 }
