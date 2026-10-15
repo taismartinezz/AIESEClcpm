@@ -5,7 +5,7 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
@@ -50,7 +50,8 @@ const NAV_ITEMS = [
   { href: "/finance",     label: "Finance",    icon: Wallet          },
   { href: "/attendance",  label: "Attendance", icon: UserCheck       },
   { href: "/tabling",     label: "Tabling",    icon: Store           },
-  { href: "/bookmarks",   label: "Bookmarks",  icon: Bookmark        },
+  { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
+  { href: "/handover",    label: "Handover",   icon: ScrollText      },
   { href: "/team",        label: "Team",       icon: Users           },
 ];
 
@@ -1020,7 +1021,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const nav: Record<string, string> = {
           d: "/", t: "/tasks", j: "/journal", c: "/chat",
           r: "/reminders",
-          b: "/bookmarks", m: "/team",
+          b: "/drive", m: "/team",
         };
         const dest = nav[e.key.toLowerCase()];
         if (dest) { e.preventDefault(); router.push(dest); }

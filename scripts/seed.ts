@@ -204,6 +204,22 @@ async function seed() {
   await supabase.from("partner_contacts").insert({ partner_id: bank.id, name: "Rita Silva", role_title: "Head of HR", email: "rita@demo-bank.example" });
   console.log(`  ✓ ${partnerRows?.length ?? 0} partners`);
 
+  // 11. LC Drive and handover
+  const { data: folderRows } = await supabase.from("drive_folders").select("id, name").eq("project_id", lcId);
+  const folder = (name: string) => (folderRows ?? []).find((f) => f.name === name)?.id ?? null;
+  const { error: dErr } = await supabase.from("bookmarks").insert([
+    { project_id: lcId, scope: "lab", folder_id: folder("Brand kit"), title: "AIESEC brand guidelines", url: "https://example.com/brand", added_by: ids[president.email] },
+    { project_id: lcId, scope: "lab", folder_id: folder("Templates"), title: "Partnership proposal template", url: "https://example.com/proposal", added_by: ids[president.email] },
+    { project_id: lcId, scope: "lab", folder_id: folder("Important links"), title: "Expa", url: "https://expa.aiesec.org", added_by: ids[president.email] },
+  ]);
+  if (dErr) throw dErr;
+  const { error: hErr } = await supabase.from("handover_notes").insert({
+    project_id: lcId, department_id: null, term_label: `${String(termStart).slice(0, 4)}/${String((Number(String(termStart).slice(0, 4)) + 1) % 100).padStart(2, "0")}`,
+    title: "LC-wide handover", body: "## Open items and deadlines\n- Partner contract with Demo Bank renews in March.\n", updated_by: ids[president.email],
+  });
+  if (hErr) throw hErr;
+  console.log("  ✓ 3 Drive links and a handover note");
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 

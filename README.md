@@ -26,7 +26,8 @@ Everyone can belong to several LCs and has a role **in each one**:
 - **Journal**: an optional private diary, encrypted so only its author can read it.
 - **Chat**: LC-wide, group and direct messages.
 - **Reminders**: personal, LC-wide and group reminders, including an automatic check-in reminder.
-- **Bookmarks**: shared links for the LC or a group.
+- **LC Drive**: links and uploaded files (templates, brand kit, job descriptions…) in LC folders, plus personal and group items. `/bookmarks` redirects here.
+- **Handover**: one note per department per term for whoever takes over next.
 - **Team**: the directory, grouped into Executive Board and one section per department.
 - **Finance**: income and expense ledger with running balance, month and year-to-date totals, spend by category and department, filters and CSV export. Any member can submit an **expense claim** with a receipt photo or PDF; the person in charge of finance approves or rejects it (a rejection needs a reason), and an approved claim creates the matching ledger entry. Members see only their own claims; other VPs see their departments' claims and spend.
 - **Attendance**: LC events and conferences. VPs and the LCP log who attended (searchable, or a whole department at once); views by event, by member (with totals per event type this term) and a sortable, exportable table. Members see only their own history; VPs see their departments.

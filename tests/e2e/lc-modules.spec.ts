@@ -111,3 +111,32 @@ test.describe('Partners', () => {
     await expect(page.getByText('1 of your partners need a follow-up this week.')).toBeVisible()
   })
 })
+
+test.describe('LC Drive and handover', () => {
+  test('the Drive lists folders and files, and /bookmarks redirects to it', async ({ page }) => {
+    const folders = [{ id: 'f1', name: 'Templates', sort_order: 1 }, { id: 'f2', name: 'Brand kit', sort_order: 2 }]
+    const items = [
+      { id: 'b1', project_id: 'project-abc', scope: 'lab', folder_id: 'f2', kind: 'link', url: 'https://example.com/brand', title: 'Brand guidelines', added_by: 'mock-user-id', added_at: new Date().toISOString() },
+      { id: 'b2', project_id: 'project-abc', scope: 'lab', folder_id: 'f1', kind: 'file', url: '', storage_path: 'project-abc/x-proposal.pdf', file_name: 'proposal.pdf', size_bytes: 204800, title: 'Proposal template', added_by: 'mock-user-id', added_at: new Date().toISOString() },
+    ]
+    await setupAuthMocks(page, 'member', { tables: { drive_folders: folders, bookmarks: items } })
+    await page.goto('/bookmarks')
+    await expect(page).toHaveURL(/\/drive$/)
+    await expect(page.getByRole('heading', { name: 'LC Drive' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Proposal template')).toBeVisible()
+    await expect(page.getByText('proposal.pdf · 200 KB')).toBeVisible()
+    await page.getByRole('navigation', { name: 'Drive folders' }).getByRole('button', { name: /Brand kit/ }).click()
+    await expect(page.getByText('Brand guidelines')).toBeVisible()
+    await expect(page.getByText('Proposal template')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'New folder' })).toHaveCount(0)
+  })
+
+  test('the president writes the LC-wide handover from the template', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { rpc: { lc_term_start: '2026-02-01' }, tables: { handover_notes: [] } })
+    await page.goto('/handover')
+    await expect(page.getByRole('heading', { name: 'Handover' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByLabel('Term')).toHaveValue('2026/27')
+    await page.getByRole('button', { name: /write handover/i }).first().click()
+    await expect(page.getByLabel(/Handover for LC-wide/)).toHaveValue(/What we did this term/)
+  })
+})

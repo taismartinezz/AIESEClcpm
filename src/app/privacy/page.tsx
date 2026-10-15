@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <h2 style={h2}>What this app is</h2>
           <p style={para}>
             {APP_NAME} is a workspace for AIESEC Local Committees (LCs): tasks, reminders, chat,
-            bookmarks and a private wellbeing journal. Each LC&rsquo;s data is visible only to that
+            shared files and a private wellbeing journal. Each LC&rsquo;s data is visible only to that
             LC&rsquo;s members, enforced by the database, not only by the interface.
           </p>
         </section>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
           <h2 style={h2}>What we store</h2>
           <ul style={list}>
             <li><strong>Account:</strong> your name, email address, and your role and department in each LC you join.</li>
-            <li><strong>LC workspace:</strong> tasks, reminders, bookmarks, chat messages and posts you add.</li>
+            <li><strong>LC workspace:</strong> tasks, reminders, LC Drive links and files, chat messages and posts you add.</li>
             <li><strong>Journal:</strong> your free-text entries are encrypted and readable only by you.</li>
             <li><strong>Check-in:</strong> your 1–5 answers (every two weeks by default), stored separately from your journal so they can be averaged.</li>
           </ul>
