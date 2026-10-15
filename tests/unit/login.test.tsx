@@ -112,12 +112,21 @@ describe('Login page — Issue #4: forgot password', () => {
 })
 
 describe('Login page — Issue #6: OAuth buttons', () => {
-  it('Google OAuth button is present', async () => {
+  afterEach(() => { delete process.env.NEXT_PUBLIC_AUTH_PROVIDERS })
+
+  it('shows no OAuth buttons unless providers are configured', async () => {
+    await renderLogin()
+    expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument()
+  })
+
+  it('Google OAuth button is present when enabled', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'google'
     await renderLogin()
     expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument()
   })
 
   it('all OAuth buttons have explicit type="button"', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'google'
     await renderLogin()
     const googleBtn = screen.getByRole('button', { name: /sign in with google/i })
     // buttons default to type="submit" inside forms but here no form — check attribute
@@ -133,17 +142,17 @@ describe('Login page — Issue #16: heading structure', () => {
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
   })
 
-  it('h1 says "Sign in to Canopy" in sign-in mode', async () => {
+  it('h1 says "Sign in to <app name>" in sign-in mode', async () => {
     await renderLogin()
     const h1 = screen.getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent(/sign in to canopy/i)
+    expect(h1).toHaveTextContent(/sign in to aiesec ?lcpm/i)
   })
 
-  it('h1 changes to "Create your Canopy account" in sign-up mode', async () => {
+  it('h1 changes to "Create your <app name> account" in sign-up mode', async () => {
     await renderLogin()
     await userEvent.click(screen.getByRole('link', { name: /sign up/i }))
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/create your canopy account/i)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/create your aiesec ?lcpm account/i)
     })
   })
 })

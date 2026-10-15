@@ -69,7 +69,7 @@ export function PostsCard({
   const currentUser = teamMembers.find((u) => u.id === userId) ?? getUser(CURRENT_USER_ID);
 
   const description = type === "opportunity"
-    ? "Grants, conferences, and collaborations worth sharing with the lab"
+    ? "Conferences, partnerships and opportunities worth sharing with the LC"
     : "Celebrate progress - submissions, acceptances, milestones";
 
   return (
@@ -115,7 +115,7 @@ export function PostsCard({
                 autoFocus
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder={type === "opportunity" ? "Share an opportunity with your team..." : "Share a lab win with your team..."}
+                placeholder={type === "opportunity" ? "Share an opportunity with your team..." : "Share a win with your LC..."}
                 rows={3}
                 style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)", border: "1px solid var(--color-border)", borderRadius: 7, padding: "8px 10px", resize: "vertical", backgroundColor: "var(--color-canvas)", outline: "none" }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}

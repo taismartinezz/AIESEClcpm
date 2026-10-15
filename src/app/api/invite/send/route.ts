@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail, buildInviteEmail } from "@/lib/email";
-import { getMemberships, isPiOf } from "@/lib/membership";
+import { getMemberships, isPresidentOf } from "@/lib/membership";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? "";
 const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -11,7 +11,7 @@ const MAX_IDS = 50;
 
 // POST /api/invite/send
 // Body: { inviteIds: string[] }  — invite_codes.id values to email (max 50)
-// Auth: valid Supabase user JWT belonging to a PI of each invite's project
+// Auth: valid Supabase user JWT belonging to the president of each invite's LC
 export async function POST(request: Request) {
   const authHeader = request.headers.get("Authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
   if (profErr) console.error("[invite/send] user_profiles lookup error:", profErr.message);
-  const inviterName = (callerProf?.name as string) ?? "Your PI";
+  const inviterName = (callerProf?.name as string) ?? "Your LC President";
 
   // Load caller's memberships from team_members (authoritative source)
   const memberships = await getMemberships(db, user.id);
@@ -68,23 +68,23 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, results: [] });
   }
 
-  // Cache project names and PI checks to avoid repeated queries
+  // Cache LC names and president checks to avoid repeated queries
   const projectNameCache = new Map<string, string>();
-  const piCache = new Map<string, boolean>();
+  const presidentCache = new Map<string, boolean>();
 
   async function getProjectName(projectId: string): Promise<string> {
     if (projectNameCache.has(projectId)) return projectNameCache.get(projectId)!;
     const { data: proj, error: projErr } = await db.from("projects").select("name").eq("id", projectId).maybeSingle();
     if (projErr) console.error("[invite/send] projects lookup error:", projErr.message);
-    const name = (proj?.name as string) ?? "the lab";
+    const name = (proj?.name as string) ?? "your Local Committee";
     projectNameCache.set(projectId, name);
     return name;
   }
 
-  async function callerIsPi(projectId: string): Promise<boolean> {
-    if (piCache.has(projectId)) return piCache.get(projectId)!;
-    const result = await isPiOf(db, user.id, projectId);
-    piCache.set(projectId, result);
+  async function callerIsPresident(projectId: string): Promise<boolean> {
+    if (presidentCache.has(projectId)) return presidentCache.get(projectId)!;
+    const result = await isPresidentOf(db, user.id, projectId);
+    presidentCache.set(projectId, result);
     return result;
   }
 
@@ -94,10 +94,10 @@ export async function POST(request: Request) {
   for (const invite of invites) {
     const inviteProjectId = invite.project_id as string;
 
-    // Skip invites from projects the caller is not a PI of
-    const isPI = await callerIsPi(inviteProjectId);
-    if (!isPI) {
-      results.push({ id: invite.id as string, ok: false, skipped: "not PI of this project" });
+    // Skip invites from LCs the caller is not the president of
+    const isPresident = await callerIsPresident(inviteProjectId);
+    if (!isPresident) {
+      results.push({ id: invite.id as string, ok: false, skipped: "not president of this LC" });
       continue;
     }
 
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     const labName  = await getProjectName(inviteProjectId);
 
     // Resolve role name
-    let roleName = "Researcher";
+    let roleName = "Member";
     if (invite.lab_role_id) {
       const { data: role, error: roleErr } = await db
         .from("lab_roles")

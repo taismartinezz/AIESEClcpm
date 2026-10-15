@@ -3,10 +3,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
 import {
-  TASKS, DASHBOARD_POSTS, SCHEDULE_EVENTS,
+  TASKS, DASHBOARD_POSTS,
   getUser, CURRENT_USER_ID, getStoredProject,
 } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import type { Task, CalendarEvent, DashboardPost, TaskStatus, User } from "@/types";
 import { useProject } from "@/context/ProjectContext";
 import TaskDetailPanel from "@/components/tasks/TaskDetailPanel";
@@ -14,7 +15,10 @@ import TaskModal from "@/components/tasks/TaskModal";
 import Toast from "@/components/ui/Toast";
 import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
-import { LabPulseWidget } from "./_components/LabPulseWidget";
+import { LcWinsWidget } from "./_components/LcWinsWidget";
+import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
+import { FinanceSnapshotCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
+import { isFinanceLead } from "@/lib/permissions";
 
 // ── Add Reminder modal ────────────────────────────────────────────────────────
 
@@ -150,7 +154,8 @@ function AddReminderModal({
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects, projectId: activeProjectId } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments, userId: ctxUserId } = useProject();
+  const financeLead = isFinanceLead(role, ctxUserId, departments);
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalStatus, setModalStatus] = useState<TaskStatus | null>(null);
@@ -175,18 +180,15 @@ export default function DashboardPage() {
 
         const { data: up } = await supabase
           .from("user_profiles")
-          .select("project_id, name, projects(name)")
+          .select("name")
           .eq("id", user.id)
           .maybeSingle();
+        if (up?.name) setCurrentUserFirstName((up.name as string).trim().split(/\s+/)[0]);
 
-        if (!up?.project_id) { setLoading(false); return; }
-        const pid = up.project_id as string;
+        const pid = activeProjectId;
+        if (!pid) { if (!lcLoading) setLoading(false); return; }
         setProjectId(pid);
-
-        if (up.name) setCurrentUserFirstName((up.name as string).trim().split(/\s+/)[0]);
-
-        const proj = Array.isArray(up.projects) ? up.projects[0] : up.projects;
-        if (proj) setProjectName((proj as Record<string, string>).name ?? "");
+        setProjectName(lcs.find((lc) => lc.id === pid)?.name ?? "");
 
         // Fetch team members for avatar display
         const { data: members } = await supabase
@@ -202,7 +204,7 @@ export default function DashboardPage() {
               id: row.user_id as string,
               name: profile?.name ?? "Team Member",
               email: "",
-              role: (row.role ?? "researcher") as User["role"],
+              role: toUserRole(row.role),
               avatarColor: profile?.avatar_color ?? "#B4D4E3",
               avatarInitials: profile?.avatar_initials ?? "??",
               avatarUrl: profile?.avatar_url ?? undefined,
@@ -237,29 +239,24 @@ export default function DashboardPage() {
             links: (row.links as Task["links"]) ?? [],
             scope: (row.scope as Task["scope"]) ?? undefined,
             subProjectId: (row.sub_project_id as string | null) ?? undefined,
+            departmentId: (row.department_id as string | null) ?? null,
           })));
         }
 
-        // Fetch events — only upcoming (from today through next 30 days)
-        const todayStr = new Date().toISOString().split("T")[0];
-        const thirtyDaysOut = new Date(); thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
-        const { data: evData, error: evError } = await supabase
-          .from("events")
-          .select("*")
+        // Upcoming LC events (next 30 days) for the agenda
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const in30 = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+        const { data: evRows, error: evError } = await supabase
+          .from("lc_events")
+          .select("id, name, starts_on, project_id")
           .eq("project_id", pid)
-          .gte("date", todayStr)
-          .lte("date", thirtyDaysOut.toISOString().split("T")[0])
-          .order("date", { ascending: true });
+          .gte("starts_on", todayIso)
+          .lte("starts_on", in30)
+          .order("starts_on");
         if (evError) console.error("[Dashboard] events error:", evError);
-        if (!evError && evData) {
-          setDashEvents(evData.map((row) => ({
-            id: row.id as string,
-            title: row.title as string,
-            date: row.date as string,
-            time: (row.time as string) ?? undefined,
-            projectId: row.project_id as string,
-          })));
-        }
+        setDashEvents((evRows ?? []).map((row) => ({
+          id: row.id as string, title: row.name as string, date: row.starts_on as string, projectId: row.project_id as string,
+        })));
 
         // Fetch lab wins
         const { data: winsData, error: winsError } = await supabase
@@ -311,20 +308,12 @@ export default function DashboardPage() {
     setProjectName(sp.name);
     const mockUser = getUser(CURRENT_USER_ID);
     if (mockUser?.name) setCurrentUserFirstName(mockUser.name.trim().split(/\s+/)[0]);
-    if (!localStorage.getItem("canopy_project")) {
+    if (!localStorage.getItem("aiesec_project")) {
       setTasks(TASKS);
       setDashPosts(DASHBOARD_POSTS);
-      // Seed demo events relative to today so they always appear in the widget
-      const d0 = new Date(); d0.setHours(0, 0, 0, 0);
-      const isoDate = (offset: number) => { const d = new Date(d0); d.setDate(d.getDate() + offset); return d.toISOString().split("T")[0]; };
-      setDashEvents([
-        { id: "ev-demo-1", title: "Lab Meeting", date: isoDate(0), time: "10:00", projectId: "demo" },
-        { id: "ev-demo-2", title: "Participant Interview", date: isoDate(1), time: "14:00", projectId: "demo" },
-        { id: "ev-demo-3", title: "IRB Submission Deadline", date: isoDate(3), projectId: "demo" },
-        { id: "ev-demo-4", title: "Data Analysis Workshop", date: isoDate(6), time: "09:00", projectId: "demo" },
-      ]);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId, lcLoading]);
 
   // Reminders fetch: overdue + upcoming 7 days, re-runs on project switch
   useEffect(() => {
@@ -490,6 +479,9 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Wellbeing — what you see depends on your role in this LC */}
+        {role !== "president" && <CheckinNudgeCard projectId={activeProjectId} userId={userId || null} />}
+
         {/* Row 1: Agenda (Overdue / Today / Upcoming) */}
         <TodayWidget
           tasks={tasks}
@@ -500,8 +492,30 @@ export default function DashboardPage() {
           loading={loading}
         />
 
+        {/* LC modules: finance, events and tabling — by role */}
+        {role && (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {financeLead && <FinanceSnapshotCard projectId={activeProjectId} />}
+            {(role === "president" || role === "vp") && <UpcomingNeedsCard projectId={activeProjectId} />}
+            {role === "member" && <MyNextCard projectId={activeProjectId} userId={ctxUserId} />}
+          </div>
+        )}
+
+        {(role === "president" || role === "vp") && (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {role === "president" ? (
+              <>
+                <ExecPulseCard projectId={activeProjectId} />
+                <MemberPulseCard projectId={activeProjectId} departments={departments} />
+              </>
+            ) : (
+              <DepartmentPulseCard projectId={activeProjectId} departments={departments} />
+            )}
+          </div>
+        )}
+
         {/* Row 2: Opportunities + Wins */}
-        <LabPulseWidget
+        <LcWinsWidget
           posts={dashPosts}
           projectId={projectId}
           projectName={projectName}

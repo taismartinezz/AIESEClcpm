@@ -66,7 +66,7 @@ When('I view my profile', async () => {
     route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify([{
-        id: 'user-1', name: 'Test User', role: 'researcher',
+        id: 'user-1', name: 'Test User', role: 'member',
         avatar_color: '#B4D4E3', avatar_initials: 'TU',
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       }]),

@@ -33,7 +33,7 @@ export default function ProjectFilterTabs({ subProjects, selected, onChange, cla
       className={`flex items-center gap-0.5 overflow-x-auto ${className}`}
       style={{ scrollbarWidth: "none", borderBottom: "1px solid var(--color-border)" }}
       role="tablist"
-      aria-label="Filter by project"
+      aria-label="Filter by group"
     >
       <button
         role="tab"

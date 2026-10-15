@@ -1,8 +1,15 @@
 // ── User & Roles ──────────────────────────────────────────────────────────────
 
-export type UserRole = "pi" | "researcher";
+/**
+ * Permission level inside one Local Committee (LC). A person can hold a different
+ * level in each LC they belong to — always read it for the active LC.
+ *   president — the LCP: manages the LC, roles, invites, departments and settings
+ *   vp        — executive board member; leads one or more departments
+ *   member    — team member who reports to a VP
+ */
+export type UserRole = "president" | "vp" | "member";
 
-/** A role defined within a single lab. Built-in: PI, Researcher. Custom: anything the PI adds. */
+/** A role title within one LC. Built-in: President, VP, Member. Custom titles map to a level. */
 export interface LabRole {
   id: string;
   projectId: string;
@@ -10,6 +17,18 @@ export interface LabRole {
   permissionLevel: UserRole;
   isSystem: boolean;
   createdAt: string;
+}
+
+/** A functional area of an LC (oGV, Marketing, …). Each member belongs to one; VPs lead them. */
+export interface Department {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+  vpUserId: string | null;
+  /** The department whose VP is in charge of finance (Finance & Legality by default). */
+  isFinance: boolean;
+  sortOrder: number;
 }
 
 export interface User {
@@ -26,9 +45,10 @@ export interface User {
 
 // ── Project ───────────────────────────────────────────────────────────────────
 
+/** A group inside an LC (a project team, committee, …). Stored in `sub_projects`. */
 export interface SubProject {
   id: string;
-  projectId: string;     // FK → projects.id (the lab)
+  projectId: string;     // FK → projects.id (the LC)
   name: string;
   description?: string;
   createdBy?: string;
@@ -37,32 +57,18 @@ export interface SubProject {
   color?: string;        // Material palette hex, auto-assigned on creation
 }
 
-export type ResearchType =
-  | "trauma"
-  | "oncology"
-  | "conflict_zone"
-  | "forensic"
-  | "crisis_response"
-  | "other";
-
-export type ResearchParticipation =
-  | "both_publications"
-  | "wellbeing_only"
-  | "private";
-
+/** A Local Committee. Stored in the `projects` table. */
 export interface Project {
   id: string;
   name: string;
-  institution: string;
-  researchType: ResearchType;
-  researchParticipation: ResearchParticipation;
+  institution: string;    // university or city
   createdAt: string;
   members: string[];      // User IDs
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
+export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done";
 export type TaskPriority = "high" | "medium" | "low";
 
 export interface TaskComment {
@@ -103,6 +109,7 @@ export interface Task {
   dueDate?: string;       // ISO date string
   scope?: "personal" | "project" | "lab";
   subProjectId?: string;
+  departmentId?: string | null;
   createdAt: string;
   updatedAt: string;
   comments: TaskComment[];
@@ -114,7 +121,7 @@ export interface Task {
 
 export type PromptCategory =
   | "emotional_processing"
-  | "research_reflection"
+  | "purpose_growth"
   | "team_support"
   | "boundaries_workload"
   | "looking_forward";
@@ -154,129 +161,6 @@ export interface CheckinQuestion {
   text: string;
 }
 
-// ── Literature ────────────────────────────────────────────────────────────────
-
-export type LiteratureType = "article" | "book" | "preprint" | "report" | "thesis";
-export type ReadStatus = "read" | "reading" | "unread";
-export type LibraryScope = "personal" | "lab" | "project";
-
-export interface LiteratureFile {
-  id: string;
-  name: string;
-  size: number;
-  uploaderId: string;
-  uploadedAt: string;
-  ocrStatus?: "pending" | "ready" | null;
-  url?: string;
-  storagePath?: string;
-}
-
-export interface LiteratureItem {
-  id: string;
-  projectId: string;
-  scope: LibraryScope;
-  subProjectId?: string;
-  type: LiteratureType;
-  title: string;
-  authors: string[];
-  year: number;
-  journal?: string;
-  publisher?: string;
-  volume?: string;
-  pages?: string;
-  doi?: string;
-  url?: string;
-  abstract?: string;
-  tags: string[];
-  removedTags: string[];    // Tags explicitly removed by user - excluded from future syncs
-  status: ReadStatus;
-  rating: number;          // 1–5
-  notes?: string;
-  files: LiteratureFile[];
-  addedById: string;
-  addedAt: string;
-  deletedAt?: string | null;
-  collections: string[];   // Collection IDs
-  relatedIds: string[];    // Related item IDs
-  importSource?: "manual" | "zotero_json" | "zotero_api" | "doi" | "bibtex" | "url";
-  zoteroKey?: string;   // Stable Zotero item key (e.g. "AIXIUGN3") - used as dedup key when DOI absent
-}
-
-export interface LiteratureCollection {
-  id: string;
-  name: string;
-  iconName: string;
-  itemCount: number;
-}
-
-export interface AnnotationBbox {
-  x: number; y: number; w: number; h: number;  // 0–1 fractions of page canvas dimensions
-  rects?: { x: number; y: number; w: number; h: number }[]; // per-line rects for multi-line selections
-}
-
-export interface LitAnnotation {
-  id: string;
-  itemId: string;
-  authorId: string;
-  text: string;          // quoted passage (empty for standalone comments)
-  comment: string;
-  pageRef?: string;
-  parentId?: string;     // null = top-level; set = reply
-  createdAt: string;
-  updatedAt?: string;
-  color?: string;        // hex color tag e.g. "#3B82F6"; undefined = no tag
-  pageNumber?: number;   // 1-indexed PDF page; only set for PDF-anchored annotations
-  bbox?: AnnotationBbox; // normalized position within that page; only set with pageNumber
-}
-
-export interface LitReadingStatus {
-  userId: string;
-  itemId: string;
-  status: ReadStatus;
-  updatedAt: string;
-}
-
-export type AssignmentReadingStatus = "not_started" | "in_progress" | "done";
-
-export interface LitAssignedReading {
-  id: string;
-  itemId: string;
-  projectId: string;
-  assignedBy: string;    // PI user ID
-  assigneeId: string;
-  dueDate?: string;      // ISO date
-  note?: string;
-  readingStatus: AssignmentReadingStatus | null; // null = masked server-side (peer view of hidden row)
-  createdAt: string;
-  statusHidden?: boolean; // when true, peers see "-" instead of status; PI always sees real status
-  aggDone?: number;       // server-computed total done count (includes hidden entries)
-  aggTotal?: number;      // server-computed total assignee count
-}
-
-export interface ZoteroCredentials {
-  userId: string;
-  apiKey: string;
-  zoteroUserId: string;
-  groupId?: string;      // Zotero group library ID
-  lastSyncedAt?: string;
-}
-
-export interface LitRecommendation {
-  id: string;
-  sourceItemId: string;
-  projectId: string;
-  title: string;
-  authors: string[];
-  year?: number;
-  journal?: string;
-  doi?: string;
-  abstract?: string;
-  openAlexId?: string;
-  score?: number;        // relevance score from API
-  cachedAt: string;
-  dismissed: boolean;
-}
-
 // ── Team ──────────────────────────────────────────────────────────────────────
 
 export interface TeamMember extends User {
@@ -284,6 +168,7 @@ export interface TeamMember extends User {
   weeklyUpdate?: string;
   weeklyUpdatedAt?: string;
   labRoleName?: string;
+  departmentId?: string | null;
 }
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
@@ -343,7 +228,7 @@ export interface DashboardPost {
   type: "opportunity" | "lab_win";
 }
 
-// ── Scheduling ────────────────────────────────────────────────────────────────
+// ── Settings ──────────────────────────────────────────────────────────────────
 
 // Per-day working hours; key = "0" (Mon) … "6" (Sun), null = day off
 export type DayWorkingHours = { start: string; end: string } | null;
@@ -354,52 +239,6 @@ export interface UserSettings {
   timezone: string;         // IANA timezone string, e.g. "America/New_York"
   workingHours: WorkingHours;
   updatedAt: string;
-}
-
-// "day-slot" key where day=0..4 (Mon-Fri), slot=0..15 (9:00-16:30 in 30-min steps)
-export interface WeeklyAvailability {
-  userId: string;
-  projectId: string;
-  subProjectId?: string | null;
-  slots: string[];
-  updatedAt: string;
-}
-
-export type MeetingResponseStatus = "pending" | "accepted" | "declined";
-
-export interface MeetingResponse {
-  userId: string;
-  status: MeetingResponseStatus;
-  respondedAt?: string;
-}
-
-export interface MeetingProposal {
-  id: string;
-  projectId: string;
-  proposerId: string;
-  title: string;
-  description?: string;
-  proposedDate: string;    // ISO date "YYYY-MM-DD"
-  proposedTime: string;    // "HH:MM"
-  durationMinutes: number;
-  inviteeIds: string[];
-  responses: MeetingResponse[];
-  createdAt: string;
-}
-
-export type ScheduleEventScope = "lab" | "personal" | "project";
-
-export interface ScheduleEvent {
-  id: string;
-  projectId: string;
-  title: string;
-  date: string;            // ISO date "YYYY-MM-DD"
-  time?: string;           // "HH:MM"
-  endTime?: string;        // "HH:MM"
-  scope: ScheduleEventScope;
-  createdBy: string;
-  description?: string;
-  subProjectId?: string | null;
 }
 
 export type ReminderPriority = "low" | "medium" | "high";
@@ -425,4 +264,114 @@ export interface Reminder {
   createdAt: string;
   position?: number;      // fractional index for manual drag order
   assigneeId?: string;    // user to notify (shows in their reminders)
+}
+
+// ── Finance ───────────────────────────────────────────────────────────────────
+
+export type FinanceEntryType = "income" | "expense";
+export type ClaimStatus = "pending" | "approved" | "rejected";
+
+export interface FinanceCategory {
+  id: string;
+  projectId: string;
+  name: string;
+  sortOrder: number;
+}
+
+/** A ledger line. `claimId` is set when it was created by approving a claim. */
+export interface FinanceEntry {
+  id: string;
+  projectId: string;
+  type: FinanceEntryType;
+  amount: number;
+  currency: string;
+  date: string;            // ISO date
+  categoryId: string | null;
+  departmentId: string | null;
+  description: string;
+  recordedBy: string | null;
+  receiptPath: string | null;
+  claimId: string | null;
+  createdAt: string;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  projectId: string;
+  submittedBy: string;
+  amount: number;
+  currency: string;
+  date: string;            // date of the expense
+  description: string;
+  departmentId: string | null;
+  categoryId: string | null;
+  receiptPath: string;
+  status: ClaimStatus;
+  rejectionReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+// ── Attendance ────────────────────────────────────────────────────────────────
+
+export type LcEventType =
+  | "local_event"
+  | "local_conference"
+  | "national_conference"
+  | "international_conference"
+  | "info_session"
+  | "other";
+
+export interface LcEvent {
+  id: string;
+  projectId: string;
+  name: string;
+  type: LcEventType;
+  startsOn: string;        // ISO date
+  endsOn: string;          // ISO date
+  location: string | null;
+  departmentId: string | null;
+  createdBy: string | null;
+}
+
+export interface AttendanceRecord {
+  eventId: string;
+  userId: string;
+  recordedBy: string | null;
+  recordedAt: string;
+}
+
+// ── Tabling ───────────────────────────────────────────────────────────────────
+
+export type TablingStatus = "signed_up" | "attended" | "no_show";
+
+export interface TablingSlot {
+  id: string;
+  projectId: string;
+  startsAt: string;        // ISO timestamp
+  endsAt: string;
+  location: string;
+  purpose: string;
+  capacity: number;
+  taken: number;           // non-walk-in sign-ups (visible to everyone)
+  departmentId: string | null;
+  seriesId: string | null;
+  createdBy: string | null;
+}
+
+export interface TablingSignup {
+  slotId: string;
+  userId: string;
+  status: TablingStatus;
+  walkIn: boolean;
+  signedUpAt: string;
+}
+
+export interface TablingReportRow {
+  userId: string;
+  hours: number;
+  attended: number;
+  noShows: number;
+  upcoming: number;
 }

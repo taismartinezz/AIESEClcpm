@@ -108,7 +108,7 @@ describe('Journal save — duplicate-submit & editor reset', () => {
     // Reset module cache so component state starts fresh each test
     vi.resetModules()
     // Clear draft from localStorage
-    try { localStorage.removeItem('canopy_journal_draft') } catch { /* ignore */ }
+    try { localStorage.removeItem('aiesec_journal_draft') } catch { /* ignore */ }
   })
 
   it('clears the editor after a successful save', async () => {

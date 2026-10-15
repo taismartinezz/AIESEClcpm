@@ -121,7 +121,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
 
       if (insertError) {
         console.error("[CreateProjectModal] insert error:", insertError);
-        setError("Failed to create project. Please try again.");
+        setError("Failed to create the group. Please try again.");
         setSaving(false);
         return;
       }
@@ -172,7 +172,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+      style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
       onClick={onClose}
     >
       <div
@@ -182,7 +182,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
           width: "100%",
           borderRadius: 10,
           padding: 28,
-          boxShadow: "0 8px 40px rgba(27,46,75,0.18)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.18)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -197,11 +197,11 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
               margin: 0,
             }}
           >
-            New project
+            New group
           </h2>
           <button
             onClick={onClose}
-            className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+            className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
             style={{ width: 36, height: 36 }}
             aria-label="Close"
           >
@@ -212,7 +212,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
         <div className="space-y-4">
           {/* Name */}
           <div>
-            <label style={labelStyle}>Project name *</label>
+            <label style={labelStyle}>Group name *</label>
             <input
               autoFocus
               value={name}
@@ -234,7 +234,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this project about?"
+              placeholder="What is this group for? (e.g. Summer peak project team)"
               rows={3}
               style={{
                 ...inputStyle,
@@ -257,7 +257,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
                   return (
                     <label
                       key={member.userId}
-                      className="flex items-center gap-2.5 cursor-pointer rounded-lg hover:bg-[rgba(27,46,75,0.04)]"
+                      className="flex items-center gap-2.5 cursor-pointer rounded-lg hover:bg-[rgba(2,99,196,0.04)]"
                       style={{ padding: "6px 8px" }}
                     >
                       <input
@@ -323,7 +323,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
             onMouseEnter={(e) => { if (!saving) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy-hover)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy)"; }}
           >
-            {saving ? "Creating…" : "Create project"}
+            {saving ? "Creating…" : "Create group"}
           </button>
         </div>
       </div>

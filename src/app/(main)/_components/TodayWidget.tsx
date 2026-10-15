@@ -24,7 +24,7 @@ type AgendaItem = {
 // ── Kind chip config ───────────────────────────────────────────────────────────
 
 const KIND_CFG = {
-  task:     { label: "Task",     color: "var(--color-navy)",     bg: "rgba(27,46,75,0.09)" },
+  task:     { label: "Task",     color: "var(--color-navy)",     bg: "rgba(2,99,196,0.09)" },
   reminder: { label: "Reminder", color: "var(--color-body)",     bg: "rgba(0,0,0,0.06)"   },
   event:    { label: "Event",    color: "var(--color-secondary)", bg: "rgba(0,0,0,0.05)"  },
 };
@@ -88,7 +88,7 @@ function categorize(
   for (const ev of events) {
     const evDate = new Date(ev.date + "T00:00:00");
     if (evDate < todayStart) continue;
-    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: ev.date, href: "/scheduling", assigneeIds: [], canComplete: false };
+    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: ev.date, href: "/attendance", assigneeIds: [], canComplete: false };
     if (evDate <= todayEnd) today.push(item);
     else if (evDate <= weekEnd) upcoming.push(item);
   }

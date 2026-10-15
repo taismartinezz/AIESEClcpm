@@ -1,6 +1,6 @@
 "use client";
 
-type Variant = "tasks" | "reminders" | "bookmarks" | "literature" | "scheduling" | "journal" | "generic" | "column" | "done";
+type Variant = "tasks" | "reminders" | "bookmarks" | "calendar" | "journal" | "generic" | "column" | "done";
 
 const illustrations: Record<Variant, React.ReactNode> = {
   tasks: (
@@ -27,17 +27,7 @@ const illustrations: Record<Variant, React.ReactNode> = {
       <path d="M32 22h16M32 29h10" stroke="var(--color-border)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   ),
-  literature: (
-    <svg width="80" height="64" viewBox="0 0 80 64" fill="none" aria-hidden="true">
-      <rect x="14" y="12" width="22" height="40" rx="3" stroke="var(--color-border)" strokeWidth="1.5" fill="var(--color-canvas)" />
-      <rect x="42" y="16" width="22" height="36" rx="3" stroke="var(--color-border)" strokeWidth="1.5" fill="var(--color-canvas)" />
-      <path d="M18 20h14M18 26h10M18 32h12" stroke="var(--color-border)" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M46 24h14M46 30h10M46 36h12" stroke="var(--color-border)" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="53" cy="46" r="5" fill="var(--color-navy)" opacity="0.12" />
-      <path d="M50.5 46l1.5 1.5L55.5 44" stroke="var(--color-navy)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ),
-  scheduling: (
+  calendar: (
     <svg width="80" height="64" viewBox="0 0 80 64" fill="none" aria-hidden="true">
       <rect x="12" y="14" width="56" height="40" rx="5" stroke="var(--color-border)" strokeWidth="1.5" fill="var(--color-canvas)" />
       <path d="M12 24h56" stroke="var(--color-border)" strokeWidth="1" />

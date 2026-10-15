@@ -43,7 +43,7 @@ export function resolveChannelKey(projectId: string, currentUserId: string, acti
 
 export function buildUser(id: string, name: string, color?: string): User {
   return {
-    id, name, email: "", role: "researcher",
+    id, name, email: "", role: "member",
     avatarColor: color ?? "#CBD5E1",
     avatarInitials: computeInitials(name) || name.slice(0, 2).toUpperCase(),
   };

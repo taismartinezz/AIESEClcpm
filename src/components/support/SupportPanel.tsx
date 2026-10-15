@@ -9,6 +9,9 @@ import {
 import Avatar from "@/components/ui/Avatar";
 import { resolveResources, hasNoCounselingResources } from "@/lib/support/institutions";
 import type { LabResource, ResolvedResource } from "@/lib/support/institutions";
+import { useProject } from "@/context/ProjectContext";
+import { ROLE_LABELS, toUserRole } from "@/lib/permissions";
+import type { UserRole } from "@/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,17 +21,18 @@ type Screen =
   | { id: "compose"; recipient: Member }
   | { id: "sent"; recipientName: string; msgId: string }
   | { id: "b" }
-  | { id: "b_pick"; filter: "pi" | "all" }
+  | { id: "b_pick"; filter: "leaders" | "all" }
   | { id: "b_message"; recipient: Member };
 
 interface Member {
   id: string;
   name: string;
-  role: "pi" | "researcher";
+  role: UserRole;
+  departmentId: string | null;
   avatarColor: string;
   avatarInitials: string;
   avatarUrl?: string;
-  contextNote?: string; // e.g. "PI", "on this task with you"
+  contextNote?: string; // e.g. "President", "on this task with you"
 }
 
 type SupportResource = LabResource;
@@ -51,54 +55,6 @@ const TIMING_OPTIONS: Array<{ id: TimingChoice; label: string; line: string }> =
   { id: "later_today", label: "Later today",   line: "I'm free later today." },
   { id: "this_week",  label: "This week",      line: "Anytime this week works for me." },
 ];
-
-// ── Slot-proposal helpers ─────────────────────────────────────────────────────
-
-const SLOT_COUNT = 16;
-const HOUR_START = 9;
-const MONTH_ABR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DAY_ABR   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-interface SuggestedSlot {
-  date: string;
-  startMin: number;
-  shortLabel: string; // e.g. "Tue Aug 19, 10:00 AM"
-}
-
-function minToLabel(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
-}
-
-function findRecipientSlots(recipientSlotSet: Set<string>): SuggestedSlot[] {
-  const results: SuggestedSlot[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let offset = 1; offset <= 14 && results.length < 3; offset++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offset);
-    const jsDay = d.getDay();
-    if (jsDay === 0 || jsDay === 6) continue;
-    const gridDay = jsDay - 1; // 0=Mon
-
-    for (let s = 0; s < SLOT_COUNT && results.length < 3; s++) {
-      if (!recipientSlotSet.has(`${gridDay}-${s}`)) continue;
-      const startMin = HOUR_START * 60 + s * 30;
-      const dateStr = d.toISOString().split("T")[0];
-      results.push({
-        date: dateStr,
-        startMin,
-        shortLabel: `${DAY_ABR[jsDay]} ${MONTH_ABR[d.getMonth()]} ${d.getDate()}, ${minToLabel(startMin)}`,
-      });
-      break; // one slot per day
-    }
-  }
-  return results;
-}
 
 function firstName(fullName: string): string {
   return fullName.split(" ")[0] || fullName;
@@ -180,7 +136,8 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   const [members, setMembers] = useState<Member[]>([]);
   const [resources, setResources] = useState<SupportResource[]>([]);
   const [institutionKey, setInstitutionKey] = useState<string | null>(null);
-  const [isCurrentUserPi, setIsCurrentUserPi] = useState(false);
+  const { role: myRole, departmentId: myDepartmentId, departments } = useProject();
+  const isCurrentUserPresident = myRole === "president";
   const [piInvitation, setPiInvitation] = useState<{ text: string; piName: string } | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
@@ -240,7 +197,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
         const [membQ, resQ, projQ] = await Promise.all([
           supabase
             .from("team_members")
-            .select("user_id, role, user_profiles(name, avatar_initials, avatar_color, avatar_url)")
+            .select("user_id, role, department_id, user_profiles(name, avatar_initials, avatar_color, avatar_url)")
             .eq("project_id", projectId),
           supabase
             .from("support_resources")
@@ -260,7 +217,8 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           return {
             id: row["user_id"] as string,
             name: prof?.["name"] ?? "Team member",
-            role: row["role"] as "pi" | "researcher",
+            role: toUserRole(row["role"]),
+            departmentId: (row["department_id"] as string | null) ?? null,
             avatarColor: prof?.["avatar_color"] ?? "#B4D4E3",
             avatarInitials: prof?.["avatar_initials"] ?? initials(prof?.["name"] ?? "TM"),
             avatarUrl: prof?.["avatar_url"] ?? undefined,
@@ -273,11 +231,10 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
         if (!projQ.error && projQ.data) {
           const pd = projQ.data as Record<string, unknown>;
           if (pd["support_invitation"]) {
-            const piMember = rawMembers.find((m) => m.role === "pi");
-            setPiInvitation({ text: pd["support_invitation"] as string, piName: piMember?.name ?? "PI" });
+            const president = rawMembers.find((m) => m.role === "president");
+            setPiInvitation({ text: pd["support_invitation"] as string, piName: president?.name ?? "Your LCP" });
           }
           if (pd["institution_key"]) setInstitutionKey(pd["institution_key"] as string);
-          if (pd["owner_id"]) setIsCurrentUserPi((pd["owner_id"] as string) === userId);
         }
       } catch { /* non-fatal */ } finally {
         setLoadingData(false);
@@ -292,13 +249,17 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   }, [projectId, userId]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
-  const pi = members.find((m) => m.role.toLowerCase() === "pi");
+  // The people a member would naturally reach out to: their department's VP, then the LCP.
+  const myVpId = departments.find((d) => d.id === myDepartmentId)?.vpUserId ?? null;
+  const leaders = members
+    .filter((m) => m.role === "president" || (myRole === "member" && m.id === myVpId))
+    .sort((a, b) => (a.role === "president" ? 1 : 0) - (b.role === "president" ? 1 : 0));
   const canGoBack = history.length > 0;
 
   return (
     <div
       className="fixed inset-0 z-50"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: "rgba(27,46,75,0.45)" }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: "rgba(2,99,196,0.45)" }}
       onClick={onClose}
       aria-hidden="false"
     >
@@ -316,7 +277,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          boxShadow: "0 8px 40px rgba(27,46,75,0.22)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.22)",
         }}
       >
         {screen.id === "entry" && (
@@ -368,9 +329,9 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
             resources={resources}
             institutionKey={institutionKey}
             loading={loadingData}
-            pi={pi}
+            leaders={leaders}
             members={members}
-            isCurrentUserPi={isCurrentUserPi}
+            isCurrentUserPresident={isCurrentUserPresident}
             projectId={projectId}
             onBack={canGoBack ? back : undefined}
             onClose={onClose}
@@ -382,7 +343,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           <BPickScreen
             filter={screen.filter}
             members={members}
-            pi={pi}
+            leaders={leaders}
             onBack={back}
             onClose={onClose}
             onSelect={(recipient) => push({ id: "b_message", recipient })}
@@ -421,7 +382,7 @@ function EntryScreen({ piInvitation, onHelp, onResources, onClose }: {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", backgroundColor: "var(--color-canvas)", borderRadius: 8, marginBottom: 20, border: "1px solid var(--color-border)" }}>
         <Lock size={13} color="var(--color-secondary)" style={{ flexShrink: 0, marginTop: 2 }} />
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, lineHeight: 1.6 }}>
-          What you write here is only seen by the person you message. Nothing in this flow is recorded or shared with your lab or advisor.
+          What you write here is only seen by the person you message. Nothing in this flow is recorded or shared with your LC.
         </p>
       </div>
 
@@ -468,10 +429,9 @@ function SimplePickScreen({ members, onBack, onClose, onSelect }: {
   onSelect: (m: Member) => void;
 }) {
   const sorted = [...members].sort((a, b) => {
-    if (a.role === "pi" && b.role !== "pi") return -1;
-    if (b.role === "pi" && a.role !== "pi") return 1;
-    return a.name.localeCompare(b.name);
-  }).map((m) => ({ ...m, contextNote: m.role === "pi" ? "PI" : "Researcher" }));
+    const rank = (r: UserRole) => (r === "president" ? 0 : r === "vp" ? 1 : 2);
+    return rank(a.role) - rank(b.role) || a.name.localeCompare(b.name);
+  }).map((m) => ({ ...m, contextNote: ROLE_LABELS[m.role] }));
 
   return (
     <PanelShell title="Who would you like to reach?" onBack={onBack} onClose={onClose}>
@@ -541,50 +501,6 @@ function SimpleComposeScreen({ recipient, projectId, userId, onBack, onClose, on
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  // Slot proposals
-  const [showSlots, setShowSlots] = useState(false);
-  const [slots, setSlots] = useState<SuggestedSlot[]>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [selectedSlots, setSelectedSlots] = useState<SuggestedSlot[]>([]);
-  const [slotsLoaded, setSlotsLoaded] = useState(false);
-
-  async function openSlots() {
-    setShowSlots(v => !v);
-    if (slotsLoaded || !projectId) return;
-    setSlotsLoading(true);
-    try {
-      const { data } = await supabase
-        .from("user_availability")
-        .select("slots")
-        .eq("project_id", projectId)
-        .eq("user_id", recipient.id)
-        .maybeSingle();
-      const slotSet = new Set<string>((data?.slots as string[]) ?? []);
-      setSlots(findRecipientSlots(slotSet));
-    } catch { /* non-fatal */ } finally {
-      setSlotsLoading(false);
-      setSlotsLoaded(true);
-    }
-  }
-
-  function toggleSlot(slot: SuggestedSlot) {
-    setSelectedSlots(prev =>
-      prev.some(s => s.date === slot.date)
-        ? prev.filter(s => s.date !== slot.date)
-        : prev.length < 3 ? [...prev, slot] : prev
-    );
-  }
-
-  function addSlotsToMessage() {
-    if (selectedSlots.length === 0) return;
-    const times = selectedSlots.map(s => s.shortLabel).join(", ");
-    const line = selectedSlots.length === 1
-      ? `\n\nWould this work? ${times}.`
-      : `\n\nWould any of these work? ${times}.`;
-    setBody(b => b.trimEnd() + line);
-    setSelectedSlots([]);
-    setShowSlots(false);
-  }
 
   function toggleTiming(choice: TimingChoice) {
     setTiming(prev => prev === choice ? null : choice);
@@ -678,78 +594,6 @@ function SimpleComposeScreen({ recipient, projectId, userId, onBack, onClose, on
             );
           })}
         </div>
-      </div>
-
-      {/* Slot proposals - optional */}
-      <div style={{ marginTop: 10 }}>
-        <button
-          onClick={openSlots}
-          style={{
-            fontSize: 12, color: "var(--color-secondary)",
-            background: "transparent", border: "1px solid var(--color-border)",
-            borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-            fontFamily: "var(--font-roboto)", minHeight: 36,
-          }}
-        >
-          {showSlots ? "Hide times" : "Suggest a time to meet"}
-        </button>
-
-        {showSlots && (
-          <div style={{ marginTop: 10 }}>
-            {slotsLoading && (
-              <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>Looking for open times…</p>
-            )}
-            {!slotsLoading && slots.length === 0 && (
-              <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>
-                No availability set - {firstName(recipient.name)} hasn&rsquo;t filled in their schedule yet.
-              </p>
-            )}
-            {!slotsLoading && slots.length > 0 && (
-              <>
-                <p style={{ fontSize: 11, color: "var(--color-secondary)", marginBottom: 8 }}>
-                  Pick up to 3 times from {firstName(recipient.name)}&rsquo;s availability:
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {slots.map((slot) => {
-                    const on = selectedSlots.some(s => s.date === slot.date);
-                    return (
-                      <button
-                        key={slot.date}
-                        onClick={() => toggleSlot(slot)}
-                        style={{
-                          textAlign: "left", fontSize: 13, padding: "8px 12px", borderRadius: 8,
-                          border: `1px solid ${on ? "var(--color-navy)" : "var(--color-border)"}`,
-                          backgroundColor: on ? "rgba(27,46,75,0.07)" : "transparent",
-                          color: "var(--color-body)", cursor: "pointer",
-                          fontFamily: "var(--font-roboto)", minHeight: 44,
-                          display: "flex", alignItems: "center", gap: 10,
-                        }}
-                      >
-                        {on && <Check size={13} color="var(--color-navy)" />}
-                        {!on && <span style={{ width: 13 }} />}
-                        {slot.shortLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedSlots.length > 0 && (
-                  <button
-                    onClick={addSlotsToMessage}
-                    style={{
-                      marginTop: 10, fontSize: 12, fontWeight: 600,
-                      color: "var(--color-navy)", background: "transparent",
-                      border: "1px solid var(--color-navy)", borderRadius: 7,
-                      padding: "6px 14px", cursor: "pointer",
-                      fontFamily: "var(--font-roboto)", minHeight: 36,
-                    }}
-                  >
-                    Add {selectedSlots.length} time{selectedSlots.length > 1 ? "s" : ""} to message
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {error && (
@@ -944,23 +788,21 @@ function VoiceDraftTextarea({ value, onChange, rows = 8, placeholder }: {
 
 // ── Screen: B Pick - recipient selection from Track B ────────────────────────
 
-function BPickScreen({ filter, members, pi, onBack, onClose, onSelect }: {
-  filter: "pi" | "all";
+function BPickScreen({ filter, members, leaders, onBack, onClose, onSelect }: {
+  filter: "leaders" | "all";
   members: Member[];
-  pi: Member | undefined;
+  leaders: Member[];
   onBack: () => void;
   onClose: () => void;
   onSelect: (m: Member) => void;
 }) {
-  const candidates = filter === "pi"
-    ? (pi ? [pi] : members.filter(m => m.role.toLowerCase() === "pi"))
-    : members;
+  const candidates = filter === "leaders" ? leaders : members;
 
   return (
     <PanelShell title="Who can help?" onBack={onBack} onClose={onClose}>
       {candidates.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
-          {filter === "pi" ? "No PI found in this lab." : "No team members found."}
+          {filter === "leaders" ? "No VP or president found in this LC yet." : "No team members found."}
         </p>
       )}
       <div className="flex flex-col gap-2">
@@ -975,17 +817,17 @@ function BPickScreen({ filter, members, pi, onBack, onClose, onSelect }: {
 // ── Screen: B,Support resources ─────────────────────────────────────────────
 // Track B: no analytics, no logging, no INSERT/UPDATE triggered by viewing this screen.
 
-function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUserPi, projectId, onBack, onClose, onPickRecipient }: {
+function BScreen({ resources, institutionKey, loading, leaders, members, isCurrentUserPresident, projectId, onBack, onClose, onPickRecipient }: {
   resources: SupportResource[];
   institutionKey: string | null;
   loading: boolean;
-  pi: Member | undefined;
+  leaders: Member[];
   members: Member[];
-  isCurrentUserPi: boolean;
+  isCurrentUserPresident: boolean;
   projectId: string | null;
   onBack?: () => void;
   onClose: () => void;
-  onPickRecipient: (filter: "pi" | "all") => void;
+  onPickRecipient: (filter: "leaders" | "all") => void;
 }) {
   const resolved = resolveResources(resources, institutionKey, "US");
 
@@ -1005,9 +847,6 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
     (grouped[r.category] ??= []).push(r);
   }
 
-  if (process.env.NODE_ENV === "development" && !pi && members.length > 0) {
-    console.warn("[SupportPanel] No PI found in lab members. Roles present:", members.map(m => m.role));
-  }
 
   return (
     <PanelShell title="Support resources" onBack={onBack} onClose={onClose}>
@@ -1043,9 +882,9 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
         </section>
       ))}
 
-      {!loading && hasNoCounselingResources(resources, institutionKey) && isCurrentUserPi && (
+      {!loading && hasNoCounselingResources(resources, institutionKey) && isCurrentUserPresident && (
         <p style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 16 }}>
-          Canopy doesn&rsquo;t have support resources for your institution yet.{" "}
+          There are no built-in support resources for your university yet.{" "}
           <a href="/team" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Add them</a>
           {" "}so your team can find them.
         </p>
@@ -1053,12 +892,12 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
 
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, marginTop: 8 }}>
         <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 10 }}>
-          If you&rsquo;d rather talk to someone on the project
+          If you&rsquo;d rather talk to someone in your LC
         </p>
         <div className="flex flex-col gap-2">
-          {!isCurrentUserPi && (
+          {leaders.length > 0 && (
           <button
-            onClick={() => onPickRecipient("pi")}
+            onClick={() => onPickRecipient("leaders")}
             style={{
               height: 44, padding: "0 16px",
               backgroundColor: "transparent",
@@ -1068,7 +907,7 @@ function BScreen({ resources, institutionKey, loading, pi, members, isCurrentUse
               fontFamily: "var(--font-roboto)", textAlign: "left",
             }}
           >
-            Message my PI
+            Message my VP or LCP
           </button>
           )}
           {members.length > 0 && (

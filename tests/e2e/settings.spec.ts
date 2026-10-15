@@ -5,23 +5,23 @@ import { setupAuthMocks } from './helpers/mocks'
 
 test.describe('Settings page — Issue #15', () => {
   test('settings page loads and shows profile and account sections', async ({ page }) => {
-    await setupAuthMocks(page, 'pi')
+    await setupAuthMocks(page, 'president')
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: /^settings$/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('heading', { name: /profile/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /account/i })).toBeVisible()
   })
 
-  test('PI user sees Lab & Invite section', async ({ page }) => {
-    await setupAuthMocks(page, 'pi')
+  test('the president sees the members & invites section', async ({ page }) => {
+    await setupAuthMocks(page, 'president')
     await page.goto('/settings')
-    await expect(page.getByRole('heading', { name: /lab.*invite/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /members.*invites/i })).toBeVisible({ timeout: 10000 })
   })
 
-  test('researcher does not see Lab & Invite section', async ({ page }) => {
-    await setupAuthMocks(page, 'researcher')
+  test('a member does not see the members & invites section', async ({ page }) => {
+    await setupAuthMocks(page, 'member')
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: /^settings$/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('heading', { name: /lab.*invite/i })).not.toBeVisible()
+    await expect(page.getByRole('heading', { name: /members.*invites/i })).not.toBeVisible()
   })
 })

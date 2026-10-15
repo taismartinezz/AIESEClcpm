@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useProject } from "@/context/ProjectContext";
 import {
-  CHECKIN_QUESTIONS, CHECKIN_LABELS, JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
+  CHECKIN_LABELS, JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
 } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import type { JournalEntry, CheckinResponse } from "@/types";
+import { activeQuestions, audienceCopy, questionText, CHECKIN_QUESTIONS } from "@/lib/wellbeing";
 import {
   Lock, Mic, MicOff, HelpingHand, Search, Plus, X, Phone,
   ChevronLeft, ChevronRight, Users, Building2, Loader2, CalendarDays, ChevronDown, BookOpen,
@@ -50,7 +51,7 @@ const DEFAULT_PROMPT = "How was your day?";
 const PRESET_PROMPTS = [
   "What challenged you today?",
   "What are you grateful for?",
-  "What's on your mind about your research?",
+  "What's on your mind about your AIESEC role?",
   "How are you feeling about your team?",
   "What do you want to remember from today?",
 ];
@@ -81,7 +82,7 @@ function nextCheckinDay(lastDate: string) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-const DRAFT_KEY = "canopy_journal_draft";
+const DRAFT_KEY = "aiesec_journal_draft";
 
 // ── Prompt card ───────────────────────────────────────────────────────────────
 
@@ -336,7 +337,7 @@ function CheckinCard({ question, response, onScore }: {
           return (
             <button key={score} onClick={() => onScore(score)}
               className="flex flex-col items-center gap-1.5 flex-1 py-2 rounded-lg transition-all"
-              style={{ border: `1px solid ${isSelected ? SCORE_COLOR : "var(--color-border)"}`, backgroundColor: isSelected ? "rgba(27,46,75,0.08)" : "transparent", cursor: "pointer", minHeight: 52 }}
+              style={{ border: `1px solid ${isSelected ? SCORE_COLOR : "var(--color-border)"}`, backgroundColor: isSelected ? "rgba(2,99,196,0.08)" : "transparent", cursor: "pointer", minHeight: 52 }}
               aria-label={`${score}: ${SCORE_LABELS[score]}`} aria-pressed={isSelected}
             >
               <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: isSelected ? SCORE_COLOR : "var(--color-border)", backgroundColor: isSelected ? SCORE_COLOR : "transparent" }} />
@@ -379,14 +380,14 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(27,46,75,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-md" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "28px 24px", boxShadow: "0 8px 40px rgba(27,46,75,0.18)" }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.4)" }} onClick={onClose}>
+      <div className="w-full max-w-md" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "28px 24px", boxShadow: "0 8px 40px rgba(2,99,196,0.18)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-5">
           <div>
             <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 20, color: "var(--color-navy)", margin: 0 }}>Support is available.</h2>
             <p style={{ fontSize: 13, color: "var(--color-secondary)", marginTop: 6, lineHeight: 1.5 }}>You don't have to navigate this alone.</p>
           </div>
-          <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close"><X size={16} color="var(--color-secondary)" /></button>
+          <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close"><X size={16} color="var(--color-secondary)" /></button>
         </div>
         <div className="space-y-3">
           <button onClick={requestCheckin} disabled={checkinState === 'loading' || checkinState === 'sent'} className="w-full text-left px-4 py-3.5 rounded-lg" style={{ backgroundColor: checkinState === 'sent' ? "rgba(34,197,94,0.08)" : "var(--color-canvas)", border: `1px solid ${checkinState === 'sent' ? "#22c55e" : checkinState === 'error' ? "var(--color-error)" : "var(--color-border)"}`, borderRadius: 10, cursor: checkinState === 'sent' ? "default" : "pointer" }}>
@@ -397,7 +398,7 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
                   {checkinState === 'sent' ? 'Check-in request sent' : checkinState === 'error' ? 'Failed to send. Tap to retry.' : 'Request a check-in with your supervisor'}
                 </p>
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3, lineHeight: 1.4 }}>
-                  {checkinState === 'sent' ? 'Your supervisor will be notified anonymously.' : 'Sends an anonymous notification to your PI. Your identity is never shared.'}
+                  {checkinState === 'sent' ? 'Your LCP will be notified anonymously.' : 'Sends an anonymous notification to your LCP. Your identity is never shared.'}
                 </p>
               </div>
             </div>
@@ -423,7 +424,7 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
         </div>
         <div className="flex items-center gap-2 mt-5 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
           <Lock size={13} color="var(--color-secondary)" />
-          <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.4 }}>Your journal and check-in responses are completely private. Your PI and team cannot see them under any circumstances.</p>
+          <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.4 }}>Your journal and individual check-in answers are completely private. Your VP, LCP and team cannot see them under any circumstances.</p>
         </div>
       </div>
     </div>
@@ -434,8 +435,8 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
 
 function DiscardDraftModal({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(27,46,75,0.35)" }}>
-      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 380, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(27,46,75,0.16)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.35)" }}>
+      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 380, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(2,99,196,0.16)" }}>
         <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: "0 0 10px" }}>
           You have an unsaved draft.
         </h2>
@@ -480,7 +481,7 @@ function PromptPicker({ usedTexts, onSelect, onClose, availablePrompts }: {
         <button
           key={text}
           onClick={() => { onSelect(text); onClose(); }}
-          className="w-full text-left px-4 py-2.5 hover:bg-[rgba(27,46,75,0.05)] transition-colors"
+          className="w-full text-left px-4 py-2.5 hover:bg-[rgba(2,99,196,0.05)] transition-colors"
           style={{ fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-lora)", lineHeight: 1.4, background: "none", border: "none", cursor: "pointer" }}
         >
           {text}
@@ -510,7 +511,7 @@ function JournalSidebarContent({
           {onCollapse && (
             <button
               onClick={onCollapse}
-              className="opacity-0 group-hover/litpanel:opacity-100 transition-opacity flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]"
+              className="opacity-0 group-hover/litpanel:opacity-100 transition-opacity flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]"
               style={{ width: 32, height: 32 }}
               title="Collapse entry list"
               aria-label="Collapse entry list"
@@ -519,7 +520,7 @@ function JournalSidebarContent({
             </button>
           )}
           {showClose && (
-            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close entries">
+            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close entries">
               <X size={16} color="var(--color-secondary)" />
             </button>
           )}
@@ -597,7 +598,7 @@ function JournalSidebarContent({
 function EntryListItem({ entry, selected, onClick }: { entry: JournalEntry; selected: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full text-left px-4 py-2.5 transition-colors"
-      style={{ backgroundColor: selected ? "rgba(27,46,75,0.06)" : "transparent", cursor: "pointer", border: "none", borderLeft: selected ? "2px solid var(--color-navy)" : "2px solid transparent", minHeight: 44 }}>
+      style={{ backgroundColor: selected ? "rgba(2,99,196,0.06)" : "transparent", cursor: "pointer", border: "none", borderLeft: selected ? "2px solid var(--color-navy)" : "2px solid transparent", minHeight: 44 }}>
       <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-body)", marginBottom: 2 }}>{formatEntryDate(entry.date)}</p>
       <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.35 }}>
         {entry.prompts[0]?.response ? entry.prompts[0].response.slice(0, 42) + "…" : "No response"}
@@ -640,7 +641,11 @@ function NudgeBanner({ overdueCount, onSupportClick, onDismiss }: {
 
 export default function JournalPage() {
   const todayISO = getTodayISO();
-  const { projectId } = useProject();
+  const { projectId, role } = useProject();
+  const [disabledQuestions, setDisabledQuestions] = useState<string[]>([]);
+  const [optedIn, setOptedIn] = useState(true);
+  const [optInError, setOptInError] = useState<string | null>(null);
+  const questions = useMemo(() => activeQuestions(disabledQuestions), [disabledQuestions]);
 
   const [entries, setEntries]               = useState<JournalEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
@@ -677,8 +682,28 @@ export default function JournalPage() {
   const [overdueCount, setOverdueCount]         = useState(0);
   const [nudgeDismissed, setNudgeDismissed]     = useState(false);
 
-  const checkinTotal    = CHECKIN_QUESTIONS.length;
-  const checkinAnswered = checkinResponses.length;
+  const checkinTotal    = questions.length;
+  const checkinAnswered = checkinResponses.filter((r) => questions.some((q) => q.id === r.questionId)).length;
+
+  async function handleOptInChange(next: boolean) {
+    const previous = optedIn;
+    setOptedIn(next);
+    setOptInError(null);
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) throw new Error("not signed in");
+      const { error } = await supabase.from("user_settings").upsert(
+        { user_id: uid, wellbeing_opted_in: next, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+      if (error) throw new Error(error.message);
+    } catch (e) {
+      setOptedIn(previous);
+      setOptInError(`Couldn't save your choice: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   // ── Weekly check-in cadence ───────────────────────────────────────────────
   // Derive last completion from journal_entries (newest entry with non-empty checkin)
@@ -801,9 +826,11 @@ export default function JournalPage() {
     setSaving(true);
 
     try {
+      // Only answers to questions the LC currently asks are stored as scores.
+      const activeResponses = checkinResponses.filter((r) => questions.some((q) => q.id === r.questionId));
       const hasResponse = defaultResponse.trim() || addedPrompts.some((p) => p.response.trim());
-      if (!hasResponse) {
-        setSaveMsg({ text: "Write at least one reflection to save.", color: "var(--color-error)" });
+      if (!hasResponse && activeResponses.length === 0) {
+        setSaveMsg({ text: "Answer the check-in or write a reflection to save.", color: "var(--color-error)" });
         setTimeout(() => setSaveMsg(null), 3000);
         return;
       }
@@ -816,7 +843,7 @@ export default function JournalPage() {
       const content = {
         date: todayISO,
         prompts: allPrompts,
-        checkin: checkinResponses,
+        checkin: activeResponses,
         isDraft: false,
       };
 
@@ -841,14 +868,14 @@ export default function JournalPage() {
         return;
       }
 
-      // checkin_scores is stored as plaintext JSON (only questionId + score, no free-text).
-      // The get_wellbeing_rollup RPC reads this column instead of the encrypted content blob.
+      // checkin_scores is stored as plaintext JSON (only questionId + score, no free-text)
+      // so get_member_pulse / get_exec_pulse can average it; the content blob is encrypted.
       const result = await supabase
         .from("journal_entries")
         .insert({
           user_id: resolvedUserId,
           content: storedContent,
-          checkin_scores: checkinResponses.length > 0 ? checkinResponses : null,
+          checkin_scores: activeResponses.length > 0 ? activeResponses : null,
           ...(projectId ? { project_id: projectId } : {}),
         })
         .select()
@@ -907,30 +934,9 @@ export default function JournalPage() {
       if (!user) { setLoadingEntries(false); return; }
       setAuthUserId(user.id);
 
-      // Load project's active prompt configuration so the picker reflects what the PI set
-      try {
-        const { data: prof } = await supabase
-          .from("user_profiles")
-          .select("project_id")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (prof?.project_id) {
-          const { data: proj } = await supabase
-            .from("projects")
-            .select("active_prompt_ids, custom_prompts")
-            .eq("id", prof.project_id)
-            .maybeSingle();
-          if (proj) {
-            const ids = (proj.active_prompt_ids as string[] | null) ?? ACTIVE_PROMPT_IDS;
-            const customs = (proj.custom_prompts as { id: string; text: string }[] | null) ?? [];
-            const fromPresets = JOURNAL_PROMPTS.filter((p) => ids.includes(p.id)).map((p) => p.text);
-            const combined = [...fromPresets, ...customs.map((c) => c.text)];
-            if (combined.length > 0) setProjectPrompts(combined);
-          }
-        }
-      } catch (e) {
-        console.warn("[Journal] could not load project prompts:", e);
-      }
+      const { data: settings } = await supabase
+        .from("user_settings").select("wellbeing_opted_in").eq("user_id", user.id).maybeSingle();
+      if (settings && settings.wellbeing_opted_in === false) setOptedIn(false);
 
       // Fetch per-user encryption key from server
       let encKey: CryptoKey | null = null;
@@ -999,6 +1005,31 @@ export default function JournalPage() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load the LC's prompt and check-in configuration (set by the president)
+  useEffect(() => {
+    if (!projectId || !isSupabaseConfigured) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: proj } = await supabase
+          .from("projects")
+          .select("active_prompt_ids, custom_prompts, checkin_disabled_questions")
+          .eq("id", projectId)
+          .maybeSingle();
+        if (!proj || cancelled) return;
+        setDisabledQuestions((proj.checkin_disabled_questions as string[] | null) ?? []);
+        const ids = (proj.active_prompt_ids as string[] | null) ?? ACTIVE_PROMPT_IDS;
+        const customs = (proj.custom_prompts as { id: string; text: string }[] | null) ?? [];
+        const fromPresets = JOURNAL_PROMPTS.filter((p) => ids.includes(p.id)).map((p) => p.text);
+        const combined = [...fromPresets, ...customs.map((c) => c.text)];
+        if (combined.length > 0) setProjectPrompts(combined);
+      } catch (e) {
+        console.warn("[Journal] could not load LC prompts:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // F3: overdue task count for workload nudge
   useEffect(() => {
@@ -1107,7 +1138,7 @@ export default function JournalPage() {
         <div className="flex-1 overflow-y-auto flex flex-col">
         <div className="flex-1" style={{ maxWidth: 700, margin: "0 auto", padding: "28px 16px 80px", width: "100%" }}>
 
-          <button onClick={() => setEntryListOpen(true)} className="md:hidden flex items-center gap-1.5 mb-5 px-3 py-2 rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors" style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: 7, backgroundColor: "var(--color-surface)", minHeight: 44 }}>
+          <button onClick={() => setEntryListOpen(true)} className="md:hidden flex items-center gap-1.5 mb-5 px-3 py-2 rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors" style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: 7, backgroundColor: "var(--color-surface)", minHeight: 44 }}>
             <ChevronLeft size={15} /> Entries
           </button>
 
@@ -1135,6 +1166,101 @@ export default function JournalPage() {
                 <span className="hidden sm:inline">Get support</span>
                 <span className="sm:hidden">Support</span>
               </button>
+            )}
+          </div>
+
+          {/* Weekly check-in */}
+          <div className="mb-8">
+            {isViewingEntry && viewedEntry ? (
+              // Past entry: only render if that entry had check-in data
+              viewedEntry.checkin.length > 0 ? (
+                <>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
+                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.4 }}>Only you can see your individual answers.</p>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
+                      {viewedEntry.checkin.length} / {checkinTotal} answered
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {CHECKIN_QUESTIONS.filter((q) => viewedEntry.checkin.some((r) => r.questionId === q.id)).map((q) => {
+                      const existing = viewedEntry.checkin.find((r) => r.questionId === q.id);
+                      return <CheckinCard key={q.id} question={{ id: q.id, text: questionText(q, role) }} response={existing} onScore={() => {}} />;
+                    })}
+                  </div>
+                </>
+              ) : null
+            ) : (
+              // New entry - apply 7-day cadence
+              showFullCheckin ? (
+                <>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
+                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.45 }}>
+                        About a minute. {audienceCopy(role)}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
+                      {checkinAnswered} / {checkinTotal} answered
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {questions.map((q) => {
+                      const existing = checkinResponses.find((r) => r.questionId === q.id);
+                      return (
+                        <CheckinCard key={q.id} question={{ id: q.id, text: questionText(q, role) }} response={existing} onScore={(score) => {
+                          setCheckinResponses((prev) => [
+                            ...prev.filter((r) => r.questionId !== q.id),
+                            { questionId: q.id, score },
+                          ]);
+                        }} />
+                      );
+                    })}
+                  </div>
+                  {role !== "president" && (
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 14, fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.45, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={optedIn}
+                        onChange={(e) => handleOptInChange(e.target.checked)}
+                        style={{ marginTop: 2, accentColor: "var(--color-navy)" }}
+                      />
+                      <span>
+                        Count my answers in the anonymous averages. Turn this off and your check-in stays
+                        here, just for you.
+                      </span>
+                    </label>
+                  )}
+                  {optInError && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", marginTop: 6 }}>{optInError}</p>}
+                  {/* Collapse link when user manually expanded a not-yet-due check-in */}
+                  {!isCheckinDue && checkinExpanded && (
+                    <button
+                      onClick={() => setCheckinExpanded(false)}
+                      style={{ marginTop: 12, fontSize: 12, color: "var(--color-secondary)", border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "var(--font-roboto)" }}
+                    >
+                      Collapse
+                    </button>
+                  )}
+                </>
+              ) : (
+                // Pill/banner when check-in is not yet due
+                <button
+                  onClick={() => setCheckinExpanded(true)}
+                  className="w-full flex items-center gap-3 text-left transition-colors hover:bg-[rgba(2,99,196,0.03)]"
+                  style={{ padding: "10px 14px", borderRadius: 8, border: "1px dashed var(--color-border)", backgroundColor: "var(--color-canvas)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
+                >
+                  <CalendarDays size={14} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "var(--color-secondary)", flex: 1, lineHeight: 1.45 }}>
+                    {lastCheckinDate
+                      ? `Weekly check-in available on ${nextCheckinDay(lastCheckinDate)} · You last completed it ${daysSinceLastCheckin} day${daysSinceLastCheckin === 1 ? "" : "s"} ago`
+                      : "Weekly check-in · Start your first check-in"}
+                  </span>
+                  <ChevronDown size={13} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
+                </button>
+              )
             )}
           </div>
 
@@ -1172,7 +1298,7 @@ export default function JournalPage() {
                       />
                       <button
                         onClick={() => removePrompt(p.id)}
-                        className="absolute top-3 right-14 flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)]"
+                        className="absolute top-3 right-14 flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)]"
                         style={{ width: 28, height: 28 }}
                         aria-label="Remove prompt"
                       >
@@ -1185,7 +1311,7 @@ export default function JournalPage() {
                     <div className="relative" style={{ display: "inline-block" }}>
                       <button
                         onClick={() => setPromptPickerOpen((o) => !o)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(27,46,75,0.06)]"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(2,99,196,0.06)]"
                         style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-navy)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
                       >
                         <Plus size={14} /> Add a prompt
@@ -1210,83 +1336,6 @@ export default function JournalPage() {
             </div>
           </div>
 
-          {/* Weekly check-in */}
-          <div className="mb-8">
-            {isViewingEntry && viewedEntry ? (
-              // Past entry: only render if that entry had check-in data
-              viewedEntry.checkin.length > 0 ? (
-                <>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
-                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.4 }}>Responses are private.</p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
-                      {viewedEntry.checkin.length} / {checkinTotal} answered
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {CHECKIN_QUESTIONS.map((q) => {
-                      const existing = viewedEntry.checkin.find((r) => r.questionId === q.id);
-                      return <CheckinCard key={q.id} question={q} response={existing} onScore={() => {}} />;
-                    })}
-                  </div>
-                </>
-              ) : null
-            ) : (
-              // New entry - apply 7-day cadence
-              showFullCheckin ? (
-                <>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Weekly Check-in</h2>
-                      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 4, lineHeight: 1.4 }}>Takes under 2 minutes. Responses are private.</p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", whiteSpace: "nowrap", paddingTop: 2 }}>
-                      {checkinAnswered} / {checkinTotal} answered
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {CHECKIN_QUESTIONS.map((q) => {
-                      const existing = checkinResponses.find((r) => r.questionId === q.id);
-                      return (
-                        <CheckinCard key={q.id} question={q} response={existing} onScore={(score) => {
-                          setCheckinResponses((prev) => [
-                            ...prev.filter((r) => r.questionId !== q.id),
-                            { questionId: q.id, score },
-                          ]);
-                        }} />
-                      );
-                    })}
-                  </div>
-                  {/* Collapse link when user manually expanded a not-yet-due check-in */}
-                  {!isCheckinDue && checkinExpanded && (
-                    <button
-                      onClick={() => setCheckinExpanded(false)}
-                      style={{ marginTop: 12, fontSize: 12, color: "var(--color-secondary)", border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "var(--font-roboto)" }}
-                    >
-                      Collapse
-                    </button>
-                  )}
-                </>
-              ) : (
-                // Pill/banner when check-in is not yet due
-                <button
-                  onClick={() => setCheckinExpanded(true)}
-                  className="w-full flex items-center gap-3 text-left transition-colors hover:bg-[rgba(27,46,75,0.03)]"
-                  style={{ padding: "10px 14px", borderRadius: 8, border: "1px dashed var(--color-border)", backgroundColor: "var(--color-canvas)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
-                >
-                  <CalendarDays size={14} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "var(--color-secondary)", flex: 1, lineHeight: 1.45 }}>
-                    {lastCheckinDate
-                      ? `Weekly check-in available on ${nextCheckinDay(lastCheckinDate)} · You last completed it ${daysSinceLastCheckin} day${daysSinceLastCheckin === 1 ? "" : "s"} ago`
-                      : "Weekly check-in · Start your first check-in"}
-                  </span>
-                  <ChevronDown size={13} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
-                </button>
-              )
-            )}
-          </div>
         </div>
 
         {/* Save bar */}

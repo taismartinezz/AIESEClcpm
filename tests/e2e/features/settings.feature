@@ -6,12 +6,12 @@ Feature: Settings page
     Then the page should load without errors
     And I should see a profile section
 
-  Scenario: PI sees invite code
-    Given I am logged in as a PI
+  Scenario: The president sees the invite section
+    Given I am logged in as the LC president
     When I navigate to /settings
-    Then I should see my lab invite code
+    Then I should see the LC invite section
 
-  Scenario: Researcher does not see invite code
-    Given I am logged in as a researcher
+  Scenario: A member does not see the invite section
+    Given I am logged in as a member
     When I navigate to /settings
     Then I should not see an invite code section

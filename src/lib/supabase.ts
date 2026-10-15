@@ -13,13 +13,13 @@ export const isSupabaseConfigured = !!(
 
 // Use a global singleton to prevent duplicate GoTrueClient instances (and the
 // unconditional console.warn they emit, which leaks the storage key prefix).
-const g = globalThis as typeof globalThis & { __canopy_supabase?: SupabaseClient };
-if (!g.__canopy_supabase) {
-  g.__canopy_supabase = createClient(
+const g = globalThis as typeof globalThis & { __app_supabase?: SupabaseClient };
+if (!g.__app_supabase) {
+  g.__app_supabase = createClient(
     isSupabaseConfigured ? url : "https://placeholder.supabase.co",
     isSupabaseConfigured ? key : "placeholder",
     { auth: { debug: false } },
   );
 }
 
-export const supabase: SupabaseClient = g.__canopy_supabase;
+export const supabase: SupabaseClient = g.__app_supabase;

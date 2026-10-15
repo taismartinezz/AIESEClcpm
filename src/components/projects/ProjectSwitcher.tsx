@@ -12,7 +12,7 @@ export default function ProjectSwitcher() {
   const containerRef              = useRef<HTMLDivElement>(null);
 
   const activeLabel =
-    subProjects.find((sp) => sp.id === subProjectId)?.name ?? "All Lab";
+    subProjects.find((sp) => sp.id === subProjectId)?.name ?? "Whole LC";
 
   // Close on outside click
   useEffect(() => {
@@ -43,14 +43,14 @@ export default function ProjectSwitcher() {
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={isLoading}
-          className="flex items-center gap-1.5 rounded-lg px-2 transition-colors hover:bg-[rgba(27,46,75,0.06)]"
+          className="flex items-center gap-1.5 rounded-lg px-2 transition-colors hover:bg-[rgba(2,99,196,0.06)]"
           style={{
             minHeight: 32,
             fontSize: 13,
             fontFamily: "var(--font-roboto)",
             color: "var(--color-body)",
             border: "1px solid var(--color-border)",
-            backgroundColor: open ? "rgba(27,46,75,0.04)" : "transparent",
+            backgroundColor: open ? "rgba(2,99,196,0.04)" : "transparent",
             cursor: isLoading ? "default" : "pointer",
             opacity: isLoading ? 0.5 : 1,
             maxWidth: 200,
@@ -95,7 +95,7 @@ export default function ProjectSwitcher() {
           >
             {/* All Lab option */}
             <DropdownItem
-              label="All Lab"
+              label="Whole LC"
               active={subProjectId === null}
               onClick={() => { setActiveSubProject(null); setOpen(false); }}
             />
@@ -114,11 +114,11 @@ export default function ProjectSwitcher() {
               </div>
             )}
 
-            {/* New project */}
+            {/* New group */}
             <div style={{ borderTop: "1px solid var(--color-border)" }}>
               <button
                 onClick={() => { setOpen(false); setShowCreate(true); }}
-                className="w-full flex items-center gap-2 px-3 transition-colors hover:bg-[rgba(27,46,75,0.06)]"
+                className="w-full flex items-center gap-2 px-3 transition-colors hover:bg-[rgba(2,99,196,0.06)]"
                 style={{
                   minHeight: 40,
                   fontSize: 13,
@@ -131,7 +131,7 @@ export default function ProjectSwitcher() {
                 }}
               >
                 <Plus size={13} />
-                New project
+                New group
               </button>
             </div>
           </div>
@@ -161,7 +161,7 @@ function DropdownItem({
       onClick={onClick}
       role="option"
       aria-selected={active}
-      className="w-full flex items-center justify-between px-3 transition-colors hover:bg-[rgba(27,46,75,0.06)]"
+      className="w-full flex items-center justify-between px-3 transition-colors hover:bg-[rgba(2,99,196,0.06)]"
       style={{
         minHeight: 40,
         fontSize: 13,

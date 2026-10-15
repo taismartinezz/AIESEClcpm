@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function ResetPasswordPage() {
@@ -63,12 +63,12 @@ export default function ResetPasswordPage() {
         style={{
           backgroundColor: "#ffffff", border: "1px solid #DDE1E7", borderRadius: 10,
           maxWidth: 440, width: "100%", padding: "48px 40px",
-          boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+          boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 28 }}>
-          <CanopyLogo size={36} />
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "#1B2E4B", margin: 0 }}>
+          <BrandLogo size={36} />
+          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "#0263C4", margin: 0 }}>
             Set a new password
           </h2>
         </div>
@@ -91,7 +91,7 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               aria-label="New password"
               style={inputStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "#1B2E4B"; }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "#0263C4"; }}
               onBlur={(e) => { e.currentTarget.style.borderColor = "#DDE1E7"; }}
             />
             <input
@@ -102,7 +102,7 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               aria-label="Confirm new password"
               style={{ ...inputStyle, marginTop: 10 }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "#1B2E4B"; }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "#0263C4"; }}
               onBlur={(e) => { e.currentTarget.style.borderColor = "#DDE1E7"; }}
             />
 
@@ -115,12 +115,12 @@ export default function ResetPasswordPage() {
               disabled={loading}
               style={{
                 display: "block", width: "100%", height: 44, marginTop: 12,
-                backgroundColor: "#1B2E4B", color: "#ffffff", border: "none",
+                backgroundColor: "#0263C4", color: "#ffffff", border: "none",
                 borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 700,
                 fontSize: 13, cursor: "pointer",
               }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#2E4A6F"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#1B2E4B"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#0263C4"; }}
             >
               {loading ? "Saving…" : "Update password"}
             </button>

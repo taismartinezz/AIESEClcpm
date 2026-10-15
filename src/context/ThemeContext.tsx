@@ -22,7 +22,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Read stored preference on mount
   useEffect(() => {
-    const stored = (typeof localStorage !== "undefined" ? localStorage.getItem("canopy-theme") : null) as Theme | null;
+    const stored = (typeof localStorage !== "undefined" ? localStorage.getItem("aiesec-theme") : null) as Theme | null;
     if (stored === "light" || stored === "dark" || stored === "system") {
       setThemeState(stored);
     }
@@ -51,7 +51,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   function setTheme(t: Theme) {
     setThemeState(t);
-    if (typeof localStorage !== "undefined") localStorage.setItem("canopy-theme", t);
+    if (typeof localStorage !== "undefined") localStorage.setItem("aiesec-theme", t);
   }
 
   return (

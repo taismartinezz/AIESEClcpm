@@ -8,6 +8,7 @@ import { DateTimeFields, isoToLocalDate } from "@/components/ui/DateTimePicker";
 import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Avatar from "@/components/ui/Avatar";
 import ClientOnly from "@/components/ui/ClientOnly";
@@ -21,7 +22,7 @@ type ListType = "today" | "scheduled" | "priority" | "all" | "personal" | "lab" 
 const PRIORITY_MARKS: Record<ReminderPriority, string> = { high: "!!!", medium: "!!", low: "!" };
 
 const LIST_COLORS: Record<ListType, string> = {
-  today:     "#1B2E4B",
+  today:     "#0263C4",
   scheduled: "#1E40AF",
   priority:  "#2563EB",
   all:       "#475569",
@@ -31,7 +32,7 @@ const LIST_COLORS: Record<ListType, string> = {
 };
 const LIST_LABELS: Record<ListType, string> = {
   today: "Today", scheduled: "Scheduled", priority: "Priority",
-  all: "All", personal: "Personal", lab: "Lab", project: "Projects",
+  all: "All", personal: "Personal", lab: "Whole LC", project: "Groups",
 };
 // No drag-reorder - all views use date-sorted grouped layout
 const DRAGGABLE_LISTS: ListType[] = [];
@@ -396,7 +397,7 @@ function ReminderEditRow({ reminder, teamMembers, currentUserId, projectId, onSa
         {/* Scope toggle */}
         {(["personal","lab"] as const).map(s => (
           <button key={s} onClick={() => setScope(s)} style={{ ...pillBase(scope === s, LIST_COLORS[s]), fontWeight: scope === s ? 700 : 400 }}>
-            {s === "personal" ? "Personal" : "Lab"}
+            {s === "personal" ? "Personal" : "Whole LC"}
           </button>
         ))}
         <div style={{ width: 1, height: 16, backgroundColor: "var(--color-border)" }} />
@@ -477,7 +478,7 @@ function InlineAddRow({ defaultScope, accentColor, teamMembers, onAdd, onClose }
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 16px 6px 60px", flexWrap: "wrap" }}>
         {(["personal","lab"] as const).map(s => (
           <button key={s} onClick={() => setScope(s)} style={{ ...pillBase(scope === s, LIST_COLORS[s]), fontWeight: scope === s ? 700 : 400 }}>
-            {s === "personal" ? "Personal" : "Lab"}
+            {s === "personal" ? "Personal" : "Whole LC"}
           </button>
         ))}
         <div style={{ width: 1, height: 16, backgroundColor: "var(--color-border)" }} />
@@ -742,7 +743,7 @@ function UndoToast({ title, onUndo }: { title: string; onUndo: () => void }) {
   return (
     <>
       <style>{`@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
-      <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B2E4B", color: "#fff", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.22)", zIndex: 200, fontSize: 13, fontFamily: "var(--font-roboto)", whiteSpace: "nowrap", animation: "toastIn 0.18s ease" }}>
+      <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", backgroundColor: "#0263C4", color: "#fff", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.22)", zIndex: 200, fontSize: 13, fontFamily: "var(--font-roboto)", whiteSpace: "nowrap", animation: "toastIn 0.18s ease" }}>
         <Check size={13} color="rgba(255,255,255,0.7)" />
         <span style={{ color: "rgba(255,255,255,0.85)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
         <button onClick={onUndo} style={{ background: "rgba(255,255,255,0.18)", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-roboto)" }}>Undo</button>
@@ -781,7 +782,7 @@ export default function RemindersPage() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      try { const s = localStorage.getItem("canopy_user"); if (s) setCurrentUserId(JSON.parse(s).id ?? "demo"); } catch { /* ignore */ }
+      try { const s = localStorage.getItem("aiesec_user"); if (s) setCurrentUserId(JSON.parse(s).id ?? "demo"); } catch { /* ignore */ }
       return;
     }
     supabase.auth.getSession().then(({ data: { session } }) => { if (session?.user) setCurrentUserId(session.user.id); });
@@ -806,7 +807,7 @@ export default function RemindersPage() {
             const p = Array.isArray(row.user_profiles) ? row.user_profiles[0] : row.user_profiles;
             const profile = p as Record<string, string> | null;
             const name = profile?.name ?? "Team Member";
-            return { id: row.user_id as string, name, email: "", role: (row.role ?? "researcher") as User["role"], avatarColor: profile?.avatar_color ?? "#B4D4E3", avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"), avatarUrl: profile?.avatar_url ?? undefined };
+            return { id: row.user_id as string, name, email: "", role: toUserRole(row.role), avatarColor: profile?.avatar_color ?? "#B4D4E3", avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"), avatarUrl: profile?.avatar_url ?? undefined };
           }));
         }
       }
@@ -1041,13 +1042,13 @@ export default function RemindersPage() {
   const sidebarSections: ScopeSection[] = [
     { id: "all",      label: "All",      color: LIST_COLORS.all,      icon: <List size={17} />,     count: sidebarCounts.all,      isActive: selectedList === "all",      onClick: () => handleListSelect("all") },
     { id: "personal", label: "Personal", color: LIST_COLORS.personal, icon: <UserIcon size={17} />, count: sidebarCounts.personal, isActive: selectedList === "personal", onClick: () => handleListSelect("personal") },
-    { id: "lab",      label: "Lab",      color: LIST_COLORS.lab,      icon: <Users size={17} />,    count: sidebarCounts.lab,      isActive: selectedList === "lab",      onClick: () => handleListSelect("lab") },
+    { id: "lab",      label: "Whole LC", color: LIST_COLORS.lab,      icon: <Users size={17} />,    count: sidebarCounts.lab,      isActive: selectedList === "lab",      onClick: () => handleListSelect("lab") },
   ];
 
   const sidebarExtraContent = subProjects.length > 0 ? (
     <>
       <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "5px 2px" }} />
-      <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "3px 11px 4px", margin: 0 }}>Projects</p>
+      <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "3px 11px 4px", margin: 0 }}>Groups</p>
       {subProjects.map(sp => {
         const active = selectedList === "project" && selectedSubProjectId === sp.id;
         const c = sp.color ?? LIST_COLORS.project;

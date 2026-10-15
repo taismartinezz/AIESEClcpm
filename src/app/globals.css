@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Canopy Design System ── */
+  /* ── AIESEClcpm design system — AIESEC brand palette ── */
 
   /* Canvas & surfaces */
   --color-canvas:   #F6F8FC;
@@ -9,11 +9,15 @@
   --color-strip:    #D8DCE3;
   --color-surface:  #FFFFFF;
 
-  /* Navy — primary accent for chrome, buttons, links, focus rings */
-  --color-navy:       #1B2E4B;
-  --color-navy-hover: #2E4A6F;
-  --color-navy-dim:   rgba(27, 46, 75, 0.06);
-  --color-navy-scrim: rgba(27, 46, 75, 0.15);
+  /* Accent — AIESEC blue. The token keeps its historical "navy" name so every
+     component picks it up. #0263C4 is AIESEC blue deepened to pass WCAG AA
+     for text and white-on-blue buttons; --color-brand is the pure #037EF3 for
+     logos, dots and charts. */
+  --color-brand:      #037EF3;
+  --color-navy:       #0263C4;
+  --color-navy-hover: #01529F;
+  --color-navy-dim:   rgba(3, 126, 243, 0.08);
+  --color-navy-scrim: rgba(1, 40, 82, 0.18);
 
   /* Text */
   --color-body:       #2D2D2D;
@@ -34,12 +38,15 @@
 
   /* ── Task status — unified palette used everywhere ── */
   /* dot = small indicator, text = label text, bg = badge background */
+  --status-backlog-dot:     #CBD5E1;
+  --status-backlog-text:    #94A3B8;
+  --status-backlog-bg:      #F8FAFC;
   --status-todo-dot:        #94A3B8;
   --status-todo-text:       #64748B;
   --status-todo-bg:         #F1F5F9;
-  --status-inprogress-dot:  #1B2E4B;
-  --status-inprogress-text: #1B2E4B;
-  --status-inprogress-bg:   rgba(27,46,75,0.09);
+  --status-inprogress-dot:  #0263C4;
+  --status-inprogress-text: #0263C4;
+  --status-inprogress-bg:   rgba(2,99,196,0.09);
   --status-inreview-dot:    #A0622A;
   --status-inreview-text:   #A0622A;
   --status-inreview-bg:     rgba(160,98,42,0.10);
@@ -78,7 +85,7 @@
   --radius-pill:    20px;
 
   /* Shadows */
-  --shadow-card: 0 3px 10px rgba(27, 46, 75, 0.09);
+  --shadow-card: 0 3px 10px rgba(2, 99, 196, 0.09);
 }
 
 /* ── Density: comfortable (default) / compact ── */
@@ -228,11 +235,12 @@ body {
   --color-strip:        #D8DCE3;
   --color-surface:      #FFFFFF;
 
-  /* ── Brand / accent ── */
-  --color-navy:         #1B2E4B;
-  --color-navy-hover:   #2E4A6F;
-  --color-navy-dim:     rgba(27,46,75,0.06);
-  --color-navy-scrim:   rgba(27,46,75,0.15);
+  /* ── Brand / accent (AIESEC blue) ── */
+  --color-brand:        #037EF3;
+  --color-navy:         #0263C4;
+  --color-navy-hover:   #01529F;
+  --color-navy-dim:     rgba(3,126,243,0.08);
+  --color-navy-scrim:   rgba(1,40,82,0.18);
 
   /* ── Text ── */
   --color-body:         #2D2D2D;
@@ -245,8 +253,12 @@ body {
   --color-segment-active: #FFFFFF;          /* active pill in segmented controls */
 
   /* ── Primary button ── */
-  --color-btn-primary:       #1B2E4B;
-  --color-btn-primary-hover: #263F64;
+  --color-btn-primary:       #0263C4;
+  --color-btn-primary-hover: #01529F;
+
+  /* ── Charts ── single-series line + recessive grid (validated vs surface) */
+  --chart-series: #0263C4;
+  --chart-grid:   #E8ECF1;
 
   /* ── Semantic ── */
   --color-success:      #2E7D52;
@@ -256,21 +268,16 @@ body {
   --color-warning-bg:   #FDEFD4;
   --color-success-bg:   #D4EDE0;
 
-  /* ── Literature reading-status badge tokens ── */
-  --lit-read-color:     #2E7D52;
-  --lit-read-bg:        #D4EDE0;
-  --lit-reading-color:  #A0622A;
-  --lit-reading-bg:     #FDEFD4;
-  --lit-unread-color:   #64748B;
-  --lit-unread-bg:      #F1F5F9;
-
   /* ── Task / priority status tokens (dark-mode-overrideable) ── */
+  --status-backlog-dot:     #CBD5E1;
+  --status-backlog-text:    #94A3B8;
+  --status-backlog-bg:      #F8FAFC;
   --status-todo-dot:        #94A3B8;
   --status-todo-text:       #64748B;
   --status-todo-bg:         #F1F5F9;
-  --status-inprogress-dot:  #1B2E4B;
-  --status-inprogress-text: #1B2E4B;
-  --status-inprogress-bg:   rgba(27,46,75,0.09);
+  --status-inprogress-dot:  #0263C4;
+  --status-inprogress-text: #0263C4;
+  --status-inprogress-bg:   rgba(2,99,196,0.09);
   --status-inreview-dot:    #A0622A;
   --status-inreview-text:   #A0622A;
   --status-inreview-bg:     rgba(160,98,42,0.10);
@@ -294,8 +301,9 @@ body {
     --color-sidebar:      #1C1C1E;
     --color-strip:        #2C2C2E;
     --color-surface:      #1C1C1E;
-    --color-navy:         #0A84FF;
-    --color-navy-hover:   #409CFF;
+    --color-brand:        #037EF3;
+    --color-navy:         #4DA3FF;
+    --color-navy-hover:   #7AB9FF;
     --color-navy-dim:     rgba(255,255,255,0.08);
     --color-navy-scrim:   rgba(0,0,0,0.65);
     --color-body:         #F5F5F7;
@@ -304,20 +312,19 @@ body {
     --color-dimmed-bg:    rgba(255,255,255,0.08);
     --color-surface-2:    #2C2C2E;
     --color-segment-active: rgba(255,255,255,0.16);
-    --color-btn-primary:       #006ADB;
-    --color-btn-primary-hover: #1A80EF;
+    --color-btn-primary:       #0263C4;
+    --color-btn-primary-hover: #037EF3;
+    --chart-series: #037EF3;
+    --chart-grid:   rgba(255,255,255,0.08);
     --color-success:      #30D158;
     --color-warning:      #FF9F0A;
     --color-error:        #FF453A;
     --color-error-bg:     rgba(255,69,58,0.18);
     --color-warning-bg:   rgba(255,159,10,0.15);
     --color-success-bg:   rgba(48,209,88,0.15);
-    --lit-read-color:     #30D158;
-    --lit-read-bg:        rgba(48,209,88,0.16);
-    --lit-reading-color:  #FF9F0A;
-    --lit-reading-bg:     rgba(255,159,10,0.15);
-    --lit-unread-color:   #8E8E93;
-    --lit-unread-bg:      rgba(142,142,147,0.14);
+    --status-backlog-dot:     #48484A;
+    --status-backlog-text:    #636366;
+    --status-backlog-bg:      rgba(99,99,102,0.12);
     --status-todo-dot:        #636366;
     --status-todo-text:       #8E8E93;
     --status-todo-bg:         rgba(142,142,147,0.14);
@@ -347,8 +354,9 @@ body {
   --color-sidebar:      #1C1C1E;
   --color-strip:        #2C2C2E;
   --color-surface:      #1C1C1E;
-  --color-navy:         #0A84FF;
-  --color-navy-hover:   #409CFF;
+  --color-brand:        #037EF3;
+  --color-navy:         #4DA3FF;
+  --color-navy-hover:   #7AB9FF;
   --color-navy-dim:     rgba(255,255,255,0.08);
   --color-navy-scrim:   rgba(0,0,0,0.65);
   --color-body:         #F5F5F7;
@@ -357,20 +365,19 @@ body {
   --color-dimmed-bg:    rgba(255,255,255,0.08);
   --color-surface-2:    #2C2C2E;
   --color-segment-active: rgba(255,255,255,0.16);
-  --color-btn-primary:       #006ADB;
-  --color-btn-primary-hover: #1A80EF;
+  --color-btn-primary:       #0263C4;
+  --color-btn-primary-hover: #037EF3;
+  --chart-series: #037EF3;
+  --chart-grid:   rgba(255,255,255,0.08);
   --color-success:      #30D158;
   --color-warning:      #FF9F0A;
   --color-error:        #FF453A;
   --color-error-bg:     rgba(255,69,58,0.18);
   --color-warning-bg:   rgba(255,159,10,0.15);
   --color-success-bg:   rgba(48,209,88,0.15);
-  --lit-read-color:     #30D158;
-  --lit-read-bg:        rgba(48,209,88,0.16);
-  --lit-reading-color:  #FF9F0A;
-  --lit-reading-bg:     rgba(255,159,10,0.15);
-  --lit-unread-color:   #8E8E93;
-  --lit-unread-bg:      rgba(142,142,147,0.14);
+  --status-backlog-dot:     #48484A;
+  --status-backlog-text:    #636366;
+  --status-backlog-bg:      rgba(99,99,102,0.12);
   --status-todo-dot:        #636366;
   --status-todo-text:       #8E8E93;
   --status-todo-bg:         rgba(142,142,147,0.14);

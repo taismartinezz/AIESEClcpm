@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { APP_NAME } from "@/lib/brand";
 import {
   Plus, ExternalLink, Trash2, Bookmark, X, Check, Pencil,
   FileText, BookOpen, FlaskConical, ClipboardList, Link2, Code2, Play, Table,
@@ -55,7 +56,7 @@ type BmScope = "all" | "personal" | "lab" | "project";
 const SCOPE_CONFIG: Record<"all" | "personal" | "lab", { label: string; color: string; icon: React.ElementType }> = {
   all:      { label: "All",      color: "#475569", icon: Bookmark  },
   personal: { label: "Personal", color: "#0EA5E9", icon: UserIcon  },
-  lab:      { label: "Lab",      color: "#0F2544", icon: Users     },
+  lab:      { label: "LC",       color: "#0F2544", icon: Users     },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ function relTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function isCanopyInternalUrl(url: string): boolean {
+function isAppInternalUrl(url: string): boolean {
   if (typeof window === "undefined") return false;
   try { return new URL(url).origin === window.location.origin; } catch { return false; }
 }
@@ -186,7 +187,7 @@ function AddForm({ onAdd, onCancel }: {
         padding: 20,
         backgroundColor: "var(--color-surface)",
         border: "1px solid var(--color-navy)",
-        boxShadow: "0 4px 20px rgba(27,46,75,0.10)",
+        boxShadow: "0 4px 20px rgba(2,99,196,0.10)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -197,7 +198,7 @@ function AddForm({ onAdd, onCancel }: {
           type="button"
           onClick={onCancel}
           style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "none", background: "none", cursor: "pointer" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(27,46,75,0.06)"; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(2,99,196,0.06)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
           aria-label="Cancel"
         >
@@ -292,7 +293,7 @@ function BookmarkCard({ bm, canDelete, onDelete, onEdit }: {
   const type = inferType(bm.url);
   const cfg = TYPE_CONFIG[type];
   const Icon = cfg.icon;
-  const isInternal = isCanopyInternalUrl(bm.url);
+  const isInternal = isAppInternalUrl(bm.url);
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -419,7 +420,7 @@ function BookmarkCard({ bm, canDelete, onDelete, onEdit }: {
             padding: "2px 5px",
           }}>
             <Home size={8} />
-            Canopy
+            {APP_NAME}
           </span>
         )}
         <span style={{
@@ -433,7 +434,7 @@ function BookmarkCard({ bm, canDelete, onDelete, onEdit }: {
         <button
           onClick={(e) => { e.stopPropagation(); setEditing(true); }}
           style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 5, border: "none", background: "none", cursor: "pointer", color: "var(--color-secondary)", transition: "background-color 120ms ease, color 120ms ease" }}
-          onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = "var(--color-navy)"; el.style.backgroundColor = "rgba(27,46,75,0.08)"; }}
+          onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = "var(--color-navy)"; el.style.backgroundColor = "rgba(2,99,196,0.08)"; }}
           onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = "var(--color-secondary)"; el.style.backgroundColor = "transparent"; }}
           aria-label="Edit bookmark"
         >
@@ -659,7 +660,7 @@ export default function BookmarksPage() {
   const sidebarSections: ScopeSection[] = [
     { id: "all",      label: "All",      color: SCOPE_CONFIG.all.color,      icon: <SCOPE_CONFIG.all.icon size={14} />,      count: scopeCounts.all,      isActive: bmScope === "all",      onClick: () => handleScopeSelect("all") },
     { id: "personal", label: "Personal", color: SCOPE_CONFIG.personal.color, icon: <SCOPE_CONFIG.personal.icon size={14} />, count: scopeCounts.personal, isActive: bmScope === "personal", onClick: () => handleScopeSelect("personal") },
-    { id: "lab",      label: "Lab",      color: SCOPE_CONFIG.lab.color,      icon: <SCOPE_CONFIG.lab.icon size={14} />,      count: scopeCounts.lab,      isActive: bmScope === "lab",      onClick: () => handleScopeSelect("lab") },
+    { id: "lab",      label: "Whole LC", color: SCOPE_CONFIG.lab.color,      icon: <SCOPE_CONFIG.lab.icon size={14} />,      count: scopeCounts.lab,      isActive: bmScope === "lab",      onClick: () => handleScopeSelect("lab") },
   ];
 
   const typesExtra = categoryCounts.length > 0 ? (
@@ -697,7 +698,7 @@ export default function BookmarksPage() {
       <PageHeader
         title="Bookmarks"
         badge={bmBadgeSp ? (
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(27,46,75,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(2,99,196,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
             {bmBadgeSp.name}
           </span>
         ) : undefined}
@@ -731,7 +732,7 @@ export default function BookmarksPage() {
               return next;
             })}
             extraContent={typesExtra}
-            storageKey="canopy_bookmarks_sidebar"
+            storageKey="aiesec_bookmarks_sidebar"
             headerLabel="Filters"
           />
         </div>
@@ -779,7 +780,7 @@ export default function BookmarksPage() {
             <EmptyState
               variant="bookmarks"
               title={emptyLabel}
-              description="Add one to share a useful link with your lab."
+              description="Add one to share a useful link with your LC."
               action={activeCategory === "all" ? (
                 <button
                   onClick={() => setShowForm(true)}

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, FlaskConical, Link2, Link2Off } from "lucide-react";
+import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, Globe2, HeartPulse } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
@@ -11,20 +12,19 @@ import type { WorkingHours, LabRole, PromptCategory } from "@/types";
 import { WorkingHoursEditor, DEFAULT_WORKING_HOURS } from "@/components/ui/WorkingHoursEditor";
 import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
+import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
+import DepartmentsManager from "@/components/lc/DepartmentsManager";
+import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
+import CategoriesManager from "@/components/finance/CategoriesManager";
+import type { UserRole } from "@/types";
 
 const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
   emotional_processing: "Emotional Processing",
-  research_reflection: "Research Reflection",
+  purpose_growth: "Purpose & Growth",
   team_support: "Team & Support",
   boundaries_workload: "Boundaries & Workload",
   looking_forward: "Looking Forward",
 };
-
-const RESEARCH_PARTICIPATION_OPTIONS = [
-  { value: "both_publications", label: "Participate in both publications" },
-  { value: "wellbeing_only", label: "Well-being research only" },
-  { value: "private", label: "Keep data private" },
-];
 
 const sectionStyle: React.CSSProperties = {
   backgroundColor: "var(--color-surface)",
@@ -70,7 +70,8 @@ const readonlyInputStyle: React.CSSProperties = {
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { activeScope } = useProject();
+  const { activeScope, projectId: activeLcId, role: myRole } = useProject();
+  const isPresident = myRole === "president";
   const [profile, setProfile] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
   const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; lab_role_id: string | null; invited_email: string | null; email_sent_at: string | null }[]>([]);
@@ -79,7 +80,7 @@ export default function SettingsPage() {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Lab roles management
+  // Role titles management
   const [labRoles, setLabRoles] = useState<LabRole[]>([]);
   const [myLabRoleName, setMyLabRoleName] = useState<string | null>(null);
   const [newInviteRoleId, setNewInviteRoleId] = useState<string>("");
@@ -92,6 +93,7 @@ export default function SettingsPage() {
   const [showAdvancedInvites, setShowAdvancedInvites] = useState(false);
   const [addingRole, setAddingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleLevel, setNewRoleLevel] = useState<Exclude<UserRole, "president">>("member");
   const [renamingRoleId, setRenamingRoleId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -106,20 +108,16 @@ export default function SettingsPage() {
   const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
   const [savingSchedule, setSavingSchedule] = useState(false);
 
-  // Lab settings (PI only)
+  // LC settings (president only)
   const [projectName, setProjectName] = useState("");
   const [projectInstitution, setProjectInstitution] = useState("");
-  const [researchType, setResearchType] = useState("");
-  const [researchParticipation, setResearchParticipation] = useState("private");
+  const [lcCurrency, setLcCurrency] = useState("EUR");
+  const [termStart, setTermStart] = useState("");
   const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
   const [customPrompts, setCustomPrompts] = useState<{ id: string; text: string }[]>([]);
   const [customPromptInput, setCustomPromptInput] = useState("");
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [savingLabSettings, setSavingLabSettings] = useState(false);
-
-  // Google Calendar integration
-  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
-  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
 
   // DND / quiet hours
   const [dndEnabled, setDndEnabled]               = useState(false);
@@ -144,10 +142,8 @@ export default function SettingsPage() {
         const { data: prof } = await supabase
           .from("user_profiles").select("*").eq("id", user.id).maybeSingle();
         setProfile(prof ? { ...prof, email: user.email } : { email: user.email });
-        setGoogleCalendarConnected(!!(prof as any)?.google_access_token);
 
-        const { data: membership } = await supabase
-          .from("team_members").select("project_id").eq("user_id", user.id).maybeSingle();
+        const membership = activeLcId ? { project_id: activeLcId } : null;
 
         if (membership?.project_id) {
           const { data: proj } = await supabase
@@ -156,11 +152,11 @@ export default function SettingsPage() {
           if (proj) {
             setProjectName((proj.name as string) ?? "");
             setProjectInstitution((proj.institution as string) ?? "");
-            setResearchType((proj.research_type as string) ?? "");
-            setResearchParticipation((proj.research_participation as string) ?? "private");
+            setLcCurrency((proj.currency as string) ?? "EUR");
+            setTermStart((proj.term_start_date as string) ?? "");
             const loadedIds = proj.active_prompt_ids as string[] | null | undefined;
             if (Array.isArray(loadedIds)) {
-              // NULL/undefined = not yet set; keep defaults. [] = PI chose none.
+              // NULL/undefined = not yet set; keep defaults. [] = president chose none.
               setActivePromptIds(loadedIds);
             }
             if (proj.custom_prompts) setCustomPrompts(proj.custom_prompts as { id: string; text: string }[]);
@@ -180,7 +176,7 @@ export default function SettingsPage() {
             if (userSettings.notif_digest != null) setNotifDigest(userSettings.notif_digest as boolean);
           }
 
-          // Fetch current user's lab role name for the Profile section
+          // Fetch current user's role title in this LC for the Profile section
           const { data: memberRow } = await supabase
             .from("team_members")
             .select("lab_role_id")
@@ -196,7 +192,7 @@ export default function SettingsPage() {
             if (roleRow?.name) setMyLabRoleName(roleRow.name as string);
           }
 
-          if (prof?.role === "pi") {
+          if (isPresident) {
             const [{ data: codes }, { data: roles }] = await Promise.all([
               supabase
                 .from("invite_codes")
@@ -216,14 +212,14 @@ export default function SettingsPage() {
                 id: r.id,
                 projectId: membership.project_id,
                 name: r.name,
-                permissionLevel: r.permission_level as "pi" | "researcher",
+                permissionLevel: toUserRole(r.permission_level),
                 isSystem: r.is_system,
                 createdAt: r.created_at,
               })));
-              // Default invite role to "Researcher" by name, fallback to first researcher-level role
+              // Default invite role to "Member" by name, fallback to first member-level role
               const defaultRole =
-                roles.find((r: { name: string }) => r.name === "Researcher") ??
-                roles.find((r: { permission_level: string }) => r.permission_level === "researcher");
+                roles.find((r: { name: string }) => r.name === "Member") ??
+                roles.find((r: { permission_level: string }) => r.permission_level === "member");
               if (defaultRole) {
                 setNewInviteRoleId(defaultRole.id);
                 setEmailInviteRoleId(defaultRole.id);
@@ -239,7 +235,7 @@ export default function SettingsPage() {
     }
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeLcId, isPresident]);
 
   const handleCopyCode = useCallback(async (code: string) => {
     const link = `${window.location.origin}/login?invite=${code}`;
@@ -255,7 +251,7 @@ export default function SettingsPage() {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user ?? null;
     if (!user) { setGeneratingCode(false); return; }
-    const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = "LC-" + Math.random().toString(36).substring(2, 8).toUpperCase();
     const { data } = await supabase
       .from("invite_codes")
       .insert({ code, project_id: project.id, created_by: user.id, lab_role_id: newInviteRoleId || null })
@@ -268,18 +264,23 @@ export default function SettingsPage() {
   const handleSaveLabSettings = useCallback(async () => {
     if (!project?.id) return;
     setSavingLabSettings(true);
-    const { error } = await supabase.from("projects").update({
-      name: projectName,
-      institution: projectInstitution,
-      research_type: researchType,
-      research_participation: researchParticipation,
-      active_prompt_ids: activePromptIds,
-      custom_prompts: customPrompts,
-    }).eq("id", project.id);
-    setSavingLabSettings(false);
-    if (error) { showToast("Failed to save: " + error.message); }
-    else { showToast("Lab settings saved."); }
-  }, [project, projectName, projectInstitution, researchType, researchParticipation, activePromptIds, customPrompts]);
+    try {
+      const { error } = await supabase.from("projects").update({
+        name: projectName,
+        institution: projectInstitution,
+        currency: lcCurrency.trim().toUpperCase(),
+        term_start_date: termStart || null,
+        active_prompt_ids: activePromptIds,
+        custom_prompts: customPrompts,
+      }).eq("id", project.id);
+      if (error) throw new Error(error.message);
+      showToast("LC settings saved.");
+    } catch (e) {
+      showToast("Failed to save: " + (e instanceof Error ? e.message : String(e)), "error");
+    } finally {
+      setSavingLabSettings(false);
+    }
+  }, [project, projectName, projectInstitution, lcCurrency, termStart, activePromptIds, customPrompts]);
 
   const handleSendEmailInvites = useCallback(async () => {
     if (!project?.id) return;
@@ -302,7 +303,7 @@ export default function SettingsPage() {
 
     const newCodes: (typeof inviteCodes)[0][] = [];
     for (const email of valid) {
-      const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const code = "LC-" + Math.random().toString(36).substring(2, 8).toUpperCase();
       const { data: inserted, error } = await supabase.from("invite_codes").insert({
         code, project_id: project.id, created_by: user.id,
         invited_email: email,
@@ -405,40 +406,6 @@ export default function SettingsPage() {
     else showToast("Notification preferences saved.");
   }, [notifTaskAssigned, notifLabWin, notifDigest]);
 
-  const handleConnectGoogleCalendar = useCallback(async () => {
-    if (!isSupabaseConfigured) { showToast("Demo mode -- Google Calendar not available."); return; }
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: [
-          "email",
-          "profile",
-          "https://www.googleapis.com/auth/calendar",
-          "https://www.googleapis.com/auth/calendar.events",
-        ].join(" "),
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
-    });
-  }, []);
-
-  const handleDisconnectGoogleCalendar = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
-    setDisconnectingGoogle(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (userId) {
-      await supabase.from("user_profiles").update({
-        google_access_token: null,
-        google_refresh_token: null,
-        google_token_expiry: null,
-      }).eq("id", userId);
-    }
-    setGoogleCalendarConnected(false);
-    setDisconnectingGoogle(false);
-    showToast("Google Calendar disconnected.");
-  }, []);
-
   if (loading) return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "32px 20px" }} className="space-y-6">
       {[1, 2, 3, 4].map((i) => (
@@ -478,12 +445,12 @@ export default function SettingsPage() {
               </label>
               <input
                 readOnly
-                value={myLabRoleName ?? (profile?.role === "pi" ? "Principal Investigator" : "Researcher")}
+                value={myLabRoleName ?? (myRole ? ROLE_DESCRIPTIONS[myRole] : "")}
                 style={{ ...readonlyInputStyle, backgroundColor: "var(--color-canvas)", opacity: 0.75, cursor: "not-allowed" }}
                 aria-label="Role (read-only)"
               />
               <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 4, marginBottom: 0 }}>
-                {profile?.role === "pi" ? "You are the Principal Investigator for this lab." : "Contact your PI to change your lab role."}
+                {isPresident ? "You are the President (LCP) of this Local Committee." : "Ask your LCP to change your role or department."}
               </p>
             </div>
           </div>
@@ -526,29 +493,13 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Research participation note - researchers only */}
-      {profile?.role !== "pi" && activeScope !== "personal" && (
-        <section style={sectionStyle} aria-labelledby="settings-research-note-heading">
-          <div style={sectionHeaderStyle}>
-            <h2 id="settings-research-note-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-              Research Participation
-            </h2>
-          </div>
-          <div style={{ padding: "16px 20px" }}>
-            <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0, lineHeight: 1.6 }}>
-              Whether your lab&rsquo;s anonymized data contributes to Canopy&rsquo;s research studies is a setting each lab member controls individually. Your PI has set a default for the lab, but <strong style={{ color: "var(--color-body)" }}>your own participation is separate</strong> &mdash; ask your PI to update it in Lab Settings if you&rsquo;d like to change it. Your journal entries and check-in responses are always private to you and are never shared with your team or included in any study without your explicit consent.
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* Lab & Invite - PI only, hidden in Personal workspace */}
-      {profile?.role === "pi" && activeScope !== "personal" && (
+      {/* LC & invites — president only, hidden in Personal workspace */}
+      {isPresident && activeScope !== "personal" && (
         <section style={sectionStyle} aria-labelledby="settings-invite-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
             <h2 id="settings-invite-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-              Lab &amp; Invite
+              LC members &amp; invites
             </h2>
           </div>
           <div style={{ padding: "20px" }}>
@@ -556,7 +507,7 @@ export default function SettingsPage() {
             {/* Role management */}
             {labRoles.length > 0 && (
               <div style={{ marginBottom: 24 }}>
-                <p style={{ ...labelStyle, marginBottom: 10 }}>Lab roles</p>
+                <p style={{ ...labelStyle, marginBottom: 10 }}>Role titles</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {labRoles.map((role) => (
                     <div key={role.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -595,8 +546,8 @@ export default function SettingsPage() {
                         <>
                           <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)" }}>
                             {role.name}
-                            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-secondary)", textTransform: "capitalize" }}>
-                              ({role.permissionLevel})
+                            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-secondary)" }}>
+                              ({ROLE_LABELS[role.permissionLevel]} access)
                             </span>
                           </span>
                           {!role.isSystem && (
@@ -630,22 +581,31 @@ export default function SettingsPage() {
                       autoFocus
                       value={newRoleName}
                       onChange={(e) => setNewRoleName(e.target.value)}
-                      placeholder="Role name (e.g. Lab Manager)"
+                      placeholder="Title (e.g. Team Leader)"
                       onKeyDown={async (e) => {
                         if (e.key === "Escape") { setAddingRole(false); setNewRoleName(""); }
                       }}
                       style={{ flex: 1, height: 34, border: "1px solid var(--color-border)", borderRadius: 6, padding: "0 10px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none" }}
                     />
+                    <select
+                      value={newRoleLevel}
+                      onChange={(e) => setNewRoleLevel(e.target.value as Exclude<UserRole, "president">)}
+                      aria-label="Access level for the new title"
+                      style={{ height: 34, border: "1px solid var(--color-border)", borderRadius: 6, padding: "0 8px", fontSize: 13, backgroundColor: "var(--color-canvas)", color: "var(--color-body)" }}
+                    >
+                      <option value="member">Member access</option>
+                      <option value="vp">VP access</option>
+                    </select>
                     <button
                       onClick={async () => {
                         if (!newRoleName.trim() || !project?.id) return;
                         const { data: newRole } = await supabase
                           .from("lab_roles")
-                          .insert({ project_id: project.id, name: newRoleName.trim(), permission_level: "researcher", is_system: false })
+                          .insert({ project_id: project.id, name: newRoleName.trim(), permission_level: newRoleLevel, is_system: false })
                           .select("id, name, permission_level, is_system, created_at")
                           .single();
                         if (newRole) {
-                          setLabRoles((prev) => [...prev, { id: newRole.id, projectId: project.id, name: newRole.name, permissionLevel: newRole.permission_level as "pi" | "researcher", isSystem: newRole.is_system, createdAt: newRole.created_at }]);
+                          setLabRoles((prev) => [...prev, { id: newRole.id, projectId: project.id, name: newRole.name, permissionLevel: toUserRole(newRole.permission_level), isSystem: newRole.is_system, createdAt: newRole.created_at }]);
                         }
                         setAddingRole(false);
                         setNewRoleName("");
@@ -663,7 +623,7 @@ export default function SettingsPage() {
                     style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-navy)", backgroundColor: "transparent", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font-roboto)", fontWeight: 600 }}
                   >
                     <Plus size={13} />
-                    Add custom role
+                    Add custom title
                   </button>
                 )}
               </div>
@@ -678,7 +638,7 @@ export default function SettingsPage() {
               <textarea
                 value={emailInviteInput}
                 onChange={(e) => { setEmailInviteInput(e.target.value); setEmailInviteError(""); }}
-                placeholder={"colleague@university.edu\nanother@lab.org"}
+                placeholder={"new.member@aiesec.net\nanother@example.com"}
                 rows={3}
                 style={{
                   display: "block", width: "100%", padding: "10px 12px", boxSizing: "border-box",
@@ -770,7 +730,7 @@ export default function SettingsPage() {
               {showAdvancedInvites && (
                 <div style={{ marginTop: 12 }}>
                   <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 0, marginBottom: 12 }}>
-                    Generic links let anyone who has the URL join your lab without email verification. Use with caution.
+                    Generic links let anyone who has the URL join your LC without email verification. Use with caution.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {inviteCodes.filter(ic => !ic.invited_email).map((ic) => {
@@ -781,12 +741,12 @@ export default function SettingsPage() {
                         <div key={ic.id} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 8 }}>
                           <input
                             readOnly
-                            value={isRevealed ? fullLink : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "canopyteams.tech")}/login?invite=••••••••`}
+                            value={isRevealed ? fullLink : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/login?invite=••••••••`}
                             style={{ ...readonlyInputStyle, flex: 1, fontFamily: "monospace", fontSize: 12 }}
                             aria-label={`Generic invite link ${ic.code}`}
                           />
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 84, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", borderRadius: 5, padding: "2px 8px", backgroundColor: roleName ? "rgba(27,46,75,0.08)" : "transparent", color: roleName ? "var(--color-navy)" : "var(--color-secondary)" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 84, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", borderRadius: 5, padding: "2px 8px", backgroundColor: roleName ? "rgba(2,99,196,0.08)" : "transparent", color: roleName ? "var(--color-navy)" : "var(--color-secondary)" }}>
                               {roleName ?? "No role"}
                             </span>
                             <button onClick={() => setRevealedCode(isRevealed ? null : ic.id)}
@@ -847,50 +807,75 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Lab Settings section (PI only, hidden in Personal workspace) */}
-      {profile?.role === "pi" && activeScope !== "personal" && (
-        <section style={sectionStyle} aria-labelledby="settings-lab-heading">
+      {/* Departments — president only */}
+      {isPresident && activeScope !== "personal" && (
+        <section style={sectionStyle} aria-labelledby="settings-departments-heading">
           <div style={sectionHeaderStyle}>
-            <FlaskConical size={16} color="var(--color-secondary)" />
-            <h2 id="settings-lab-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-              Lab Settings
+            <Building2 size={16} color="var(--color-secondary)" />
+            <h2 id="settings-departments-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Departments
+            </h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <DepartmentsManager />
+          </div>
+        </section>
+      )}
+
+      {/* Wellbeing — president only */}
+      {isPresident && activeScope !== "personal" && activeLcId && (
+        <section style={sectionStyle} aria-labelledby="settings-wellbeing-heading">
+          <div style={sectionHeaderStyle}>
+            <HeartPulse size={16} color="var(--color-secondary)" />
+            <h2 id="settings-wellbeing-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Wellbeing &amp; privacy
+            </h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <WellbeingSettings projectId={activeLcId} />
+          </div>
+        </section>
+      )}
+
+      {/* LC settings section (president only, hidden in Personal workspace) */}
+      {isPresident && activeScope !== "personal" && (
+        <section style={sectionStyle} aria-labelledby="settings-lc-heading">
+          <div style={sectionHeaderStyle}>
+            <Globe2 size={16} color="var(--color-secondary)" />
+            <h2 id="settings-lc-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              LC settings
             </h2>
           </div>
           <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 18 }}>
             <div>
-              <label style={labelStyle}>Project Name</label>
+              <label style={labelStyle}>Local Committee name</label>
               <input value={projectName} onChange={e => setProjectName(e.target.value)}
-                placeholder="Project name"
+                placeholder="e.g. AIESEC in Lisbon"
                 style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
             </div>
             <div>
-              <label style={labelStyle}>Institution</label>
+              <label style={labelStyle}>University or city</label>
               <input value={projectInstitution} onChange={e => setProjectInstitution(e.target.value)}
-                placeholder="Institution name"
+                placeholder="e.g. University of Lisbon"
                 style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
             </div>
-            <div>
-              <label style={labelStyle}>Research Type</label>
-              <input value={researchType} onChange={e => setResearchType(e.target.value)}
-                placeholder="e.g. Trauma, Oncology, Veteran PTSD"
-                style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
-            </div>
-            <div>
-              <label style={labelStyle}>Research Participation</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-                {RESEARCH_PARTICIPATION_OPTIONS.map(opt => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--color-body)", cursor: "pointer" }}>
-                    <input type="radio" name="settings_research_participation" value={opt.value}
-                      checked={researchParticipation === opt.value}
-                      onChange={() => setResearchParticipation(opt.value)}
-                      style={{ accentColor: "var(--color-navy)", width: 16, height: 16, flexShrink: 0 }} />
-                    {opt.label}
-                  </label>
-                ))}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+              <div>
+                <label style={labelStyle} htmlFor="lc-currency">Currency</label>
+                <input id="lc-currency" value={lcCurrency} maxLength={3} onChange={e => setLcCurrency(e.target.value.toUpperCase())}
+                  placeholder="EUR" style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>3-letter code used for new finance entries and claims.</p>
               </div>
-              <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 8 }}>
-                Controls how your lab&rsquo;s anonymized data contributes to Canopy&rsquo;s research. <strong>Both publications</strong> shares aggregated task and journal patterns for two studies: one on researcher well-being, one on team collaboration. <strong>Well-being only</strong> limits sharing to the well-being study. <strong>Keep data private</strong>{" "}means your lab&rsquo;s data is never included in any publication. All data is anonymized before analysis and can never be traced back to individuals. You can change this at any time.
-              </p>
+              <div>
+                <label style={labelStyle} htmlFor="lc-term-start">Term starts on</label>
+                <input id="lc-term-start" type="date" value={termStart} onChange={e => setTermStart(e.target.value)}
+                  style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>Used for &ldquo;this term&rdquo; totals in attendance and tabling. Empty = 1 February.</p>
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Finance categories</label>
+              {activeLcId && <CategoriesManager projectId={activeLcId} />}
             </div>
             <div>
               <label style={labelStyle}>Journal Prompts</label>
@@ -903,18 +888,18 @@ export default function SettingsPage() {
             </div>
             <button onClick={handleSaveLabSettings} disabled={savingLabSettings}
               style={{ alignSelf: "flex-start", minHeight: 44, height: 40, padding: "0 22px", backgroundColor: savingLabSettings ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingLabSettings ? "default" : "pointer" }}>
-              {savingLabSettings ? "Saving…" : "Save lab settings"}
+              {savingLabSettings ? "Saving…" : "Save LC settings"}
             </button>
           </div>
         </section>
       )}
 
-      {/* Scheduling section */}
+      {/* Time zone section — used for notification quiet hours */}
       <section style={sectionStyle} aria-labelledby="settings-schedule-heading">
         <div style={sectionHeaderStyle}>
           <Clock size={16} color="var(--color-secondary)" />
           <h2 id="settings-schedule-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-            Scheduling &amp; Working Hours
+            Time zone &amp; working hours
           </h2>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -926,58 +911,8 @@ export default function SettingsPage() {
           />
           <button onClick={handleSaveSchedule} disabled={savingSchedule}
             style={{ alignSelf: "flex-start", minHeight: 44, height: 38, padding: "0 20px", backgroundColor: savingSchedule ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingSchedule ? "default" : "pointer" }}>
-            {savingSchedule ? "Saving…" : "Save schedule settings"}
+            {savingSchedule ? "Saving…" : "Save time zone"}
           </button>
-        </div>
-      </section>
-
-      {/* Integrations section */}
-      <section style={sectionStyle} aria-labelledby="settings-integrations-heading">
-        <div style={sectionHeaderStyle}>
-          <Link2 size={16} color="var(--color-secondary)" />
-          <h2 id="settings-integrations-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-            Integrations
-          </h2>
-        </div>
-        <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 0 }}>
-          {/* Google Calendar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {/* Google Calendar icon */}
-              <div style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, backgroundColor: "var(--color-canvas)" }}>
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                  <path d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3H4.5A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm0 16.5h-15V9h15v10.5zM7.5 4.5V6H9V4.5h6V6h1.5V4.5H19.5V7.5h-15V4.5H7.5z" fill="#4285F4"/>
-                  <text x="12" y="17" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#1A73E8">CAL</text>
-                </svg>
-              </div>
-              <div>
-                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, color: "var(--color-body)", margin: 0 }}>
-                  Google Calendar
-                </p>
-                <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "2px 0 0" }}>
-                  {googleCalendarConnected ? "Connected — events sync to Scheduling" : "Sync your calendar events to Scheduling"}
-                </p>
-              </div>
-            </div>
-            {googleCalendarConnected ? (
-              <button
-                onClick={handleDisconnectGoogleCalendar}
-                disabled={disconnectingGoogle}
-                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "var(--color-secondary)", cursor: disconnectingGoogle ? "default" : "pointer" }}
-              >
-                <Link2Off size={13} />
-                {disconnectingGoogle ? "Disconnecting…" : "Disconnect"}
-              </button>
-            ) : (
-              <button
-                onClick={handleConnectGoogleCalendar}
-                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "#fff", cursor: "pointer" }}
-              >
-                <Link2 size={13} />
-                Connect
-              </button>
-            )}
-          </div>
         </div>
       </section>
 
@@ -1031,8 +966,8 @@ export default function SettingsPage() {
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 14 }}>
           {[
             { id: "notif-task", label: "Task assignments", description: "When someone assigns a task to you", value: notifTaskAssigned, set: setNotifTaskAssigned },
-            { id: "notif-win", label: "Lab wins", description: "When a lab win is posted", value: notifLabWin, set: setNotifLabWin },
-            { id: "notif-digest", label: "Weekly digest", description: "A weekly summary of lab activity", value: notifDigest, set: setNotifDigest },
+            { id: "notif-win", label: "LC wins", description: "When someone posts a win", value: notifLabWin, set: setNotifLabWin },
+            { id: "notif-digest", label: "Weekly digest", description: "A weekly summary of your LC's activity", value: notifDigest, set: setNotifDigest },
           ].map(({ id, label, description, value, set }) => (
             <label key={id} htmlFor={id} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", minHeight: 44 }}>
               <input
@@ -1110,10 +1045,10 @@ export default function SettingsPage() {
         <div style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: "0 0 3px" }}>View all shortcuts</p>
-            <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>See every keyboard shortcut available in Canopy. You can also press <kbd style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 4, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)" }}>?</kbd> anywhere.</p>
+            <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>See every keyboard shortcut available in {APP_NAME}. You can also press <kbd style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 4, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)" }}>?</kbd> anywhere.</p>
           </div>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("canopy:show-shortcuts"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("app:show-shortcuts"))}
             style={{ fontSize: 12, fontWeight: 700, padding: "8px 18px", borderRadius: 8, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer", minHeight: 40, flexShrink: 0 }}
           >
             View shortcuts
@@ -1135,7 +1070,7 @@ export default function SettingsPage() {
             <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Re-open the onboarding tour from the beginning.</p>
           </div>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("canopy:show-onboarding"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("app:show-onboarding"))}
             style={{ fontSize: 12, fontWeight: 700, padding: "8px 18px", borderRadius: 8, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer", minHeight: 40, flexShrink: 0 }}
           >
             Start tour
@@ -1146,9 +1081,9 @@ export default function SettingsPage() {
 
     {promptModalOpen && createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-        style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+        style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
         onClick={() => setPromptModalOpen(false)}>
-        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(27,46,75,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(2,99,196,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
           onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
           <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
             <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: 0 }}>Manage Journal Prompts</h2>
@@ -1166,7 +1101,7 @@ export default function SettingsPage() {
                     return (
                       <button key={prompt.id}
                         onClick={() => setActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
-                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(27,46,75,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
+                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(2,99,196,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
                         {prompt.text}
                       </button>
                     );
@@ -1183,7 +1118,7 @@ export default function SettingsPage() {
               {customPrompts.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
                   {customPrompts.map((cp) => (
-                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(27,46,75,0.04)", border: "1px solid var(--color-navy)" }}>
+                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(2,99,196,0.04)", border: "1px solid var(--color-navy)" }}>
                       <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
                       <button
                         onClick={() => setCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}
@@ -1232,7 +1167,7 @@ export default function SettingsPage() {
               style={{ height: 44, padding: "0 24px", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
               Done
             </button>
-            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Saves along with other Lab Settings</span>
+            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Saves along with the other LC settings</span>
           </div>
         </div>
       </div>,

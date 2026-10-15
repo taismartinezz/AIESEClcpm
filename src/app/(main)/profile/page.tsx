@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft, GraduationCap, BookOpen, Globe,
-  Link as LinkIcon, Settings, Lock, X, Copy, Plus, Check, Pencil,
+  Link as LinkIcon, Lock, X, Pencil,
 } from "lucide-react";
 
 function LinkedinIcon() {
@@ -26,33 +25,17 @@ function TwitterIcon() {
   );
 }
 
-import {
-  JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
-} from "@/lib/mock-data";
+import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
-import type { TaskStatus, PromptCategory } from "@/types";
+import { useProject } from "@/context/ProjectContext";
+import { ROLE_DESCRIPTIONS } from "@/lib/permissions";
+import type { TaskStatus } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: "To Do", in_progress: "In Progress", in_review: "In Review", done: "Done",
-};
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  todo: "var(--status-todo-text)", in_progress: "var(--color-navy)", in_review: "var(--color-warning)", done: "var(--color-success)",
-};
-const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
-  emotional_processing: "Emotional Processing",
-  research_reflection: "Research Reflection",
-  team_support: "Team & Support",
-  boundaries_workload: "Boundaries & Workload",
-  looking_forward: "Looking Forward",
-};
-const RESEARCH_PARTICIPATION_OPTIONS = [
-  { value: "both_publications", label: "Participate in both publications" },
-  { value: "wellbeing_only", label: "Well-being research only" },
-  { value: "private", label: "Keep data private" },
-];
+const STATUS_LABELS = TASK_STATUS_LABELS;
+const STATUS_COLORS = TASK_STATUS_COLORS;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -147,186 +130,6 @@ function StatCard({ label, count }: { label: string; count: number }) {
   );
 }
 
-// ── Prompts Modal ─────────────────────────────────────────────────────────────
-
-function PromptsModal({
-  activeIds, onSave, onClose,
-}: {
-  activeIds: string[]; onSave: (ids: string[]) => void; onClose: () => void;
-}) {
-  const [draft, setDraft] = useState<string[]>(activeIds);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const togglePrompt = (id: string) => {
-    setDraft((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  };
-
-  const categories = Array.from(new Set(JOURNAL_PROMPTS.map((p) => p.category)));
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10,
-          border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(27,46,75,0.14)",
-          maxHeight: "85vh", display: "flex", flexDirection: "column",
-        }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="prompts-modal-title"
-      >
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
-          <h2 id="prompts-modal-title" style={{
-            fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16,
-            color: "var(--color-navy)", margin: 0,
-          }}>
-            Manage Journal Prompts
-          </h2>
-          <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", marginTop: 4 }}>
-            Select which prompts are available to your team.
-          </p>
-        </div>
-        <div style={{ overflowY: "auto", flex: 1, padding: "16px 24px" }}>
-          {categories.map((cat) => (
-            <div key={cat} style={{ marginBottom: 20 }}>
-              <p style={{
-                fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11,
-                textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)",
-                marginBottom: 8,
-              }}>
-                {PROMPT_CATEGORY_LABELS[cat]}
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {JOURNAL_PROMPTS.filter((p) => p.category === cat).map((prompt) => {
-                  const active = draft.includes(prompt.id);
-                  return (
-                    <button
-                      key={prompt.id}
-                      onClick={() => togglePrompt(prompt.id)}
-                      style={{
-                        textAlign: "left", padding: "10px 14px",
-                        borderRadius: 8, cursor: "pointer",
-                        fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)",
-                        backgroundColor: active ? "rgba(27,46,75,0.04)" : "var(--color-surface)",
-                        border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)",
-                        transition: "border-color 120ms ease",
-                      }}
-                    >
-                      {prompt.text}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 8, flexShrink: 0 }}>
-          <button
-            onClick={() => { onSave(draft); onClose(); }}
-            style={{
-              height: 44, padding: "0 24px", backgroundColor: "var(--color-navy)", color: "#fff",
-              border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)",
-              fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy-hover)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy)"; }}
-          >
-            Save
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              height: 44, padding: "0 16px", backgroundColor: "var(--color-surface)", color: "var(--color-secondary)",
-              border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)",
-              fontWeight: 600, fontSize: 13, cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ── Archive Confirm Modal ─────────────────────────────────────────────────────
-
-function ArchiveModal({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--color-surface)", maxWidth: 400, width: "100%", borderRadius: 10,
-          border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(27,46,75,0.14)",
-          padding: 28,
-        }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="archive-modal-title"
-      >
-        <h2 id="archive-modal-title" style={{
-          fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16,
-          color: "var(--color-navy)", margin: "0 0 8px",
-        }}>
-          Archive this project?
-        </h2>
-        <p style={{
-          fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)",
-          lineHeight: 1.6, margin: "0 0 24px",
-        }}>
-          Team members will lose access. This cannot be undone.
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1, height: 44, backgroundColor: "var(--color-surface)", color: "var(--color-body)",
-              border: "1px solid var(--color-border)", borderRadius: 8,
-              fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1, height: 44, backgroundColor: "var(--color-error)", color: "#fff",
-              border: "none", borderRadius: 8,
-              fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-error)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-error)"; }}
-          >
-            Archive
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Profile Page ──────────────────────────────────────────────────────────────
 
 type LinkFields = {
@@ -341,6 +144,7 @@ const EMPTY_LINKS: LinkFields = {
 type TabId = "about" | "links" | "activity";
 
 export default function ProfilePage() {
+  const { projectId: activeLcId, role: myRole, departmentId: myDepartmentId, departments } = useProject();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -373,8 +177,6 @@ export default function ProfilePage() {
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabId>("about");
-  const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -383,25 +185,11 @@ export default function ProfilePage() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // ── PI Lab Settings state (initialized from project after load) ──────────
-  const [projectName, setProjectName] = useState("");
-  const [projectInstitution, setProjectInstitution] = useState("");
-  const [researchType, setResearchType] = useState("");
-  const [researchParticipation, setResearchParticipation] = useState("");
-  const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
-
-  // ── Invite codes (PI only) ────────────────────────────────────────────────
-  const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; created_at: string }[]>([]);
-  const [generatingCode, setGeneratingCode] = useState(false);
   const [labRoleName, setLabRoleName] = useState<string | null>(null);
-  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   // ── Activity stats ────────────────────────────────────────────────────────
-  const [taskCounts, setTaskCounts] = useState<Record<TaskStatus, number>>({
-    todo: 0, in_progress: 0, in_review: 0, done: 0,
-  });
+  const [taskCounts, setTaskCounts] = useState<Record<TaskStatus, number>>(emptyTaskCounts);
   const [recentTasks, setRecentTasks] = useState<import("@/types").Task[]>([]);
-  const [litCount, setLitCount] = useState(0);
   const [journalStreak, setJournalStreak] = useState(0);
 
   // ── Load profile & project from Supabase ─────────────────────────────────
@@ -417,11 +205,14 @@ export default function ProfilePage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      const { data: membership } = await supabase
-        .from("team_members")
-        .select("project_id, lab_role_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: membership } = activeLcId
+        ? await supabase
+            .from("team_members")
+            .select("project_id, lab_role_id")
+            .eq("user_id", user.id)
+            .eq("project_id", activeLcId)
+            .maybeSingle()
+        : { data: null };
 
       if (membership?.project_id) {
         if (membership.lab_role_id) {
@@ -439,10 +230,6 @@ export default function ProfilePage() {
           .maybeSingle();
         setProject(proj);
         if (proj) {
-          setProjectName((proj.name as string) ?? "");
-          setProjectInstitution((proj.institution as string) ?? "");
-          setResearchType((proj.research_type as string) ?? "");
-          setResearchParticipation((proj.research_participation as string) ?? "private");
         }
       }
 
@@ -452,7 +239,7 @@ export default function ProfilePage() {
     };
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeLcId]);
 
   // ── Load activity stats once project is known ─────────────────────────────
   useEffect(() => {
@@ -468,7 +255,7 @@ export default function ProfilePage() {
         .eq("project_id", projectId)
         .then(({ data }) => {
           if (!data) return;
-          const counts = { todo: 0, in_progress: 0, in_review: 0, done: 0 } as Record<TaskStatus, number>;
+          const counts = emptyTaskCounts() as Record<TaskStatus, number>;
           data.forEach((t) => { counts[t.status as TaskStatus] = (counts[t.status as TaskStatus] ?? 0) + 1; });
           setTaskCounts(counts);
           const recent = [...data]
@@ -485,54 +272,12 @@ export default function ProfilePage() {
           setRecentTasks(recent);
         });
 
-      supabase.from("literature_items").select("id", { count: "exact", head: true })
-        .eq("project_id", projectId).eq("added_by", user.id)
-        .then(({ count }) => setLitCount(count ?? 0));
-
       const monthStart = new Date().toISOString().slice(0, 7) + "-01";
       supabase.from("journal_entries").select("id", { count: "exact", head: true })
         .eq("user_id", user.id).gte("created_at", monthStart)
         .then(({ count }) => setJournalStreak(count ?? 0));
     });
   }, [project]);
-
-  // ── Load invite codes once profile is known (PI only) ────────────────────
-  useEffect(() => {
-    if (!profile || profile.role !== "pi") return;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const user = session?.user ?? null;
-      if (!user) return;
-      supabase.from("invite_codes")
-        .select("id, code, used_by, created_at")
-        .eq("created_by", user.id)
-        .order("created_at", { ascending: false })
-        .then(({ data }) => {
-          if (data) setInviteCodes(data as typeof inviteCodes);
-        });
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
-
-  const handleGenerateCode = useCallback(async () => {
-    setGeneratingCode(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
-    if (!user || !project?.id) { setGeneratingCode(false); return; }
-    const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
-    const { data } = await supabase.from("invite_codes")
-      .insert({ code, project_id: project.id, created_by: user.id })
-      .select("id, code, used_by, created_at")
-      .single();
-    if (data) setInviteCodes((prev) => [data as (typeof inviteCodes)[0], ...prev]);
-    setGeneratingCode(false);
-  }, [project]);
-
-  const handleCopyInvite = useCallback(async (codeId: string, code: string) => {
-    const link = `${window.location.origin}/login?invite=${code}`;
-    await navigator.clipboard.writeText(link).catch(() => {});
-    setCopiedCodeId(codeId);
-    setTimeout(() => setCopiedCodeId((prev) => (prev === codeId ? null : prev)), 2000);
-  }, []);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -612,7 +357,7 @@ export default function ProfilePage() {
           .maybeSingle();
         if (updated) {
           setProfile(updated);
-          window.dispatchEvent(new CustomEvent("canopy:profile-updated", { detail: updated }));
+          window.dispatchEvent(new CustomEvent("app:profile-updated", { detail: updated }));
         }
       }
     }
@@ -622,39 +367,34 @@ export default function ProfilePage() {
   const handleSaveInstitution = useCallback(async () => {
     const trimmed = institutionInput.trim();
     if (trimmed) {
-      if (profile?.role === "pi" && project?.id) {
-        const { data: updatedProj } = await supabase
-          .from("projects")
-          .update({ institution: trimmed })
-          .eq("id", project.id)
-          .select("*")
-          .maybeSingle();
-        if (updatedProj) setProject(updatedProj);
-      } else {
+      try {
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user ?? null;
         if (user) {
-          const { data: updatedProf } = await supabase
+          const { data: updatedProf, error } = await supabase
             .from("user_profiles")
             .update({ institution: trimmed })
             .eq("id", user.id)
             .select("*")
             .maybeSingle();
+          if (error) throw new Error(error.message);
           if (updatedProf) setProfile(updatedProf);
         }
+      } catch (e) {
+        showToast(`Couldn't save your university: ${e instanceof Error ? e.message : String(e)}`, "error");
       }
     }
     setEditingInstitution(false);
-  }, [institutionInput, profile?.role, project]);
+  }, [institutionInput]);
 
   const handleEnterEditMode = useCallback(() => {
     setDraftBio(profile?.bio ?? "");
     setDraftInterests([...interests]);
-    setDraftDepartment(profile?.department ?? "");
+    setDraftDepartment(myDepartmentId ?? "");
     setDraftInstitution(profile?.institution ?? "");
     setDraftLinks({ ...links });
     setEditMode(true);
-  }, [profile, interests, links]);
+  }, [profile, interests, links, myDepartmentId]);
 
   const handleSaveProfile = useCallback(async () => {
     setInterests(draftInterests);
@@ -665,22 +405,36 @@ export default function ProfilePage() {
     if (user) {
       const updatePayload: Record<string, string | null> = {
         bio: draftBio || null,
-        department: draftDepartment || null,
+        institution: draftInstitution || null,
       };
-      if (profile?.role !== "pi") updatePayload.institution = draftInstitution || null;
-      const { data: updated } = await supabase
-        .from("user_profiles")
-        .update(updatePayload)
-        .eq("id", user.id)
-        .select("*")
-        .maybeSingle();
-      if (updated) setProfile(updated);
+      try {
+        const { data: updated, error } = await supabase
+          .from("user_profiles")
+          .update(updatePayload)
+          .eq("id", user.id)
+          .select("*")
+          .maybeSingle();
+        if (error) throw new Error(error.message);
+        if (updated) setProfile(updated);
+        // Department lives on the LC membership, not the global profile.
+        if (activeLcId && (draftDepartment || null) !== (myDepartmentId ?? null)) {
+          const { error: depErr } = await supabase
+            .from("team_members")
+            .update({ department_id: draftDepartment || null })
+            .eq("user_id", user.id)
+            .eq("project_id", activeLcId);
+          if (depErr) throw new Error(depErr.message);
+        }
+      } catch (e) {
+        showToast(`Couldn't save your profile: ${e instanceof Error ? e.message : String(e)}`, "error");
+        return;
+      }
     }
 
     setEditMode(false);
     setInterestInput("");
     showToast("Profile updated.", "success");
-  }, [draftBio, draftDepartment, draftInstitution, draftInterests, draftLinks, profile?.role]);
+  }, [draftBio, draftDepartment, draftInstitution, draftInterests, draftLinks, activeLcId, myDepartmentId]);
 
   const handleCancelEdit = useCallback(() => {
     setEditMode(false);
@@ -695,37 +449,11 @@ export default function ProfilePage() {
     setInterestInput("");
   }, [interestInput, draftInterests]);
 
-  const handleSaveLabSettings = useCallback(async () => {
-    if (!project?.id) return;
-    await supabase
-      .from("projects")
-      .update({
-        name: projectName,
-        institution: projectInstitution,
-        research_type: researchType,
-        research_participation: researchParticipation,
-      })
-      .eq("id", project.id);
-    setProject((prev: any) => ({
-      ...prev,
-      name: projectName,
-      institution: projectInstitution,
-      research_type: researchType,
-      research_participation: researchParticipation,
-    }));
-    showToast("Lab settings saved.", "success");
-  }, [project, projectName, projectInstitution, researchType, researchParticipation]);
-
-  const handleSavePrompts = useCallback((ids: string[]) => {
-    setActivePromptIds(ids);
-  }, []);
-
   // ── Derived display values ────────────────────────────────────────────────
-  const isPi = profile?.role === "pi";
   const memberSinceDate = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
     : "";
-  const roleBadgeLabel = labRoleName ?? (profile?.role === "pi" ? "Principal Investigator" : "Researcher");
+  const roleBadgeLabel = labRoleName ?? (myRole ? ROLE_DESCRIPTIONS[myRole] : "Member");
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const tabs: { id: TabId; label: string }[] = [
@@ -813,9 +541,9 @@ export default function ProfilePage() {
   const displayName = profile?.name ?? "";
   const displayInitials = profile?.avatar_initials ?? "??";
   const displayAvatarColor = profile?.avatar_color ?? "#B4D4E3";
-  const displayInstitution = isPi ? (project?.institution ?? "") : (profile?.institution ?? "");
+  const displayInstitution = profile?.institution ?? "";
   const displayBio = profile?.bio ?? "";
-  const displayDepartment = profile?.department ?? "";
+  const displayDepartment = departments.find((d) => d.id === myDepartmentId)?.name ?? "";
 
   return (
     <div style={{ padding: isMobile ? "16px" : "40px 24px", backgroundColor: "var(--color-canvas)", minHeight: "100%" }}>
@@ -1015,7 +743,12 @@ export default function ProfilePage() {
                 autoFocus
                 value={institutionInput}
                 onChange={(e) => setInstitutionInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") setEditingInstitution(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setEditingInstitution(false);
+                  if (e.key === "Enter") handleSaveInstitution();
+                }}
+                onBlur={handleSaveInstitution}
+                aria-label="University"
                 style={{
                   fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 14,
                   color: "var(--color-secondary)", border: "none", borderBottom: "1px solid var(--color-navy)",
@@ -1084,7 +817,7 @@ export default function ProfilePage() {
                     <FieldInput
                       value={draftBio}
                       onChange={setDraftBio}
-                      placeholder="Tell your team a bit about your research background and what brought you to this work."
+                      placeholder="Tell your LC a bit about yourself and what you do in AIESEC."
                       multiline
                     />
                   ) : (
@@ -1099,7 +832,7 @@ export default function ProfilePage() {
 
                 {/* Research Interests */}
                 <div>
-                  <SectionLabel>Research Interests</SectionLabel>
+                  <SectionLabel>Interests</SectionLabel>
                   {editMode ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1117,7 +850,7 @@ export default function ProfilePage() {
                           value={interestInput}
                           onChange={(e) => setInterestInput(e.target.value)}
                           onKeyDown={handleAddInterest}
-                          placeholder="Add a research interest and press Enter"
+                          placeholder="Add an interest and press Enter"
                           style={{
                             height: 36, border: "1px solid var(--color-border)", borderRadius: 8,
                             padding: "0 14px", fontFamily: "var(--font-roboto)",
@@ -1146,11 +879,15 @@ export default function ProfilePage() {
                 <div>
                   <SectionLabel>Department</SectionLabel>
                   {editMode ? (
-                    <FieldInput
+                    <select
                       value={draftDepartment}
-                      onChange={setDraftDepartment}
-                      placeholder="e.g. Department of Psychology"
-                    />
+                      onChange={(e) => setDraftDepartment(e.target.value)}
+                      aria-label="Your department"
+                      style={{ height: 40, width: "100%", border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 10px", fontSize: 14, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-surface)", color: "var(--color-body)" }}
+                    >
+                      <option value="">No department</option>
+                      {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
                   ) : (
                     <p style={{
                       fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 14,
@@ -1161,15 +898,15 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Institution (researchers only - PIs edit this via the inline header or Lab Settings) */}
-                {!isPi && (
+                {/* University */}
+                {(
                   <div>
-                    <SectionLabel>Institution</SectionLabel>
+                    <SectionLabel>University</SectionLabel>
                     {editMode ? (
                       <FieldInput
                         value={draftInstitution}
                         onChange={setDraftInstitution}
-                        placeholder="e.g. Northwestern University"
+                        placeholder="e.g. University of Lisbon"
                       />
                     ) : (
                       <p style={{
@@ -1318,13 +1055,6 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <SectionLabel>Literature Contributions</SectionLabel>
-                  <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
-                    {litCount} {litCount === 1 ? "item" : "items"} added to the Lab Library
-                  </p>
-                </div>
-
-                <div>
                   <SectionLabel>Journal</SectionLabel>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
@@ -1339,210 +1069,10 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Lab settings moved to Settings page */}
-            {false && isPi && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-                <div>
-                  <SectionLabel>Project Name</SectionLabel>
-                  <FieldInput value={projectName} onChange={setProjectName} placeholder="Project name" />
-                </div>
-
-                <div>
-                  <SectionLabel>Institution</SectionLabel>
-                  <FieldInput value={projectInstitution} onChange={setProjectInstitution} placeholder="Institution name" />
-                </div>
-
-                <div>
-                  <SectionLabel>Research Type</SectionLabel>
-                  <FieldInput
-                    value={researchType}
-                    onChange={setResearchType}
-                    placeholder="e.g. Trauma, Oncology, Veteran PTSD"
-                  />
-                </div>
-
-                <div>
-                  <SectionLabel>Research Participation</SectionLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {RESEARCH_PARTICIPATION_OPTIONS.map((opt) => (
-                      <label
-                        key={opt.value}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          fontFamily: "var(--font-roboto)", fontSize: 14, color: "var(--color-body)",
-                          cursor: "pointer", minHeight: 44,
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="research_participation"
-                          value={opt.value}
-                          checked={researchParticipation === opt.value}
-                          onChange={() => setResearchParticipation(opt.value)}
-                          style={{ accentColor: "var(--color-navy)", width: 16, height: 16, flexShrink: 0 }}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                  <p style={{
-                    fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 12,
-                    color: "var(--color-secondary)", marginTop: 8,
-                  }}>
-                    This controls how your lab's anonymized data contributes to Canopy's research publications.
-                  </p>
-                </div>
-
-                <div>
-                  <SectionLabel>Journal Prompts</SectionLabel>
-                  <button
-                    onClick={() => setPromptModalOpen(true)}
-                    style={{
-                      height: 44, padding: "0 20px",
-                      backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8,
-                      fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13,
-                      color: "var(--color-navy)", cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-navy-dim)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; }}
-                  >
-                    Manage prompts ({activePromptIds.length} active)
-                  </button>
-                </div>
-
-                {/* ── Invite ───────────────────────────────────────────── */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <SectionLabel>Invite</SectionLabel>
-                    <button
-                      onClick={handleGenerateCode}
-                      disabled={generatingCode}
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 6,
-                        height: 36, padding: "0 14px",
-                        backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8,
-                        fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12,
-                        color: "var(--color-navy)", cursor: generatingCode ? "default" : "pointer",
-                        opacity: generatingCode ? 0.6 : 1,
-                      }}
-                      onMouseEnter={(e) => { if (!generatingCode) (e.currentTarget as HTMLElement).style.borderColor = "var(--color-navy-dim)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; }}
-                    >
-                      <Plus size={12} />
-                      Generate new code
-                    </button>
-                  </div>
-                  {inviteCodes.length === 0 ? (
-                    <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)" }}>
-                      No invite codes yet. Generate one to invite researchers.
-                    </p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {inviteCodes.map((ic) => (
-                        <div
-                          key={ic.id}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            padding: "10px 14px", border: "1px solid var(--color-border)", borderRadius: 8,
-                            backgroundColor: ic.used_by ? "var(--color-canvas)" : "var(--color-surface)",
-                          }}
-                        >
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <span style={{
-                              fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13,
-                              color: ic.used_by ? "var(--color-secondary)" : "var(--color-navy)",
-                              letterSpacing: "0.04em",
-                            }}>
-                              {ic.code}
-                            </span>
-                            <span style={{ fontFamily: "var(--font-roboto)", fontSize: 11, color: "var(--color-secondary)" }}>
-                              {ic.used_by ? "Used" : "Available"}
-                            </span>
-                          </div>
-                          {!ic.used_by && (
-                            <button
-                              onClick={() => handleCopyInvite(ic.id, ic.code)}
-                              style={{
-                                display: "inline-flex", alignItems: "center", gap: 5,
-                                height: 32, padding: "0 12px",
-                                backgroundColor: copiedCodeId === ic.id ? "rgba(46,125,82,0.08)" : "var(--color-surface)",
-                                border: "1px solid var(--color-border)", borderRadius: 7,
-                                fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12,
-                                color: copiedCodeId === ic.id ? "var(--color-success)" : "var(--color-navy)",
-                                cursor: "pointer", transition: "background-color 150ms ease",
-                              }}
-                              onMouseEnter={(e) => { if (copiedCodeId !== ic.id) (e.currentTarget as HTMLElement).style.borderColor = "var(--color-navy-dim)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; }}
-                            >
-                              {copiedCodeId === ic.id
-                                ? <><Check size={11} />Copied!</>
-                                : <><Copy size={11} />Copy invite link</>}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleSaveLabSettings}
-                  style={{
-                    alignSelf: "flex-start", height: 44, padding: "0 24px",
-                    backgroundColor: "var(--color-navy)", color: "#fff", border: "none",
-                    borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 700,
-                    fontSize: 13, cursor: "pointer",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy-hover)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-navy)"; }}
-                >
-                  Save lab settings
-                </button>
-
-                <div style={{
-                  border: "1px solid var(--color-error)", borderRadius: 10, padding: 16, marginTop: 8,
-                }}>
-                  <p style={{
-                    fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 13,
-                    color: "var(--color-error)", margin: "0 0 12px",
-                  }}>
-                    Danger Zone
-                  </p>
-                  <button
-                    onClick={() => setArchiveModalOpen(true)}
-                    style={{
-                      height: 44, padding: "0 20px",
-                      backgroundColor: "var(--color-surface)", border: "1px solid var(--color-error)",
-                      borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600,
-                      fontSize: 13, color: "var(--color-error)", cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(192,57,43,0.08)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-surface)";
-                    }}
-                  >
-                    Archive project
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Modals */}
-      {promptModalOpen && (
-        <PromptsModal
-          activeIds={activePromptIds}
-          onSave={handleSavePrompts}
-          onClose={() => setPromptModalOpen(false)}
-        />
-      )}
-      {archiveModalOpen && (
-        <ArchiveModal onClose={() => setArchiveModalOpen(false)} />
-      )}
     </div>
   );
 }

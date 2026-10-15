@@ -8,11 +8,11 @@ const ENABLED = Deno.env.get("SEND_INVITE_EMAILS") === "true";
 
 // ── Secrets (set these in Supabase → Project Settings → Edge Functions) ──────
 // RESEND_API_KEY  — your Resend API key (starts with re_...)
-// INVITE_FROM     — verified sender address, e.g. "Canopy <invites@yourdomain.com>"
+// INVITE_FROM     — verified sender address, e.g. "AIESEClcpm <invites@yourdomain.com>"
 //                   During setup you can use Resend's test address:
-//                   "Canopy <onboarding@resend.dev>" (only delivers to your own account)
+//                   "AIESEClcpm <onboarding@resend.dev>" (only delivers to your own account)
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM_ADDRESS   = Deno.env.get("INVITE_FROM")    ?? "Canopy <onboarding@resend.dev>";
+const FROM_ADDRESS   = Deno.env.get("INVITE_FROM")    ?? "AIESEClcpm <onboarding@resend.dev>";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin":  "*",
@@ -67,16 +67,16 @@ serve(async (req) => {
   }
 
   // Accept link — same URL pattern the copy-link uses on the client
-  const acceptUrl = `${Deno.env.get("NEXT_PUBLIC_APP_URL") ?? "https://yourapp.vercel.app"}/login?project_invite=${token}`;
+  const acceptUrl = `${Deno.env.get("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000"}/login?project_invite=${token}`;
 
   const emailBody = {
     from:    FROM_ADDRESS,
     to:      [to],
-    subject: `${inviterName} invited you to "${projectName}" on Canopy`,
+    subject: `${inviterName} invited you to "${projectName}" on AIESEClcpm`,
     html: `
       <p>Hi,</p>
       <p><strong>${inviterName}</strong> has invited you to collaborate on
-         <strong>${projectName}</strong> in Canopy.</p>
+         <strong>${projectName}</strong> in AIESEClcpm.</p>
       <p>
         <a href="${acceptUrl}"
            style="display:inline-block;padding:10px 20px;background:#1B2E4B;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">
@@ -91,7 +91,7 @@ serve(async (req) => {
         If you weren't expecting this, you can ignore this email.
       </p>
     `,
-    text: `${inviterName} invited you to "${projectName}" on Canopy.\n\nAccept here: ${acceptUrl}\n\nIf you weren't expecting this, ignore this email.`,
+    text: `${inviterName} invited you to "${projectName}" on AIESEClcpm.\n\nAccept here: ${acceptUrl}\n\nIf you weren't expecting this, ignore this email.`,
   };
 
   try {

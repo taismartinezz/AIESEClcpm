@@ -1,7 +1,8 @@
 import Link from "next/link";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import { APP_NAME } from "@/lib/brand";
+import BrandLogo from "@/components/ui/BrandLogo";
 
-export const metadata = { title: "Coming Soon - Canopy" };
+export const metadata = { title: `Coming Soon - ${APP_NAME}` };
 
 export default function ComingSoonPage() {
   return (
@@ -28,24 +29,24 @@ export default function ComingSoonPage() {
           paddingBottom: 48,
           paddingLeft: 40,
           paddingRight: 40,
-          boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+          boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
         }}
       >
         {/* Logo + wordmark */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <CanopyLogo size={40} />
+          <BrandLogo size={40} />
           <span
             aria-hidden="true"
             style={{
               fontFamily: "var(--font-lora)",
               fontWeight: 700,
               fontSize: 22,
-              color: "#1B2E4B",
+              color: "#0263C4",
               letterSpacing: "0.18em",
               textTransform: "uppercase",
             }}
           >
-            Canopy
+            {APP_NAME}
           </span>
         </div>
 
@@ -61,11 +62,11 @@ export default function ComingSoonPage() {
             fill="none"
             aria-hidden="true"
           >
-            <circle cx="24" cy="24" r="20" stroke="#1B2E4B" strokeWidth="1.8" opacity="0.15" />
-            <circle cx="24" cy="24" r="14" stroke="#1B2E4B" strokeWidth="1.8" opacity="0.35" />
-            <line x1="24" y1="14" x2="24" y2="24" stroke="#1B2E4B" strokeWidth="2.2" strokeLinecap="round" />
-            <line x1="24" y1="24" x2="31" y2="28" stroke="#1B2E4B" strokeWidth="2.2" strokeLinecap="round" />
-            <circle cx="24" cy="24" r="2" fill="#1B2E4B" />
+            <circle cx="24" cy="24" r="20" stroke="#0263C4" strokeWidth="1.8" opacity="0.15" />
+            <circle cx="24" cy="24" r="14" stroke="#0263C4" strokeWidth="1.8" opacity="0.35" />
+            <line x1="24" y1="14" x2="24" y2="24" stroke="#0263C4" strokeWidth="2.2" strokeLinecap="round" />
+            <line x1="24" y1="24" x2="31" y2="28" stroke="#0263C4" strokeWidth="2.2" strokeLinecap="round" />
+            <circle cx="24" cy="24" r="2" fill="#0263C4" />
           </svg>
         </div>
 
@@ -75,7 +76,7 @@ export default function ComingSoonPage() {
             fontFamily: "var(--font-lora)",
             fontWeight: 600,
             fontSize: 18,
-            color: "#1B2E4B",
+            color: "#0263C4",
             textAlign: "center",
             margin: "0 0 12px",
             lineHeight: 1.4,
@@ -109,7 +110,7 @@ export default function ComingSoonPage() {
             justifyContent: "center",
             width: "100%",
             height: 48,
-            backgroundColor: "#1B2E4B",
+            backgroundColor: "#0263C4",
             borderRadius: 8,
             fontFamily: "var(--font-roboto)",
             fontWeight: 600,

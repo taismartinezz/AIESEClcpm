@@ -102,7 +102,7 @@ export default function ChatPage() {
       setTeamMembers(data.filter(r => r.user_id !== currentUserId).map(r => {
         const p = (Array.isArray(r.user_profiles) ? r.user_profiles[0] : r.user_profiles) as Record<string, string> | null;
         const name = p?.name ?? "Unknown";
-        return { id: r.user_id as string, name, email: "", role: "researcher" as const, avatarColor: p?.avatar_color ?? "#CBD5E1", avatarInitials: computeInitials(name) || (p?.avatar_initials ?? "??"), avatarUrl: p?.avatar_url ?? undefined };
+        return { id: r.user_id as string, name, email: "", role: "member" as const, avatarColor: p?.avatar_color ?? "#CBD5E1", avatarInitials: computeInitials(name) || (p?.avatar_initials ?? "??"), avatarUrl: p?.avatar_url ?? undefined };
       }));
     }
     load();
@@ -225,7 +225,7 @@ export default function ChatPage() {
 
     if (!isSupabaseConfigured) {
       setMessages([
-        { id: "d1", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Good morning! Lab meeting moved to Thursday.", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 2, reactions: [{ emoji: "👍", count: 3, hasReacted: true }], mentionedUserIds: [], isPinned: false, threadLastReplierId: "demo-ra", attachments: [] },
+        { id: "d1", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Good morning! LC meeting moved to Thursday.", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 2, reactions: [{ emoji: "👍", count: 3, hasReacted: true }], mentionedUserIds: [], isPinned: false, threadLastReplierId: "demo-ra", attachments: [] },
         { id: "d2", channel: key, senderId: "demo-ra", senderName: "Marcus Johnson", content: "Thanks for the heads up! I'll update my calendar.", createdAt: new Date(Date.now() - 3300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
         { id: "d3", channel: key, senderId: "demo-grad", senderName: "Priya Patel", content: "Will the agenda be the same? I was going to present my prelim results.", createdAt: new Date(Date.now() - 2400000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [{ emoji: "🎉", count: 2, hasReacted: false }], mentionedUserIds: [], isPinned: true, attachments: [] },
         { id: "d4", channel: key, senderId: "demo-pi", senderName: "Dr. Sarah Chen", content: "Yes! Priya you're still presenting first - looking forward to it.", createdAt: new Date(Date.now() - 1800000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: ["demo-grad"], isPinned: false, attachments: [] },
@@ -572,7 +572,7 @@ export default function ChatPage() {
   }
 
   function channelLabel(): string {
-    if (activeChannel === "lab") return "Lab";
+    if (activeChannel === "lab") return "Whole LC";
     if (activeChannel.startsWith("dm:")) { const pid = activeChannel.slice(3); return teamMembers.find(m => m.id === pid)?.name ?? "Direct Message"; }
     return subProjects.find(sp => sp.id === activeChannel)?.name ?? "Channel";
   }
@@ -585,7 +585,7 @@ export default function ChatPage() {
 
   const chatSections: ScopeSection[] = !isProjectView
     ? [{
-        id: "lab", label: "Lab", color: "var(--color-navy)", icon: <Hash size={17} />, isActive: activeChannel === "lab",
+        id: "lab", label: "Whole LC", color: "var(--color-navy)", icon: <Hash size={17} />, isActive: activeChannel === "lab",
         onClick: () => { setActiveChannel("lab"); setMessages([]); setThreadMsg(null); },
         count: unreadCounts[resolveChannelKey(projectId ?? "", currentUserId, "lab")] || undefined,
       }]
@@ -620,7 +620,7 @@ export default function ChatPage() {
       {!isProjectView && visibleSubProjects.length > 0 && (
         <>
           <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "5px 2px" }} />
-          <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "3px 11px 4px", margin: 0 }}>Projects</p>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "3px 11px 4px", margin: 0 }}>Groups</p>
           {visibleSubProjects.map(sp => {
             const act = activeChannel === sp.id;
             const c = sp.color ?? "var(--color-navy)";
@@ -711,7 +711,7 @@ export default function ChatPage() {
               <button
                 onClick={() => setShowPinned(v => !v)}
                 title="Pinned messages"
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 6, border: "none", background: showPinned ? "rgba(27,46,75,0.08)" : "transparent", cursor: "pointer", color: showPinned ? "var(--color-navy)" : "var(--color-secondary)", fontSize: 12 }}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 6, border: "none", background: showPinned ? "rgba(2,99,196,0.08)" : "transparent", cursor: "pointer", color: showPinned ? "var(--color-navy)" : "var(--color-secondary)", fontSize: 12 }}
               >
                 <Pin size={13} />
                 {pinnedCount > 0 && <span style={{ fontWeight: 600 }}>{pinnedCount}</span>}
@@ -719,7 +719,7 @@ export default function ChatPage() {
               <button
                 onClick={() => { setSearchOpen(v => !v); if (searchOpen) { setSearchQuery(""); setSearchResults([]); } }}
                 title="Search messages"
-                style={{ display: "flex", alignItems: "center", padding: "4px 6px", borderRadius: 6, border: "none", background: searchOpen ? "rgba(27,46,75,0.08)" : "transparent", cursor: "pointer", color: searchOpen ? "var(--color-navy)" : "var(--color-secondary)" }}
+                style={{ display: "flex", alignItems: "center", padding: "4px 6px", borderRadius: 6, border: "none", background: searchOpen ? "rgba(2,99,196,0.08)" : "transparent", cursor: "pointer", color: searchOpen ? "var(--color-navy)" : "var(--color-secondary)" }}
               >
                 <Search size={14} />
               </button>

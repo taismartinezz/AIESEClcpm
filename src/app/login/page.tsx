@@ -1,17 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { loadGoogleIdentity, createNonce, renderGisButton, type GoogleCredentialResponse } from "@/lib/googleIdentity";
 import { getPostAuthDestination } from "@/lib/postAuthRedirect";
-
-// When set, Google sign-in uses Google's own button (as an invisible overlay) + an
-// ID token, so the consent screen names our domain instead of the Supabase project URL.
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -100,7 +96,7 @@ function AuthButton({
         fontSize: 14,
         color: isDisabled ? "var(--color-secondary)" : muted ? "var(--color-secondary)" : "var(--color-body)",
         opacity: disabled && !loading ? 0.5 : 1,
-        boxShadow: showHover ? "0 2px 8px rgba(27,46,75,0.08)" : "none",
+        boxShadow: showHover ? "0 2px 8px rgba(2,99,196,0.08)" : "none",
         transition: "border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease",
         position: "relative",
         padding: 0,
@@ -176,8 +172,8 @@ async function resolveProjectInvite(userId: string, userEmail: string) {
   }).eq("id", invite.id as string);
 
   // Land user in this project's scope on next load
-  localStorage.setItem("canopy_active_sub_project", invite.sub_project_id as string);
-  localStorage.setItem("canopy_scope_mode", "project");
+  localStorage.setItem("aiesec_active_group", invite.sub_project_id as string);
+  localStorage.setItem("aiesec_scope_mode", "project");
   localStorage.removeItem("pendingProjectInviteToken");
 }
 
@@ -212,15 +208,13 @@ export default function LoginPage() {
   const [oAuthError, setOAuthError] = useState<string | null>(null);
   const hasFetched = useRef(false);
 
-  // GIS invisible-overlay state
-  const [gisReady, setGisReady] = useState(false);
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
   const googleWrapperRef = useRef<HTMLDivElement>(null);
-  const gisContainerRef = useRef<HTMLDivElement>(null);
 
-  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, all three show.
+  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, only
+  // email sign-in shows — providers must be configured in your own Supabase project first.
   const enabledProviders: Set<string> = new Set(
-    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "google,microsoft,github")
+    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "")
       .toLowerCase().split(",").map(s => s.trim()).filter(Boolean)
   );
 
@@ -258,7 +252,7 @@ export default function LoginPage() {
     if (projectInviteParam) localStorage.setItem("pendingProjectInviteToken", projectInviteParam);
 
     if (!isSupabaseConfigured) {
-      if (localStorage.getItem("canopy_authed") === "true") router.replace("/");
+      if (localStorage.getItem("aiesec_authed") === "true") router.replace("/");
       else setChecking(false);
       return;
     }
@@ -266,7 +260,7 @@ export default function LoginPage() {
       if (!session?.user) { setChecking(false); return; }
       try {
         const { data: member, error: memberError } = await supabase
-          .from("team_members").select("id").eq("user_id", session.user.id).maybeSingle();
+          .from("team_members").select("id").eq("user_id", session.user.id).limit(1).maybeSingle();
         if (memberError) { setChecking(false); return; }
         if (member) {
           // Normal lab member - resolve any pending project invite then go home
@@ -302,9 +296,9 @@ export default function LoginPage() {
 
     if (!isSupabaseConfigured) {
       setLoading(false);
-      localStorage.setItem("canopy_authed", "true");
-      if (mode === "signup" && name.trim()) localStorage.setItem("canopy_signup_name", name.trim());
-      router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
+      localStorage.setItem("aiesec_authed", "true");
+      if (mode === "signup" && name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
+      router.push(localStorage.getItem("aiesec_project") ? "/" : "/onboarding");
       return;
     }
 
@@ -319,13 +313,13 @@ export default function LoginPage() {
       if (!user) { setFormError("Sign-in succeeded but session has no user."); setLoading(false); return; }
 
       if (mode === "signup") {
-        if (name.trim()) localStorage.setItem("canopy_signup_name", name.trim());
+        if (name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
         router.push("/onboarding");
         return;
       }
 
       const { data: member, error: memberError } = await supabase
-        .from("team_members").select("id").eq("user_id", user.id).maybeSingle();
+        .from("team_members").select("id").eq("user_id", user.id).limit(1).maybeSingle();
       if (memberError) { setLoading(false); return; }
       if (member) {
         await resolveProjectInvite(user.id, user.email ?? "");
@@ -364,9 +358,9 @@ export default function LoginPage() {
     setOAuthLoading(provider);
     setOAuthError(null);
     if (isSupabaseConfigured) {
-      localStorage.removeItem("canopy_user");
-      localStorage.removeItem("canopy_project");
-      localStorage.removeItem("canopy_authed");
+      localStorage.removeItem("aiesec_user");
+      localStorage.removeItem("aiesec_project");
+      localStorage.removeItem("aiesec_authed");
       const redirectTo = `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
       if (error) {
@@ -393,82 +387,10 @@ export default function LoginPage() {
       }, 5000);
       return;
     }
-    localStorage.setItem("canopy_authed", "true");
-    router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
+    localStorage.setItem("aiesec_authed", "true");
+    router.push(localStorage.getItem("aiesec_project") ? "/" : "/onboarding");
   }, [router]);
 
-  // ── Google Identity Services invisible overlay (ID-token flow) ─────────────
-  // Our AuthButton stays visible ("Continue with Google"); the GIS button iframe
-  // sits on top at near-zero opacity and intercepts clicks.
-  const useGoogleIdToken =
-    !!GOOGLE_CLIENT_ID && isSupabaseConfigured && enabledProviders.has("google");
-
-  useEffect(() => {
-    if (checking || !useGoogleIdToken) return;
-    let cancelled = false;
-    let observer: ResizeObserver | null = null;
-
-    (async () => {
-      try {
-        const [gis, [rawNonce, hashedNonce]] = await Promise.all([loadGoogleIdentity(), createNonce()]);
-        if (cancelled || !gisContainerRef.current || !googleWrapperRef.current) return;
-
-        gis.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          nonce: hashedNonce,
-          ux_mode: "popup",
-          use_fedcm_for_prompt: true,
-          auto_select: false,
-          cancel_on_tap_outside: false,
-          callback: async ({ credential }: GoogleCredentialResponse) => {
-            setOAuthLoading("google");
-            setOAuthError(null);
-            localStorage.removeItem("canopy_user");
-            localStorage.removeItem("canopy_project");
-            localStorage.removeItem("canopy_authed");
-            try {
-              const { data, error } = await supabase.auth.signInWithIdToken({
-                provider: "google",
-                token: credential,
-                nonce: rawNonce,
-              });
-              if (error || !data.user) {
-                console.error("[Auth] signInWithIdToken error:", error);
-                setOAuthError("Sign-in failed. Please try again or use email.");
-                setOAuthLoading(null);
-                return;
-              }
-              router.replace(await getPostAuthDestination(data.user.id));
-            } catch (err: unknown) {
-              console.error("[Auth] signInWithIdToken threw:", err);
-              setOAuthError("Sign-in failed. Please try again or use email.");
-              setOAuthLoading(null);
-            }
-          },
-        });
-
-        const container = gisContainerRef.current;
-        const wrapper = googleWrapperRef.current;
-        renderGisButton(gis, container, wrapper.offsetWidth || 400);
-        setGisReady(true);
-
-        // Keep the overlay sized to our button
-        observer = new ResizeObserver((entries) => {
-          const width = entries[0]?.contentRect.width;
-          if (width && !cancelled) renderGisButton(gis, container, width);
-        });
-        observer.observe(wrapper);
-      } catch (err) {
-        // Script blocked or offline: our button keeps using the redirect flow.
-        console.warn("[Auth] Google Identity Services unavailable, using redirect flow:", err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  }, [checking, useGoogleIdToken, router]);
 
 
   if (checking) return null;
@@ -487,7 +409,7 @@ export default function LoginPage() {
       }}
     >
       <h1 style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
-        {mode === "signin" ? "Sign in to Canopy" : "Create your Canopy account"}
+        {mode === "signin" ? `Sign in to ${APP_NAME}` : `Create your ${APP_NAME} account`}
       </h1>
 
       {/* ── Card ── */}
@@ -502,7 +424,7 @@ export default function LoginPage() {
           paddingBottom: 48,
           paddingLeft: 40,
           paddingRight: 40,
-          boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+          boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
         }}
       >
         {/* Logo + wordmark */}
@@ -514,7 +436,7 @@ export default function LoginPage() {
             gap: 12,
           }}
         >
-          <CanopyLogo size={40} />
+          <BrandLogo size={40} />
           <span
             aria-hidden="true"
             style={{
@@ -526,7 +448,7 @@ export default function LoginPage() {
               textTransform: "uppercase",
             }}
           >
-            Canopy
+            {APP_NAME}
           </span>
         </div>
 
@@ -542,7 +464,7 @@ export default function LoginPage() {
             margin: "16px auto 0",
           }}
         >
-          Only for researchers.
+          For AIESEC Local Committees.
         </p>
 
         {/* Divider */}
@@ -610,23 +532,6 @@ export default function LoginPage() {
                 forceHovered={googleButtonHovered && oAuthLoading === null}
                 onClick={() => handleOAuth("google")}
               />
-              {/* GIS overlay -- kept mounted so the rendered iframe survives; hidden until ready */}
-              {useGoogleIdToken && (
-                <div
-                  ref={gisContainerRef}
-                  aria-hidden="true"
-                  data-testid="google-signin-button"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    overflow: "hidden",
-                    opacity: 0.01,
-                    zIndex: 1,
-                    display: gisReady ? "block" : "none",
-                    pointerEvents: oAuthLoading !== null ? "none" : "auto",
-                  }}
-                />
-              )}
             </div>
           )}
 
@@ -793,7 +698,7 @@ export default function LoginPage() {
         )}
         {!passwordError && mode === "signup" && (
           <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
-            Use a unique password. Your account protects sensitive research data.
+            Use a unique password. Your account protects your LC's data and your private journal.
           </p>
         )}
 
@@ -934,7 +839,7 @@ export default function LoginPage() {
           marginTop: 20,
         }}
       >
-        By signing in, you agree to Canopy&apos;s{" "}
+        By signing in, you agree to the{" "}
         <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-navy)", textDecoration: "underline" }}>
           privacy-first principles
         </a>

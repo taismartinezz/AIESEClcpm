@@ -62,7 +62,7 @@ export async function GET(request: Request) {
     const projectId = memberships[memberships.length - 1].projectId;
 
     const { data: proj } = await db.from("projects").select("name").eq("id", projectId).maybeSingle();
-    const projectName = (proj?.name as string) ?? "your lab";
+    const projectName = (proj?.name as string) ?? "your LC";
 
     // Tasks completed in last 7 days
     const { count: tasksCompleted } = await db

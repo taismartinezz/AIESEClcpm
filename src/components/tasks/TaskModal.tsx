@@ -9,6 +9,7 @@ import { CalendarPicker, formatDateLabel } from "@/components/ui/DateTimePicker"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { CURRENT_USER_ID } from "@/lib/mock-data";
+import { useProject } from "@/context/ProjectContext";
 
 // ── Shared input style ────────────────────────────────────────────────────────
 
@@ -70,6 +71,11 @@ export default function TaskModal({
   const [priority, setPriority]       = useState<TaskPriority>(task?.priority ?? "medium");
   const [dueDate, setDueDate]         = useState(task?.dueDate ?? "");
   const [status, setStatus]           = useState<TaskStatus>(task?.status ?? initialStatus);
+  const { departments, departmentId: myDepartmentId, ledDepartmentIds } = useProject();
+  // New tasks default to the department you lead (VP) or belong to (member).
+  const [departmentId, setDepartmentId] = useState<string>(
+    task ? (task.departmentId ?? "") : (ledDepartmentIds[0] ?? myDepartmentId ?? ""),
+  );
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task?.assigneeIds ?? (currentUserId ? [currentUserId] : [])
   );
@@ -107,6 +113,7 @@ export default function TaskModal({
         priority,
         assigneeIds,
         dueDate: dueDate || undefined,
+        departmentId: departmentId || null,
         createdAt: now,
         updatedAt: now,
         comments: [],
@@ -136,6 +143,7 @@ export default function TaskModal({
         archived: false,
         scope: resolvedScope,
         sub_project_id: resolvedSubProjectId,
+        department_id: departmentId || null,
       };
       const { data, error: insertError } = await supabase
         .from("tasks")
@@ -175,6 +183,7 @@ export default function TaskModal({
         links: [],
         scope: resolvedScope as Task["scope"],
         subProjectId: resolvedSubProjectId ?? undefined,
+        departmentId: departmentId || null,
       };
 
       // Notify assignees - use session userId so the filter is never undefined
@@ -223,6 +232,7 @@ export default function TaskModal({
           priority,
           due_date: dueDate || null,
           status,
+          department_id: departmentId || null,
           updated_at: now,
         })
         .eq("id", task.id)
@@ -280,6 +290,7 @@ export default function TaskModal({
         priority: data.priority as TaskPriority,
         dueDate: (data.due_date as string) ?? undefined,
         status: data.status as TaskStatus,
+        departmentId: (data.department_id as string | null) ?? null,
         assigneeIds,
         updatedAt: data.updated_at as string,
       };
@@ -293,7 +304,7 @@ export default function TaskModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+      style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
       onClick={onClose}
     >
       <div
@@ -303,7 +314,7 @@ export default function TaskModal({
           width: "100%",
           borderRadius: 10,
           padding: 28,
-          boxShadow: "0 8px 40px rgba(27,46,75,0.18)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.18)",
           maxHeight: "90dvh",
           overflowY: "auto",
         }}
@@ -324,7 +335,7 @@ export default function TaskModal({
           </h2>
           <button
             onClick={onClose}
-            className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+            className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
             style={{ width: 36, height: 36 }}
             aria-label="Close"
           >
@@ -395,16 +406,32 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* Project - only shown in add mode when sub-projects exist */}
+          {/* Department tag (optional) */}
+          {departments.length > 0 && (
+            <div>
+              <label style={labelStyle} htmlFor="task-department">Department</label>
+              <select
+                id="task-department"
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="">No department</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Group - only shown in add mode when groups exist */}
           {mode === "add" && subProjects.length > 0 && (
             <div>
-              <label style={labelStyle}>Project</label>
+              <label style={labelStyle}>Group</label>
               <select
                 value={scopeKey}
                 onChange={(e) => setScopeKey(e.target.value)}
                 style={{ ...inputStyle, cursor: "pointer" }}
               >
-                <option value="lab">Lab (all projects)</option>
+                <option value="lab">Whole LC</option>
                 {subProjects.map((sp) => (
                   <option key={sp.id} value={sp.id}>{sp.name}</option>
                 ))}
@@ -442,7 +469,7 @@ export default function TaskModal({
             {showCal && calPos && (
               <CalendarPicker
                 value={dueDate || undefined}
-                accentColor="#1B2E4B"
+                accentColor="#0263C4"
                 pos={calPos}
                 onSelect={(d) => { setDueDate(d); setShowCal(false); }}
                 onClear={() => { setDueDate(""); setShowCal(false); }}
@@ -464,7 +491,7 @@ export default function TaskModal({
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all"
                     style={{
                       border: `1px solid ${selected ? "var(--color-navy)" : "var(--color-border)"}`,
-                      backgroundColor: selected ? "rgba(27,46,75,0.07)" : "transparent",
+                      backgroundColor: selected ? "rgba(2,99,196,0.07)" : "transparent",
                       fontSize: 12,
                       color: selected ? "var(--color-navy)" : "var(--color-secondary)",
                       cursor: "pointer",

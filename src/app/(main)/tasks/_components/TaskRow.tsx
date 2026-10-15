@@ -36,7 +36,7 @@ export function FilterSelect({
           height: 36, paddingLeft: 10, paddingRight: 24,
           border: "1px solid var(--color-border)", borderRadius: 7,
           fontSize: 12, fontFamily: "var(--font-roboto)",
-          backgroundColor: value !== "all" ? "rgba(27,46,75,0.06)" : "var(--color-canvas)",
+          backgroundColor: value !== "all" ? "rgba(2,99,196,0.06)" : "var(--color-canvas)",
           color: value !== "all" ? "var(--color-navy)" : "var(--color-secondary)",
           fontWeight: value !== "all" ? 600 : 400,
           outline: "none", cursor: "pointer",
@@ -117,7 +117,7 @@ export function TaskRow({
     <React.Fragment>
       <tr
         onClick={onClick}
-        className="cursor-pointer transition-colors hover:bg-[rgba(27,46,75,0.03)]"
+        className="cursor-pointer transition-colors hover:bg-[rgba(2,99,196,0.03)]"
         style={{ opacity: task.status === "done" ? 0.7 : 1, height: "var(--density-row)" }}
       >
         {/* Checkbox */}
@@ -144,7 +144,7 @@ export function TaskRow({
               {task.title}
             </span>
             {showLabBadge && task.scope === "lab" && (
-              <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, backgroundColor: "rgba(27,46,75,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4 }}>
+              <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, backgroundColor: "rgba(2,99,196,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4 }}>
                 Lab
               </span>
             )}
@@ -178,7 +178,7 @@ export function TaskRow({
                 zIndex: 9999,
                 backgroundColor: "var(--color-surface)",
                 border: "1px solid var(--color-border)",
-                borderRadius: 8, boxShadow: "0 4px 16px rgba(27,46,75,0.12)",
+                borderRadius: 8, boxShadow: "0 4px 16px rgba(2,99,196,0.12)",
                 padding: "4px 0", minWidth: 148,
               }}
               onClick={(e) => e.stopPropagation()}
@@ -189,7 +189,7 @@ export function TaskRow({
                   <button
                     key={s}
                     onClick={() => { onMoveStatus(s); setStatusOpen(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                     style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer" }}
                   >
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sc.dot }} />
@@ -229,7 +229,7 @@ export function TaskRow({
                 zIndex: 9999,
                 backgroundColor: "var(--color-surface)",
                 border: "1px solid var(--color-border)",
-                borderRadius: 8, boxShadow: "0 4px 16px rgba(27,46,75,0.12)",
+                borderRadius: 8, boxShadow: "0 4px 16px rgba(2,99,196,0.12)",
                 padding: "4px 0", minWidth: 180, maxHeight: 240, overflowY: "auto",
               }}
               onClick={(e) => e.stopPropagation()}
@@ -245,7 +245,7 @@ export function TaskRow({
                         : [...task.assigneeIds, u.id];
                       onUpdateAssignees(newIds);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                     style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer" }}
                   >
                     <Avatar user={u} size={18} />
@@ -266,7 +266,7 @@ export function TaskRow({
         <td className="pr-3">
           <button
             onClick={openCal}
-            className="hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+            className="hover:bg-[rgba(2,99,196,0.06)] transition-colors"
             style={{
               display: "flex", alignItems: "center", gap: 4,
               fontSize: 12,
@@ -325,7 +325,7 @@ export function TaskRow({
         <td className="pr-3">
           <button
             onClick={(e) => e.stopPropagation()}
-            className="w-9 h-9 flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)]"
+            className="w-9 h-9 flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)]"
             aria-label="Task options"
           >
             <MoreHorizontal size={14} color="var(--color-secondary)" />
@@ -336,7 +336,7 @@ export function TaskRow({
       {/* Inline subtask checklist row */}
       {subtaskExpanded && hasSubtasks && subtasks && subtasks.length > 0 && (
         <tr
-          style={{ backgroundColor: "rgba(27,46,75,0.015)" }}
+          style={{ backgroundColor: "rgba(2,99,196,0.015)" }}
           onClick={(e) => e.stopPropagation()}
         >
           <td colSpan={8} style={{ paddingLeft: 52, paddingRight: 20, paddingTop: 4, paddingBottom: 8 }}>

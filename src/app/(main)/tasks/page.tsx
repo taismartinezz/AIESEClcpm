@@ -9,6 +9,7 @@ import {
 import { LayoutGrid, List, Search, Plus, User as UserIcon, Users } from "lucide-react";
 import { TASKS as MOCK_TASKS, USERS, getStoredProject } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import type { Task, TaskStatus, User, UserRole } from "@/types";
 import Toast, { showToast } from "@/components/ui/Toast";
@@ -39,12 +40,13 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [filterMember, setFilterMember] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
+  const [filterDepartment, setFilterDepartment] = useState("all");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState>(null);
-  const { subProjects, activeScope, subProjectId: ctxSubProjectId } = useProject();
+  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments } = useProject();
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("canopy_tasks_sidebar_collapsed") === "true"; } catch { return false; }
+    try { return localStorage.getItem("aiesec_tasks_sidebar_collapsed") === "true"; } catch { return false; }
   });
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -69,7 +71,7 @@ export default function TasksPage() {
       setTeamMembers(USERS);
       let allTasks: Task[];
       try {
-        const saved = sessionStorage.getItem("canopy_demo_tasks");
+        const saved = sessionStorage.getItem("aiesec_demo_tasks");
         allTasks = saved ? (JSON.parse(saved) as Task[]) : MOCK_TASKS;
       } catch {
         allTasks = MOCK_TASKS;
@@ -100,14 +102,8 @@ export default function TasksPage() {
       if (!user) { setLoading(false); return; }
       setCurrentUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("project_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const pid = profile?.project_id as string | undefined;
-      if (!pid) { setLoading(false); return; }
+      const pid = lcId;
+      if (!pid) { if (!lcLoading) setLoading(false); return; }
       setProjectId(pid);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,7 +121,7 @@ export default function TasksPage() {
             id,
             name: p?.name ?? "Team Member",
             email: "",
-            role: (p?.role ?? "researcher") as UserRole,
+            role: toUserRole(p?.role),
             avatarColor: p?.avatar_color ?? avatarColorFromId(id),
             avatarInitials: p?.avatar_initials ?? "??",
             avatarUrl: p?.avatar_url ?? undefined,
@@ -190,6 +186,7 @@ export default function TasksPage() {
           dueDate: row.due_date as string | undefined,
           scope: (row.scope as Task["scope"]) ?? "lab",
           subProjectId: (row.sub_project_id as string | null) ?? undefined,
+          departmentId: (row.department_id as string | null) ?? null,
           createdAt: row.created_at as string,
           updatedAt: row.updated_at as string,
           comments: (row.comments as Task["comments"]) ?? [],
@@ -202,7 +199,7 @@ export default function TasksPage() {
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lcId, lcLoading]);
 
   // Open a specific task when navigated from global search (?openTask=<id>)
   useEffect(() => {
@@ -231,6 +228,7 @@ export default function TasksPage() {
             assigneeIds: [], dueDate: row.due_date as string | undefined,
             scope: (row.scope as Task["scope"]) ?? "lab",
             subProjectId: (row.sub_project_id as string | null) ?? undefined,
+            departmentId: (row.department_id as string | null) ?? null,
             createdAt: row.created_at as string, updatedAt: row.updated_at as string,
             comments: [], files: [], links: [],
           }, ...prev];
@@ -251,7 +249,7 @@ export default function TasksPage() {
   // Persist task mutations (e.g. file uploads) across page navigations in demo mode
   useEffect(() => {
     if (!isSupabaseConfigured && !loading) {
-      try { sessionStorage.setItem("canopy_demo_tasks", JSON.stringify(tasks)); } catch {}
+      try { sessionStorage.setItem("aiesec_demo_tasks", JSON.stringify(tasks)); } catch {}
     }
   }, [tasks, loading]);
 
@@ -487,9 +485,9 @@ export default function TasksPage() {
   const isSubProjectScope = taskScope !== "all" && taskScope !== "personal" && taskScope !== "lab";
 
   const sidebarSections: ScopeSection[] = [
-    { id: "all", label: "All", color: "#1B2E4B", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
+    { id: "all", label: "All", color: "#0263C4", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
     { id: "personal", label: "Personal", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
-    { id: "lab", label: "Lab", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
+    { id: "lab", label: "Whole LC", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
   ];
 
   const scopedTasks = tasks.filter(t => {
@@ -505,6 +503,8 @@ export default function TasksPage() {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterMember !== "all" && !t.assigneeIds.includes(filterMember)) return false;
     if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+    if (filterDepartment === "none" && t.departmentId) return false;
+    if (filterDepartment !== "all" && filterDepartment !== "none" && t.departmentId !== filterDepartment) return false;
     return true;
   });
 
@@ -531,7 +531,7 @@ export default function TasksPage() {
       <PageHeader
         title="Tasks"
         badge={tasksBadgeSp ? (
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(27,46,75,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(2,99,196,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
             {tasksBadgeSp.name}
           </span>
         ) : undefined}
@@ -586,6 +586,14 @@ export default function TasksPage() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </FilterSelect>
+
+          {departments.length > 0 && (
+            <FilterSelect value={filterDepartment} onChange={setFilterDepartment}>
+              <option value="all">All departments</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              <option value="none">No department</option>
+            </FilterSelect>
+          )}
         </div>
 
         {/* Mobile scope chips - lab-home only, hidden on md+ where sidebar shows */}
@@ -599,7 +607,7 @@ export default function TasksPage() {
             ))}
             {subProjects.map((sp) => (
               <button key={sp.id} onClick={() => setTaskScope(sp.id)}
-                style={{ flexShrink: 0, fontSize: 12, fontWeight: taskScope === sp.id ? 700 : 500, padding: "5px 12px", borderRadius: 20, border: `1px solid ${taskScope === sp.id ? (sp.color ?? "#1B2E4B") : "var(--color-border)"}`, backgroundColor: taskScope === sp.id ? `${sp.color ?? "#1B2E4B"}18` : "transparent", color: taskScope === sp.id ? (sp.color ?? "#1B2E4B") : "var(--color-secondary)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font-roboto)" }}>
+                style={{ flexShrink: 0, fontSize: 12, fontWeight: taskScope === sp.id ? 700 : 500, padding: "5px 12px", borderRadius: 20, border: `1px solid ${taskScope === sp.id ? (sp.color ?? "#0263C4") : "var(--color-border)"}`, backgroundColor: taskScope === sp.id ? `${sp.color ?? "#0263C4"}18` : "transparent", color: taskScope === sp.id ? (sp.color ?? "#0263C4") : "var(--color-secondary)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font-roboto)" }}>
                 {sp.name}
               </button>
             ))}
@@ -620,10 +628,10 @@ export default function TasksPage() {
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(c => {
                 const next = !c;
-                try { localStorage.setItem("canopy_tasks_sidebar_collapsed", String(next)); } catch {}
+                try { localStorage.setItem("aiesec_tasks_sidebar_collapsed", String(next)); } catch {}
                 return next;
               })}
-              storageKey="canopy_tasks_sidebar"
+              storageKey="aiesec_tasks_sidebar"
               headerLabel="Filters"
             />
           </div>

@@ -19,14 +19,14 @@ export function DensityProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("canopy_density") as Density | null;
+      const saved = localStorage.getItem("aiesec_density") as Density | null;
       if (saved === "compact" || saved === "comfortable") setDensity(saved);
     } catch { /* storage blocked — use default */ }
   }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("density-compact", density === "compact");
-    try { localStorage.setItem("canopy_density", density); } catch { /* ignore */ }
+    try { localStorage.setItem("aiesec_density", density); } catch { /* ignore */ }
   }, [density]);
 
   const toggle = () => setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));

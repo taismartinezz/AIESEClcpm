@@ -61,9 +61,9 @@ describe("email templates — XSS injection", () => {
   it("invite URL is built from APP_URL + encodeURIComponent(code), not caller-supplied URL", () => {
     const payload = buildInviteEmail({
       to: "victim@example.com",
-      labName: "Lab",
-      inviterName: "PI",
-      role: "Researcher",
+      labName: "AIESEC in Lisbon",
+      inviterName: "Your LCP",
+      role: "Member",
       inviteCode: 'CODE"><script>alert(1)</script>',
     });
     expect(payload.html).not.toContain("<script>");

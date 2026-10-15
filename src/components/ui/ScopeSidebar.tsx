@@ -87,7 +87,7 @@ function IconRailBtn({ isActive, color, icon, label, onClick }: {
         border: "none", cursor: "pointer",
         transition: "background-color 0.12s",
       }}
-      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(27,46,75,0.06)"; }}
+      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(2,99,196,0.06)"; }}
       onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
     >
       {icon}
