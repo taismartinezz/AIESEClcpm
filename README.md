@@ -51,3 +51,14 @@ I built and shipped an MVP, then iterated based on usability testing with real u
 - **Internal-only scheduling.** There are no public booking links. Meeting proposals are between lab members only.
 - **No noise.** The interface stays out of the way. One navy accent color, no gradients, no animations beyond what aids comprehension.
 - **Prototype-ready.** Pages fall back to empty states (not mock data) when no database is connected, so UX can be validated in user studies before infrastructure is finalized.
+
+## Setting up a fresh Supabase project
+
+This app must run on its **own** Supabase project — never point it at another app's database.
+
+1. **Create a new Supabase project** at [supabase.com](https://supabase.com).
+2. **Run the migrations in order.** Apply every file in `supabase/migrations/` in filename order (they sort chronologically, starting with `20260701000_baseline.sql`), either with the Supabase CLI (`supabase link` then `supabase db push`) or by pasting each file into the SQL editor. Do not run `supabase/schema.sql`; it's a historical reference only.
+3. **Set the env vars.** Copy `.env.example` to `.env.local` (and to your hosting provider) and fill in your project's URL, anon key, service-role key, and the other secrets listed there.
+4. Set the auth **Site URL** and **Redirect URLs** as described in `docs/AUTH_SETUP.md`.
+
+`npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain still applies cleanly.

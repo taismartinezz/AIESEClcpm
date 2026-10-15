@@ -1,4 +1,7 @@
--- Run this in the Supabase SQL editor: Dashboard → SQL Editor → New query
+-- ⚠️  HISTORICAL REFERENCE ONLY — do not run this file.
+-- It drifted from the real schema and does not execute on a clean Postgres.
+-- To build a database, run supabase/migrations/*.sql in filename order
+-- (see "Setting up a fresh Supabase project" in README.md).
 
 -- ── Projects ──────────────────────────────────────────────────────────────────
 
