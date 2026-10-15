@@ -193,6 +193,17 @@ async function seed() {
   if (goalErr) throw goalErr;
   console.log(`  ✓ ${pipeline.length} exchanges and 2 goals`);
 
+  // 10. Partner CRM
+  const bdVp = SEED_PEOPLE.find((p) => p.role === "president")!;
+  const { data: partnerRows, error: pErr } = await supabase.from("partners").insert([
+    { project_id: lcId, name: "Demo Bank", industry: "Banking", stage: "meeting", department_id: depId["Business Development"], owner_id: ids[bdVp.email], next_follow_up: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10), created_by: ids[bdVp.email] },
+    { project_id: lcId, name: "City Language School", industry: "Education", stage: "partner", department_id: depId["Incoming Global Talent/Teacher"], created_by: ids[bdVp.email] },
+  ]).select("id, name");
+  if (pErr) throw pErr;
+  const bank = (partnerRows ?? []).find((p) => p.name === "Demo Bank")!;
+  await supabase.from("partner_contacts").insert({ partner_id: bank.id, name: "Rita Silva", role_title: "Head of HR", email: "rita@demo-bank.example" });
+  console.log(`  ✓ ${partnerRows?.length ?? 0} partners`);
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 

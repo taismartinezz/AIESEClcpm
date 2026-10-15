@@ -100,3 +100,14 @@ test.describe('Pipeline and goals', () => {
     await expect(page.getByRole('button', { name: /new goal/i })).toHaveCount(0)
   })
 })
+
+test.describe('Partners', () => {
+  test('shows partners by stage and flags overdue follow-ups', async ({ page }) => {
+    const partner = { id: 'p1', project_id: 'project-abc', name: 'Demo Bank', industry: 'Banking', website: null, stage: 'meeting', department_id: null, owner_id: 'mock-user-id', next_follow_up: '2020-01-01', notes: null, updated_at: new Date().toISOString() }
+    await setupAuthMocks(page, 'vp', { tables: { partners: [partner] } })
+    await page.goto('/partners')
+    await expect(page.getByRole('button', { name: 'Demo Bank' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/overdue/)).toBeVisible()
+    await expect(page.getByText('1 of your partners need a follow-up this week.')).toBeVisible()
+  })
+})

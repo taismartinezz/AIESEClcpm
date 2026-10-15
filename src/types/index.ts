@@ -418,3 +418,39 @@ export interface Goal {
   startsOn: string;
   endsOn: string;
 }
+
+// ── Partner CRM ───────────────────────────────────────────────────────────────
+
+export type PartnerStage = "lead" | "contacted" | "meeting" | "proposal" | "negotiation" | "partner" | "lost";
+
+export interface Partner {
+  id: string;
+  projectId: string;
+  name: string;
+  industry: string | null;
+  website: string | null;
+  stage: PartnerStage;
+  departmentId: string | null;
+  ownerId: string | null;
+  nextFollowUp: string | null;   // ISO date
+  notes: string | null;
+  updatedAt: string;
+}
+
+export interface PartnerContact {
+  id: string;
+  partnerId: string;
+  name: string;
+  roleTitle: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface PartnerActivity {
+  id: string;
+  partnerId: string;
+  kind: "note" | "call" | "email" | "meeting";
+  body: string;
+  happenedOn: string;
+  authorId: string | null;
+}

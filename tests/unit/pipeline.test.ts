@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PRODUCTS, STAGES, STAGE_DATE_FIELD } from "@/lib/products";
 import { daysSince, progressRatio } from "@/lib/pipeline";
+import { followUpState } from "@/lib/partners";
 
 describe("products and stages", () => {
   it("follow AIESEC's product colours", () => {
@@ -26,5 +27,15 @@ describe("helpers", () => {
   it("counts days in a stage", () => {
     expect(daysSince("2026-10-10", new Date("2026-10-15T12:00:00"))).toBe(5);
     expect(daysSince(null)).toBeNull();
+  });
+});
+
+
+describe("partner follow-ups", () => {
+  it("are overdue, due soon (within 7 days) or fine", () => {
+    expect(followUpState("2026-10-10", "2026-10-15")).toBe("overdue");
+    expect(followUpState("2026-10-20", "2026-10-15")).toBe("soon");
+    expect(followUpState("2026-11-20", "2026-10-15")).toBeNull();
+    expect(followUpState(null, "2026-10-15")).toBeNull();
   });
 });
