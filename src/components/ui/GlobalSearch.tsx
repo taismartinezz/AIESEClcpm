@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, FileText, CheckSquare, Bell, Bookmark, ExternalLink } from "lucide-react";
+import { Search, X, FileText, CheckSquare, Bell, Bookmark, ExternalLink, BookOpen, MessageSquare, Calendar } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface SearchResult {
   id: string;
-  type: "task" | "literature" | "reminder" | "bookmark";
+  type: "task" | "literature" | "reminder" | "bookmark" | "journal" | "chat" | "event";
   title: string;
   subtitle?: string;
   url: string;
@@ -18,14 +18,17 @@ const TYPE_ICON: Record<SearchResult["type"], React.ReactNode> = {
   literature: <FileText size={14} />,
   reminder:   <Bell size={14} />,
   bookmark:   <Bookmark size={14} />,
+  journal:    <BookOpen size={14} />,
+  chat:       <MessageSquare size={14} />,
+  event:      <Calendar size={14} />,
 };
 
 const TYPE_LABEL: Record<SearchResult["type"], string> = {
-  task: "Task", literature: "Paper", reminder: "Reminder", bookmark: "Bookmark",
+  task: "Task", literature: "Paper", reminder: "Reminder", bookmark: "Bookmark", journal: "Journal", chat: "Chat", event: "Event",
 };
 
 const TYPE_COLOR: Record<SearchResult["type"], string> = {
-  task: "#1B2E4B", literature: "#2E7D52", reminder: "#A0622A", bookmark: "#7C3AED",
+  task: "#1B2E4B", literature: "#2E7D52", reminder: "#A0622A", bookmark: "#7C3AED", journal: "#1E6FA5", chat: "#2563EB", event: "#0F766E",
 };
 
 const TASK_STATUS_LABEL: Record<string, string> = {
@@ -83,11 +86,14 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
     const term = `%${q.trim().toLowerCase()}%`;
     const hits: SearchResult[] = [];
 
-    const [tasksRes, litRes, remindersRes, bookmarksRes] = await Promise.all([
+    const [tasksRes, litRes, remindersRes, bookmarksRes, journalRes, chatRes, eventsRes] = await Promise.all([
       supabase.from("tasks").select("id, title, status").eq("project_id", projectId).ilike("title", term).limit(5),
       supabase.from("literature_items").select("id, title, journal").eq("project_id", projectId).is("deleted_at", null).ilike("title", term).limit(5),
       supabase.from("reminders").select("id, title, due_date").eq("project_id", projectId).ilike("title", term).limit(5),
       supabase.from("bookmarks").select("id, title, url").eq("project_id", projectId).ilike("title", term).limit(5),
+      supabase.from("journal_entries").select("id, title, created_at").ilike("title", term).limit(5),
+      supabase.from("chat_messages").select("id, content, created_at").eq("project_id", projectId).is("deleted_at", null).ilike("content", term).limit(5),
+      supabase.from("schedule_events").select("id, title, date").eq("project_id", projectId).ilike("title", term).limit(5),
     ]);
 
     for (const t of tasksRes.data ?? []) {
@@ -101,6 +107,17 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
     }
     for (const b of bookmarksRes.data ?? []) {
       hits.push({ id: b.id as string, type: "bookmark", title: b.title as string, subtitle: b.url as string, url: b.url as string });
+    }
+    for (const j of journalRes.data ?? []) {
+      const subtitle = j.created_at ? new Date(j.created_at as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : undefined;
+      hits.push({ id: j.id as string, type: "journal", title: (j.title as string) || "Journal entry", subtitle, url: "/journal" });
+    }
+    for (const c of chatRes.data ?? []) {
+      const snippet = (c.content as string).slice(0, 80);
+      hits.push({ id: c.id as string, type: "chat", title: snippet, subtitle: c.created_at ? new Date(c.created_at as string).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined, url: "/chat" });
+    }
+    for (const e of eventsRes.data ?? []) {
+      hits.push({ id: e.id as string, type: "event", title: e.title as string, subtitle: e.date ? new Date(e.date as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : undefined, url: "/scheduling" });
     }
 
     setResults(hits);
@@ -149,7 +166,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search tasks, papers, reminders, bookmarks…"
+            placeholder="Search tasks, papers, journal, chat, events…"
             style={{ flex: 1, fontSize: 15, border: "none", outline: "none", background: "transparent", color: "var(--color-body)", fontFamily: "var(--font-inter)" }}
           />
           <button onClick={() => setOpen(false)} style={{ display: "flex", background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)", padding: 2 }}>

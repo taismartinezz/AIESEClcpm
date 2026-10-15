@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { Plus } from "lucide-react";
 import {
   TASKS, DASHBOARD_POSTS, SCHEDULE_EVENTS,
   getUser, CURRENT_USER_ID, getStoredProject,
@@ -11,16 +12,145 @@ import { useProject } from "@/context/ProjectContext";
 import TaskDetailPanel from "@/components/tasks/TaskDetailPanel";
 import TaskModal from "@/components/tasks/TaskModal";
 import Toast from "@/components/ui/Toast";
-import { UpcomingWidget } from "./_components/UpcomingWidget";
-import { TeamActivityWidget } from "./_components/TeamActivityWidget";
-import type { ActivityRow } from "./_components/TeamActivityWidget";
-import { KanbanPreview } from "./_components/KanbanPreview";
-import { PostsCard } from "./_components/PostsCard";
+import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
+import { TodayWidget } from "./_components/TodayWidget";
+import { LabPulseWidget } from "./_components/LabPulseWidget";
+
+// ── Add Reminder modal ────────────────────────────────────────────────────────
+
+const MR = {
+  card:        "var(--color-surface)",
+  border:      "var(--color-border)",
+  textPrimary: "var(--color-body)",
+  textMuted:   "var(--color-secondary)",
+  accent:      "#0A84FF",
+};
+
+function AddReminderModal({
+  onClose, projectId, userId, teamMembers,
+}: {
+  onClose: () => void;
+  projectId: string;
+  userId: string;
+  teamMembers: User[];
+}) {
+  const [title, setTitle] = useState("");
+  const [date, setDate]   = useState("");
+  const [time, setTime]   = useState("");
+  const [assigneeId, setAssigneeId] = useState(userId);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    const dueAt = date ? `${date}T${time || "09:00"}:00` : null;
+    if (isSupabaseConfigured && projectId && userId) {
+      await supabase.from("reminders").insert({
+        user_id: userId,
+        project_id: projectId,
+        title: title.trim(),
+        due_at: dueAt,
+        assignee_id: assigneeId !== userId ? assigneeId : null,
+        email_enabled: false,
+        sent: false,
+        completed: false,
+        scope: "lab",
+      });
+    }
+    setSaving(false);
+    onClose();
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", boxSizing: "border-box", height: 40,
+    border: `1px solid ${MR.border}`, borderRadius: 8, padding: "0 12px",
+    fontSize: 14, color: MR.textPrimary, backgroundColor: "var(--color-surface-2)",
+    fontFamily: "var(--font-roboto)", outline: "none",
+  };
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 12, fontWeight: 600, color: MR.textMuted, marginBottom: 6,
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 50, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ backgroundColor: MR.card, border: `1px solid ${MR.border}`, borderRadius: 12, padding: "28px 28px 24px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 18, color: MR.textPrimary, margin: "0 0 20px" }}>
+          Add Reminder
+        </h2>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Title</label>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && title.trim()) handleSave(); }}
+            placeholder="Reminder title"
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: teamMembers.length > 1 ? 14 : 20 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Date (optional)</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Time (optional)</label>
+            <input
+              type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={!date}
+              style={{ ...inputStyle, fontSize: 13, color: date ? MR.textPrimary : MR.textMuted, opacity: date ? 1 : 0.5 }}
+            />
+          </div>
+        </div>
+
+        {teamMembers.length > 1 && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelStyle}>Assignee</label>
+            <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+              {teamMembers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}{m.id === userId ? " (you)" : ""}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{ height: 36, padding: "0 14px", fontSize: 13, color: MR.textMuted, background: "none", border: `1px solid ${MR.border}`, borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!title.trim() || saving}
+            style={{ height: 36, padding: "0 16px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: title.trim() && !saving ? MR.accent : "rgba(84,84,88,0.5)", border: "none", borderRadius: 8, cursor: title.trim() && !saving ? "pointer" : "default", fontFamily: "var(--font-roboto)" }}
+          >
+            {saving ? "Saving…" : "Add Reminder"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId } = useProject();
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalStatus, setModalStatus] = useState<TaskStatus | null>(null);
@@ -30,9 +160,11 @@ export default function DashboardPage() {
   const [currentUserFirstName, setCurrentUserFirstName] = useState("");
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [dashEvents, setDashEvents]   = useState<CalendarEvent[]>([]);
-  const [dashActivity, setDashActivity] = useState<ActivityRow[]>([]);
   const [dashPosts, setDashPosts]     = useState<DashboardPost[]>([]);
+  const [overdueReminders, setOverdueReminders] = useState<OverdueReminder[]>([]);
   const [loading, setLoading]         = useState(isSupabaseConfigured);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
 
   useEffect(() => {
     if (isSupabaseConfigured) {
@@ -108,11 +240,15 @@ export default function DashboardPage() {
           })));
         }
 
-        // Fetch events
+        // Fetch events — only upcoming (from today through next 30 days)
+        const todayStr = new Date().toISOString().split("T")[0];
+        const thirtyDaysOut = new Date(); thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
         const { data: evData, error: evError } = await supabase
           .from("events")
           .select("*")
           .eq("project_id", pid)
+          .gte("date", todayStr)
+          .lte("date", thirtyDaysOut.toISOString().split("T")[0])
           .order("date", { ascending: true });
         if (evError) console.error("[Dashboard] events error:", evError);
         if (!evError && evData) {
@@ -165,17 +301,6 @@ export default function DashboardPage() {
           ]);
         }
 
-        // Fetch activity feed
-        const { data: actData, error: actError } = await supabase
-          .from("activity_feed")
-          .select("*")
-          .eq("project_id", pid)
-          .order("created_at", { ascending: false })
-          .limit(10);
-        if (actError) console.error("[Dashboard] activity_feed error:", actError);
-        if (!actError && actData) {
-          setDashActivity(actData as ActivityRow[]);
-        }
         setLoading(false);
       });
       return;
@@ -189,34 +314,48 @@ export default function DashboardPage() {
     if (!localStorage.getItem("canopy_project")) {
       setTasks(TASKS);
       setDashPosts(DASHBOARD_POSTS);
-      // Seed upcoming with lab schedule events
-      setDashEvents(
-        SCHEDULE_EVENTS
-          .filter((e) => e.scope === "lab")
-          .map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, projectId: e.projectId }))
-      );
+      // Seed demo events relative to today so they always appear in the widget
+      const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+      const isoDate = (offset: number) => { const d = new Date(d0); d.setDate(d.getDate() + offset); return d.toISOString().split("T")[0]; };
+      setDashEvents([
+        { id: "ev-demo-1", title: "Lab Meeting", date: isoDate(0), time: "10:00", projectId: "demo" },
+        { id: "ev-demo-2", title: "Participant Interview", date: isoDate(1), time: "14:00", projectId: "demo" },
+        { id: "ev-demo-3", title: "IRB Submission Deadline", date: isoDate(3), projectId: "demo" },
+        { id: "ev-demo-4", title: "Data Analysis Workshop", date: isoDate(6), time: "09:00", projectId: "demo" },
+      ]);
     }
   }, []);
 
-  // Realtime subscription: push new activity_feed rows into state as they arrive
+  // Reminders fetch: overdue + upcoming 7 days, re-runs on project switch
   useEffect(() => {
-    if (!projectId) return;
-    const channel = supabase
-      .channel(`activity_feed:${projectId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "activity_feed", filter: `project_id=eq.${projectId}` },
-        (payload) => {
-          setDashActivity((prev) => [payload.new as ActivityRow, ...prev].slice(0, 10));
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [projectId]);
+    if (!isSupabaseConfigured || !activeProjectId || !userId) return;
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const uid = session?.user?.id;
+      if (!uid) return;
+      const remProjectFilter = `,and(scope.eq.lab,project_id.eq.${activeProjectId})`;
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const { data: remData } = await supabase
+        .from("reminders")
+        .select("id, title, due_at, scope, assignee_id")
+        .or(`user_id.eq.${uid},assignee_id.eq.${uid}${remProjectFilter}`)
+        .eq("completed", false)
+        .not("due_at", "is", null)
+        .lt("due_at", nextWeek.toISOString());
+      if (remData) {
+        setOverdueReminders(remData.map((r) => ({
+          id: r.id as string,
+          title: r.title as string,
+          dueAt: r.due_at as string,
+          scope: (r.scope as "personal" | "lab") ?? "personal",
+          assigneeId: (r.assignee_id as string) ?? undefined,
+        })));
+      }
+    });
+  }, [activeProjectId, userId]);
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const timeOfDay = (() => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; })();
-  const greeting = currentUserFirstName ? `Good ${timeOfDay}, ${currentUserFirstName}` : `Good ${timeOfDay}`;
 
   const isLabHome = activeScope === "lab";
   const isPersonal = activeScope === "personal";
@@ -224,16 +363,6 @@ export default function DashboardPage() {
     ? (subProjects.find((sp) => sp.id === subProjectId) ?? null)
     : null;
   const displayTitle = activeSubProject?.name ?? projectName;
-  const visibleTasks = isLabHome
-    ? tasks
-    : tasks.filter((t) => t.scope === "project" && t.subProjectId === subProjectId);
-  // Filter activity by scope. Lab-wide rows (sub_project_id null) only appear in Lab Home.
-  // Personal scope shows no team activity (personal work has no shared feed).
-  const visibleActivity = isLabHome
-    ? dashActivity
-    : isPersonal
-    ? []
-    : dashActivity.filter((a) => a.sub_project_id === subProjectId);
 
   const moveTask = useCallback((taskId: string, status: TaskStatus) => {
     // Capture the task before the optimistic update so we have the original status
@@ -278,57 +407,109 @@ export default function DashboardPage() {
     setModalStatus(null);
   }, []);
 
+  const textMuted = "var(--color-secondary)";
+
   return (
-    <div className="p-4 md:p-6" style={{ maxWidth: 1400 }}>
-      {/* Header */}
-      <div className="mb-5 md:mb-6">
-        <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: 0, lineHeight: 1.2 }}>
-          {isLabHome || isPersonal ? greeting : displayTitle}
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--color-secondary)", marginTop: 4 }}>{today}</p>
+    <div style={{ padding: "24px 28px", maxWidth: 1400, minHeight: "100%" }}>
+      {/* Greeting + action row */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, margin: 0, lineHeight: 1.2, color: "var(--color-navy)" }}>
+              {isLabHome || isPersonal ? (
+                <>
+                  Good {timeOfDay},{" "}
+                  {currentUserFirstName
+                    ? <span style={{ color: "var(--color-navy)" }}>{currentUserFirstName}</span>
+                    : null
+                  }
+                </>
+              ) : displayTitle}
+            </h1>
+            <p style={{ fontSize: 13, color: textMuted, marginTop: 4, marginBottom: 0 }}>
+              {todayStr}
+            </p>
+          </div>
+          <div style={{ position: "relative", flexShrink: 0, marginTop: 2 }}>
+            <button
+              onClick={() => setNewMenuOpen((o) => !o)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                height: 36, padding: "0 14px",
+                backgroundColor: "var(--color-btn-primary)", color: "#fff",
+                border: "none", borderRadius: 8,
+                fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13,
+                cursor: "pointer",
+                transition: "opacity 0.15s",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >
+              <Plus size={14} />
+              New
+            </button>
+            {newMenuOpen && (
+              <>
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 999 }}
+                  onClick={() => setNewMenuOpen(false)}
+                />
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0,
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10, padding: "4px 0",
+                  zIndex: 1000, minWidth: 150,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+                }}>
+                  {[
+                    { label: "Task", action: () => { setNewMenuOpen(false); setModalStatus("todo"); } },
+                    { label: "Reminder", action: () => { setNewMenuOpen(false); setReminderModalOpen(true); } },
+                  ].map(({ label, action }) => (
+                    <button
+                      key={label}
+                      onClick={action}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left",
+                        padding: "9px 14px", fontSize: 13,
+                        color: "var(--color-body)", background: "none", border: "none",
+                        cursor: "pointer", fontFamily: "var(--font-roboto)",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-navy-dim)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
       </div>
 
-      {/* Row 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-4 md:mb-5">
-        <UpcomingWidget events={dashEvents} projectId={projectId} />
-        <TeamActivityWidget rows={visibleActivity} teamMembers={teamMembers} loading={loading} />
-      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Row 1: Agenda (Overdue / Today / Upcoming) */}
+        <TodayWidget
+          tasks={tasks}
+          reminders={overdueReminders}
+          events={dashEvents}
+          teamMembers={teamMembers}
+          userId={userId}
+          loading={loading}
+        />
 
-      {/* Row 2: Kanban preview */}
-      <div className="mb-4 md:mb-5">
-        <KanbanPreview
-          tasks={visibleTasks}
-          onTaskClick={setSelectedTask}
-          onMoveTask={moveTask}
-          onAddTask={(status) => setModalStatus(status)}
+        {/* Row 2: Opportunities + Wins */}
+        <LabPulseWidget
+          posts={dashPosts}
+          projectId={projectId}
+          projectName={projectName}
+          userId={userId}
           teamMembers={teamMembers}
           loading={loading}
         />
       </div>
-
-      {/* Row 3: Opportunities + Lab Wins — Lab Home only.
-          These are lab-wide announcements with no sub-project granularity.
-          Hidden in project views so the project Dashboard stays focused. */}
-      {isLabHome && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-          <PostsCard
-            title="Opportunities"
-            posts={dashPosts}
-            type="opportunity"
-            projectId={projectId}
-            userId={userId}
-            teamMembers={teamMembers}
-          />
-          <PostsCard
-            title="Lab Wins"
-            posts={dashPosts}
-            type="lab_win"
-            projectId={projectId}
-            userId={userId}
-            teamMembers={teamMembers}
-          />
-        </div>
-      )}
 
       {/* Task detail panel */}
       {selectedTask && (
@@ -340,7 +521,7 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Task add modal (from column + buttons) — scoped to the active project when one is selected */}
+      {/* Task add modal (from column + buttons) - scoped to the active project when one is selected */}
       {modalStatus && (
         <TaskModal
           mode="add"
@@ -353,6 +534,15 @@ export default function DashboardPage() {
           scope={activeSubProject ? "project" : "lab"}
           subProjectId={activeSubProject?.id ?? null}
           subProjects={subProjects}
+        />
+      )}
+
+      {reminderModalOpen && (
+        <AddReminderModal
+          onClose={() => setReminderModalOpen(false)}
+          projectId={projectId}
+          userId={userId}
+          teamMembers={teamMembers}
         />
       )}
 

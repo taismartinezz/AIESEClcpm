@@ -189,7 +189,7 @@ export default function ScopeSidebar({
         position: "relative",
       }}
     >
-      {/* Collapsed expand button — always shown when collapsed, for every page type */}
+      {/* Collapsed expand button - always shown when collapsed, for every page type */}
       {collapsed && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
           <button
@@ -206,7 +206,7 @@ export default function ScopeSidebar({
         </div>
       )}
 
-      {/* Expanded header row — only when expanded AND no fullContent (fullContent supplies its own header) */}
+      {/* Expanded header row - only when expanded AND no fullContent (fullContent supplies its own header) */}
       {!collapsed && !fullContent && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
           <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-secondary)" }}>
@@ -226,7 +226,7 @@ export default function ScopeSidebar({
         </div>
       )}
 
-      {/* Content area — collapsed always shows icon rail; expanded shows fullContent or sections */}
+      {/* Content area - collapsed always shows icon rail; expanded shows fullContent or sections */}
       {collapsed ? (
         (() => {
           const rail = collapsedRailItems ?? sections;
@@ -252,7 +252,7 @@ export default function ScopeSidebar({
         </div>
       )}
 
-      {/* Resize handle — only in expanded state, not used by fullContent pages */}
+      {/* Resize handle - only in expanded state, not used by fullContent pages */}
       {!fullContent && !collapsed && (
         <div
           ref={handleRef}

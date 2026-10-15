@@ -7,7 +7,7 @@ import { computeInitials } from "@/lib/utils";
 import Avatar from "@/components/ui/Avatar";
 import { showToast } from "@/components/ui/Toast";
 
-// Fire-and-forget — never throws, never blocks invite creation.
+// Fire-and-forget - never throws, never blocks invite creation.
 // The copy-link is the guaranteed delivery path; email is best-effort.
 function sendInviteEmail(payload: {
   to: string; token: string; inviterName: string; projectName: string;
@@ -212,7 +212,7 @@ export default function ProjectMembersModal({
         await load();
       }
     } else {
-      // Not a lab member — create a pending invite
+      // Not a lab member - create a pending invite
       if (pendingInvites.some((i) => i.invitedEmail.toLowerCase() === email)) {
         setAddError("An invite is already pending for this email.");
         setAdding(false);
@@ -234,7 +234,7 @@ export default function ProjectMembersModal({
       if (error) {
         setAddError("Failed to create invite.");
       } else {
-        // Copy-link is the guaranteed fallback — fire email best-effort, never block on it.
+        // Copy-link is the guaranteed fallback - fire email best-effort, never block on it.
         const inviterName = members.find((m) => m.userId === currentUserId)?.name ?? "A collaborator";
         sendInviteEmail({ to: email, token, inviterName, projectName: subProjectName });
 
@@ -332,7 +332,7 @@ export default function ProjectMembersModal({
         ) : (
           <div className="space-y-5">
 
-            {/* Lab members not yet in this project — PI/creator only */}
+            {/* Lab members not yet in this project - PI/creator only */}
             {canManage && labMembersToAdd.length > 0 && (
               <div>
                 <label style={labelStyle}>Lab members ({labMembersToAdd.length} available to add)</label>
@@ -367,7 +367,7 @@ export default function ProjectMembersModal({
               </div>
             )}
 
-            {/* Add-by-email — PI/creator only (for external / non-lab collaborators) */}
+            {/* Add-by-email - PI/creator only (for external / non-lab collaborators) */}
             {canManage && (
               <div>
                 <label style={labelStyle}>Add external collaborator by email</label>
@@ -465,7 +465,7 @@ export default function ProjectMembersModal({
               )}
             </div>
 
-            {/* Pending invites — PI/creator only */}
+            {/* Pending invites - PI/creator only */}
             {canManage && pendingInvites.length > 0 && (
               <div>
                 <label style={labelStyle}>Pending invites ({pendingInvites.length})</label>

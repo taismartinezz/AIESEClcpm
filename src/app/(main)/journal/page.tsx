@@ -3,18 +3,22 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useProject } from "@/context/ProjectContext";
 import {
-  CHECKIN_QUESTIONS, CHECKIN_LABELS,
+  CHECKIN_QUESTIONS, CHECKIN_LABELS, JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
 } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import type { JournalEntry, CheckinResponse } from "@/types";
 import {
   Lock, Mic, MicOff, HelpingHand, Search, Plus, X, Phone,
   ChevronLeft, ChevronRight, Users, Building2, Loader2, CalendarDays, ChevronDown, BookOpen,
-  TrendingUp, AlertCircle, Bell,
+  AlertCircle, Bell,
 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  importJournalKey, encryptJournalContent, decryptJournalContent, isEncryptedContent,
+} from "@/lib/journal-crypto";
 import ScopeSidebar, { type ScopeSection } from "@/components/ui/ScopeSidebar";
 import PageHeader from "@/components/ui/PageHeader";
+import SupportPanel from "@/components/support/SupportPanel";
 
 // SpeechRecognition types (not yet in all TypeScript DOM lib versions)
 interface SpeechRecognitionEvent extends Event {
@@ -57,7 +61,7 @@ type AddedPrompt = { id: string; text: string; response: string };
 
 function formatEntryDate(isoDate: string) {
   const d = new Date(isoDate + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatFullDate(isoDate: string) {
@@ -207,7 +211,7 @@ function PromptCard({
             {promptText}
           </span>
         </div>
-        {/* Mic button — functional, disabled-with-tooltip, or hidden while SSR */}
+        {/* Mic button - functional, disabled-with-tooltip, or hidden while SSR */}
         {!readOnly && hasSpeechSupport === true && (
           <button
             onClick={isRecording ? stopRecording : startRecording}
@@ -264,7 +268,7 @@ function PromptCard({
           </div>
         )}
 
-        {/* Fix grammar button — visible when there's text, not reading, not in preview */}
+        {/* Fix grammar button - visible when there's text, not reading, not in preview */}
         {!readOnly && response.trim() && grammarState !== "preview" && (
           <button
             onClick={handleFixGrammar}
@@ -453,12 +457,14 @@ function DiscardDraftModal({ onKeep, onDiscard }: { onKeep: () => void; onDiscar
 
 // ── Prompt picker dropdown ────────────────────────────────────────────────────
 
-function PromptPicker({ usedTexts, onSelect, onClose }: {
+function PromptPicker({ usedTexts, onSelect, onClose, availablePrompts }: {
   usedTexts: string[];
   onSelect: (text: string) => void;
   onClose: () => void;
+  availablePrompts?: string[];
 }) {
-  const available = PRESET_PROMPTS.filter((t) => !usedTexts.includes(t));
+  const pool = availablePrompts && availablePrompts.length > 0 ? availablePrompts : PRESET_PROMPTS;
+  const available = pool.filter((t) => !usedTexts.includes(t));
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -488,15 +494,14 @@ function PromptPicker({ usedTexts, onSelect, onClose }: {
 
 function JournalSidebarContent({
   search, setSearch, groupedEntries, selectedEntryId, onSelectEntry, showClose, onClose, onCollapse,
-  onSelectTrends, isTrendsView,
+  onSupportClick,
 }: {
   search: string; setSearch: (v: string) => void;
   groupedEntries: { today: JournalEntry[]; earlier: JournalEntry[]; older: JournalEntry[] };
   selectedEntryId: string | "new"; onSelectEntry: (id: string | "new") => void;
   showClose?: boolean; onClose?: () => void;
   onCollapse?: () => void;
-  onSelectTrends?: () => void;
-  isTrendsView?: boolean;
+  onSupportClick?: (track?: "wellbeing") => void;
 }) {
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: "var(--color-surface)" }}>
@@ -528,21 +533,6 @@ function JournalSidebarContent({
         >
           <Plus size={13} /> New Entry
         </button>
-        {onSelectTrends && (
-          <button
-            onClick={onSelectTrends}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg transition-colors"
-            style={{
-              backgroundColor: isTrendsView ? "rgba(16,185,129,0.10)" : "transparent",
-              color: isTrendsView ? "#10B981" : "var(--color-secondary)",
-              fontSize: 12, fontWeight: isTrendsView ? 700 : 500,
-              border: `1px solid ${isTrendsView ? "#10B981" : "var(--color-border)"}`,
-              borderRadius: 7, cursor: "pointer", minHeight: 36,
-            }}
-          >
-            <TrendingUp size={12} /> My Trends
-          </button>
-        )}
       </div>
       <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
         <div className="relative">
@@ -552,6 +542,13 @@ function JournalSidebarContent({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
+        {groupedEntries.today.length === 0 && groupedEntries.earlier.length === 0 && groupedEntries.older.length === 0 && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", padding: "16px", margin: 0, lineHeight: 1.5 }}>
+            {search
+              ? `No entries match "${search}".`
+              : "No entries yet. Start writing to see them here."}
+          </p>
+        )}
         {groupedEntries.today.length > 0 && (
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-secondary)", padding: "6px 16px 4px" }}>Today</p>
@@ -581,6 +578,14 @@ function JournalSidebarContent({
           ));
         })()}
       </div>
+      {onSupportClick && (
+        <button
+          onClick={() => onSupportClick("wellbeing")}
+          style={{ fontSize: 12, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", padding: "6px 16px", fontFamily: "var(--font-roboto)", fontWeight: 400, minHeight: 44, display: "flex", alignItems: "center", width: "100%", textAlign: "left" }}
+        >
+          Support resources
+        </button>
+      )}
       <div className="flex items-center gap-2 px-4 py-3" style={{ borderTop: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)" }}>
         <Lock size={12} color="var(--color-secondary)" />
         <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>Only you can see this</span>
@@ -601,152 +606,7 @@ function EntryListItem({ entry, selected, onClick }: { entry: JournalEntry; sele
   );
 }
 
-// ── Trend chart helpers ───────────────────────────────────────────────────────
 
-const TREND_COLORS = ["#1B2E4B", "#D97706", "#10B981", "#8B5CF6", "#EC4899"];
-const TREND_LABELS = ["Supported", "Workload", "Meaningful", "Boundaries", "Help comfort"];
-const TREND_QS     = ["cq1", "cq2", "cq3", "cq4", "cq5"];
-
-function getMondayISO(d: Date): string {
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const m = new Date(d);
-  m.setDate(d.getDate() + diff);
-  return m.toISOString().split("T")[0];
-}
-
-function getLast8Weeks(): string[] {
-  const weeks: string[] = [];
-  const now = new Date();
-  for (let i = 7; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i * 7);
-    weeks.push(getMondayISO(d));
-  }
-  return weeks;
-}
-
-function shortWeekLabel(isoMonday: string): string {
-  const d = new Date(isoMonday + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function CheckinTrendChart({ entries }: { entries: JournalEntry[] }) {
-  const weeks = getLast8Weeks();
-
-  // Build per-week per-question averages from entries
-  const weekly: Record<string, Record<string, number[]>> = {};
-  for (const e of entries) {
-    if (!e.checkin.length) continue;
-    const wk = getMondayISO(new Date(e.date + "T00:00:00"));
-    if (!weekly[wk]) weekly[wk] = {};
-    for (const r of e.checkin) {
-      if (!weekly[wk][r.questionId]) weekly[wk][r.questionId] = [];
-      weekly[wk][r.questionId].push(r.score);
-    }
-  }
-
-  const avgData: (number | null)[][] = TREND_QS.map(qid =>
-    weeks.map(wk => {
-      const scores = weekly[wk]?.[qid];
-      if (!scores?.length) return null;
-      return scores.reduce((a, b) => a + b, 0) / scores.length;
-    })
-  );
-
-  const hasAnyData = avgData.some(line => line.some(v => v !== null));
-
-  // SVG geometry
-  const W = 520, H = 160;
-  const padL = 28, padR = 16, padT = 12, padB = 36;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const xStep = plotW / (weeks.length - 1);
-
-  function sx(i: number) { return padL + i * xStep; }
-  function sy(score: number) { return padT + plotH - ((score - 1) / 4) * plotH; }
-
-  function buildPath(scores: (number | null)[]): string {
-    let d = "";
-    let penDown = false;
-    for (let i = 0; i < scores.length; i++) {
-      const v = scores[i];
-      if (v === null) { penDown = false; continue; }
-      const x = sx(i), y = sy(v);
-      d += penDown ? ` L${x.toFixed(1)},${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`;
-      penDown = true;
-    }
-    return d;
-  }
-
-  return (
-    <div style={{ maxWidth: 600 }}>
-      <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 20, color: "var(--color-navy)", margin: "0 0 4px" }}>My Check-in Trends</h2>
-      <p style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 24 }}>Your private weekly check-in scores over the past 8 weeks. Only you can see this.</p>
-
-      {!hasAnyData ? (
-        <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-secondary)", fontSize: 13 }}>
-          No check-in data yet. Complete a weekly check-in to start tracking your trends.
-        </div>
-      ) : (
-        <>
-          <div style={{ overflowX: "auto" }}>
-            <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", minWidth: 320 }}>
-              {/* Grid lines */}
-              {[1, 2, 3, 4, 5].map(s => (
-                <line key={s} x1={padL} y1={sy(s)} x2={W - padR} y2={sy(s)}
-                  stroke="var(--color-border)" strokeWidth={0.5} />
-              ))}
-              {/* Y labels */}
-              {[1, 3, 5].map(s => (
-                <text key={s} x={padL - 5} y={sy(s) + 4} textAnchor="end"
-                  style={{ fontSize: 9, fill: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>{s}</text>
-              ))}
-              {/* X week labels */}
-              {weeks.map((wk, i) => (
-                <text key={wk} x={sx(i)} y={H - 4} textAnchor="middle"
-                  style={{ fontSize: 9, fill: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>
-                  {i % 2 === 0 ? shortWeekLabel(wk) : ""}
-                </text>
-              ))}
-              {/* Lines + dots */}
-              {TREND_QS.map((qid, qi) => {
-                const scores = avgData[qi];
-                const color = TREND_COLORS[qi];
-                const path = buildPath(scores);
-                return (
-                  <g key={qid}>
-                    {path && <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
-                    {scores.map((v, i) => v !== null && (
-                      <circle key={i} cx={sx(i)} cy={sy(v)} r={3.5} fill={color} />
-                    ))}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* Legend */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 12 }}>
-            {TREND_QS.map((qid, qi) => (
-              <div key={qid} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 12, height: 3, borderRadius: 2, backgroundColor: TREND_COLORS[qi] }} />
-                <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{TREND_LABELS[qi]}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Score key */}
-          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)" }}>
-            <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.6, margin: 0 }}>
-              <strong>Score key:</strong> 1 = Strongly Disagree &nbsp;&middot;&nbsp; 3 = Neutral &nbsp;&middot;&nbsp; 5 = Strongly Agree
-            </p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 // ── Workload nudge banner ─────────────────────────────────────────────────────
 
@@ -765,7 +625,7 @@ function NudgeBanner({ overdueCount, onSupportClick, onDismiss }: {
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
           Heavy workloads can affect wellbeing.{" "}
           <button onClick={onSupportClick} style={{ color: "var(--color-navy)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, fontFamily: "var(--font-roboto)" }}>
-            Need support?
+            Get support
           </button>
         </p>
       </div>
@@ -785,6 +645,9 @@ export default function JournalPage() {
   const [entries, setEntries]               = useState<JournalEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
   const [authUserId, setAuthUserId]         = useState("local");
+  const [projectPrompts, setProjectPrompts] = useState<string[]>([]);
+  const [cryptoKey, setCryptoKey]           = useState<CryptoKey | null>(null);
+  const [encryptionDisabled, setEncryptionDisabled] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | "new">("new");
   // New entry state
   const [defaultResponse, setDefaultResponse] = useState("");
@@ -801,9 +664,15 @@ export default function JournalPage() {
     return next;
   });
   const [supportOpen, setSupportOpen]       = useState(false);
+  const [supportKey, setSupportKey]         = useState(0);
+  const [supportTrack, setSupportTrack]     = useState<"wellbeing" | undefined>(undefined);
   const [search, setSearch]                 = useState("");
   const [entryListOpen, setEntryListOpen]   = useState(false);
   const [saveMsg, setSaveMsg]               = useState<{ text: string; color: string } | null>(null);
+  const [saving, setSaving]                 = useState(false);
+  // useRef so the in-flight check is synchronous — React state updates are batched
+  // and the old value is still visible when a second click fires before re-render.
+  const savingRef                           = useRef(false);
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [overdueCount, setOverdueCount]         = useState(0);
   const [nudgeDismissed, setNudgeDismissed]     = useState(false);
@@ -845,13 +714,32 @@ export default function JournalPage() {
     older:   filteredEntries.filter((e) => new Date(e.date) < weekAgo),
   };
 
-  const isTrendsView   = selectedEntryId === "trends";
-  const isViewingEntry = selectedEntryId !== "new" && !isTrendsView;
+  const isViewingEntry = selectedEntryId !== "new";
   const viewedEntry    = isViewingEntry ? entries.find((e) => e.id === selectedEntryId) : null;
+
+  // Restore draft from localStorage on first mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as {
+        defaultResponse?: string;
+        addedPrompts?: AddedPrompt[];
+        checkinResponses?: CheckinResponse[];
+      };
+      if (draft.defaultResponse) setDefaultResponse(draft.defaultResponse);
+      if (Array.isArray(draft.addedPrompts)) setAddedPrompts(draft.addedPrompts);
+      if (Array.isArray(draft.checkinResponses)) setCheckinResponses(draft.checkinResponses);
+    } catch {
+      // corrupt draft — ignore
+    }
+  // runs once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function hasDraft() {
     if (typeof window === "undefined") return false;
-    return !!localStorage.getItem(DRAFT_KEY);
+    try { return !!localStorage.getItem(DRAFT_KEY); } catch { return false; }
   }
 
   function handleSelectEntry(id: string | "new") {
@@ -878,15 +766,19 @@ export default function JournalPage() {
     setCheckinExpanded(false);
     setSelectedEntryId("new");
     setSaveMsg(null);
-    localStorage.removeItem(DRAFT_KEY);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     setDiscardModalOpen(false);
   }
 
   function handleSaveDraft() {
     const draft = { defaultResponse, addedPrompts, checkinResponses, timestamp: Date.now() };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    setSaveMsg({ text: "Draft saved.", color: "var(--color-secondary)" });
-    setTimeout(() => setSaveMsg(null), 2000);
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setSaveMsg({ text: "Draft saved.", color: "var(--color-secondary)" });
+    } catch {
+      setSaveMsg({ text: "Draft couldn't be saved (storage full or blocked).", color: "var(--color-error, #dc2626)" });
+    }
+    setTimeout(() => setSaveMsg(null), 3000);
   }
 
   function addPrompt(text: string) {
@@ -902,65 +794,105 @@ export default function JournalPage() {
   }
 
   async function handleSaveEntry() {
-    const hasResponse = defaultResponse.trim() || addedPrompts.some((p) => p.response.trim());
-    if (!hasResponse) {
-      setSaveMsg({ text: "Write at least one reflection to save.", color: "var(--color-error)" });
-      setTimeout(() => setSaveMsg(null), 3000);
-      return;
-    }
+    // savingRef is checked synchronously before any await, so rapid double-clicks
+    // are caught even before React has re-rendered with the updated `saving` state.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
 
-    const allPrompts = [
-      { promptId: "default", promptText: DEFAULT_PROMPT, response: defaultResponse },
-      ...addedPrompts.map((p) => ({ promptId: p.id, promptText: p.text, response: p.response })),
-    ].filter((p) => p.response.trim());
+    try {
+      const hasResponse = defaultResponse.trim() || addedPrompts.some((p) => p.response.trim());
+      if (!hasResponse) {
+        setSaveMsg({ text: "Write at least one reflection to save.", color: "var(--color-error)" });
+        setTimeout(() => setSaveMsg(null), 3000);
+        return;
+      }
 
-    const content = {
-      date: todayISO,
-      prompts: allPrompts,
-      checkin: checkinResponses,
-      isDraft: false,
-    };
+      const allPrompts = [
+        { promptId: "default", promptText: DEFAULT_PROMPT, response: defaultResponse },
+        ...addedPrompts.map((p) => ({ promptId: p.id, promptText: p.text, response: p.response })),
+      ].filter((p) => p.response.trim());
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const resolvedUserId = session?.user?.id ?? authUserId;
+      const content = {
+        date: todayISO,
+        prompts: allPrompts,
+        checkin: checkinResponses,
+        isDraft: false,
+      };
 
-    const { data, error } = await supabase
-      .from("journal_entries")
-      .insert({ user_id: resolvedUserId, content, ...(projectId ? { project_id: projectId } : {}) })
-      .select()
-      .single();
+      const sessionResult = await supabase.auth.getSession();
+      const resolvedUserId = sessionResult?.data?.session?.user?.id ?? authUserId;
 
-    if (error) {
-      console.error("[Journal] insert error:", error);
-      const isSchemaError = error.code === "PGRST204" || error.message?.includes("schema cache");
-      const msg = isSchemaError
-        ? "Save failed: database schema is out of date. Please contact your administrator."
-        : "Failed to save. Please try again.";
-      setSaveMsg({ text: msg, color: "var(--color-error)" });
-      setTimeout(() => setSaveMsg(null), 5000);
-      return;
-    }
+      // Encrypt content before storing. If encryption is expected but fails, block the save.
+      let storedContent: unknown = content;
+      if (cryptoKey) {
+        try {
+          storedContent = await encryptJournalContent(cryptoKey, content);
+        } catch (e) {
+          console.error("[Journal] encryption failed:", e);
+          setSaveMsg({ text: "Couldn't secure your entry — please try again.", color: "var(--color-error)" });
+          setTimeout(() => setSaveMsg(null), 5000);
+          return;
+        }
+      } else if (isSupabaseConfigured && !encryptionDisabled) {
+        // Key fetch failed (not explicitly disabled) — block save to avoid silently storing plaintext
+        setSaveMsg({ text: "Encryption key unavailable — please reload and try again.", color: "var(--color-error)" });
+        setTimeout(() => setSaveMsg(null), 5000);
+        return;
+      }
 
-    const newEntry: JournalEntry = {
-      id: data.id as string,
-      userId: resolvedUserId,
-      date: todayISO,
-      prompts: content.prompts,
-      checkin: content.checkin,
-      isDraft: false,
-      createdAt: data.created_at as string,
-      updatedAt: data.updated_at as string,
-    };
+      // checkin_scores is stored as plaintext JSON (only questionId + score, no free-text).
+      // The get_wellbeing_rollup RPC reads this column instead of the encrypted content blob.
+      const result = await supabase
+        .from("journal_entries")
+        .insert({
+          user_id: resolvedUserId,
+          content: storedContent,
+          checkin_scores: checkinResponses.length > 0 ? checkinResponses : null,
+          ...(projectId ? { project_id: projectId } : {}),
+        })
+        .select()
+        .single();
 
-    setEntries((prev) => [newEntry, ...prev]);
-    setAddedPrompts((prev) => prev.filter((p) => p.response.trim()));
-    localStorage.removeItem(DRAFT_KEY);
+      const { data, error } = result ?? { data: null, error: { message: "No response from database", code: "0" } };
 
-    setSaveMsg({ text: "✓ Entry saved.", color: "var(--color-success)" });
-    setTimeout(() => {
-      setSaveMsg(null);
+      if (error || !data) {
+        console.error("[Journal] insert error:", error);
+        const isSchemaError = error?.code === "PGRST204" || error?.message?.includes("schema cache");
+        const msg = isSchemaError
+          ? "Save failed: database schema is out of date. Please contact your administrator."
+          : "Failed to save. Please try again.";
+        setSaveMsg({ text: msg, color: "var(--color-error)" });
+        setTimeout(() => setSaveMsg(null), 5000);
+        return;
+      }
+
+      const newEntry: JournalEntry = {
+        id: data.id as string,
+        userId: resolvedUserId,
+        date: todayISO,
+        prompts: content.prompts,
+        checkin: content.checkin,
+        isDraft: false,
+        createdAt: data.created_at as string,
+        updatedAt: data.updated_at as string,
+      };
+
+      // Reset editor immediately — no content left in state for a retry to re-submit
+      setEntries((prev) => [newEntry, ...prev]);
+      setDefaultResponse("");
+      setAddedPrompts([]);
+      setCheckinResponses([]);
+      setCheckinExpanded(false);
       setSelectedEntryId(newEntry.id);
-    }, 3000);
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+
+      setSaveMsg({ text: "✓ Entry saved.", color: "var(--color-success)" });
+      setTimeout(() => setSaveMsg(null), 3000);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -970,37 +902,100 @@ export default function JournalPage() {
   }, [entryListOpen]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null;
       if (!user) { setLoadingEntries(false); return; }
       setAuthUserId(user.id);
-      supabase
+
+      // Load project's active prompt configuration so the picker reflects what the PI set
+      try {
+        const { data: prof } = await supabase
+          .from("user_profiles")
+          .select("project_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (prof?.project_id) {
+          const { data: proj } = await supabase
+            .from("projects")
+            .select("active_prompt_ids, custom_prompts")
+            .eq("id", prof.project_id)
+            .maybeSingle();
+          if (proj) {
+            const ids = (proj.active_prompt_ids as string[] | null) ?? ACTIVE_PROMPT_IDS;
+            const customs = (proj.custom_prompts as { id: string; text: string }[] | null) ?? [];
+            const fromPresets = JOURNAL_PROMPTS.filter((p) => ids.includes(p.id)).map((p) => p.text);
+            const combined = [...fromPresets, ...customs.map((c) => c.text)];
+            if (combined.length > 0) setProjectPrompts(combined);
+          }
+        }
+      } catch (e) {
+        console.warn("[Journal] could not load project prompts:", e);
+      }
+
+      // Fetch per-user encryption key from server
+      let encKey: CryptoKey | null = null;
+      try {
+        const keyRes = await fetch("/api/journal/key", {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        });
+        if (keyRes.ok) {
+          const keyData = await keyRes.json() as { key?: string; disabled?: boolean };
+          if (keyData.disabled) setEncryptionDisabled(true);
+          else if (keyData.key) encKey = await importJournalKey(keyData.key);
+        }
+      } catch (e) {
+        console.warn("[Journal] could not fetch encryption key:", e);
+      }
+      if (encKey) setCryptoKey(encKey);
+
+      const { data, error } = await supabase
         .from("journal_entries")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .then(({ data, error }) => {
-          if (error) console.error("[Journal] query error:", error);
-          if (!error && data) setEntries(data.map((row) => {
-            const c = (row.content ?? {}) as {
-              date?: string;
-              prompts?: JournalEntry["prompts"];
-              checkin?: JournalEntry["checkin"];
-              isDraft?: boolean;
-            };
-            return {
-              id: row.id as string,
-              userId: row.user_id as string,
-              date: c.date ?? (row.created_at as string).split("T")[0],
-              prompts: c.prompts ?? [],
-              checkin: c.checkin ?? [],
-              isDraft: c.isDraft ?? false,
-              createdAt: row.created_at as string,
-              updatedAt: row.updated_at as string,
-            };
-          }));
-          setLoadingEntries(false);
-        });
+        .order("created_at", { ascending: false });
+
+      if (error) console.error("[Journal] query error:", error);
+      if (!error && data) {
+        const parsed: JournalEntry[] = [];
+        for (const row of data) {
+          let c: {
+            date?: string;
+            prompts?: JournalEntry["prompts"];
+            checkin?: JournalEntry["checkin"];
+            isDraft?: boolean;
+          };
+          let decryptError = false;
+          try {
+            const raw = row.content ?? {};
+            if (isEncryptedContent(raw) && encKey) {
+              c = (await decryptJournalContent(encKey, raw)) as typeof c;
+            } else if (isEncryptedContent(raw) && !encKey) {
+              // Key not available — show placeholder, don't silently drop
+              c = {};
+              decryptError = true;
+            } else {
+              c = raw as typeof c;
+            }
+          } catch {
+            c = {};
+            decryptError = true;
+          }
+          parsed.push({
+            id: row.id as string,
+            userId: row.user_id as string,
+            date: c.date ?? (row.created_at as string).split("T")[0],
+            prompts: decryptError
+              ? [{ promptId: "_err", promptText: "Decryption failed", response: "This entry could not be decrypted. Your encryption key may be unavailable." }]
+              : (c.prompts ?? []),
+            checkin: c.checkin ?? [],
+            isDraft: c.isDraft ?? false,
+            createdAt: row.created_at as string,
+            updatedAt: row.updated_at as string,
+          });
+        }
+        setEntries(parsed);
+      }
+      setLoadingEntries(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1040,8 +1035,8 @@ export default function JournalPage() {
       await supabase.from("notifications").insert({
         user_id: uid,
         type: "checkin_reminder",
-        title: "Time for your weekly check-in",
-        body: `It has been over ${Math.floor(daysSinceLastCheckin)} days since your last check-in. How are you doing?`,
+        title: "Your journal is here when you're ready",
+        body: "Whenever you have a moment, a quick check-in can help you reflect on how things are going.",
         read: false,
       });
       await supabase.from("user_settings").upsert(
@@ -1058,16 +1053,8 @@ export default function JournalPage() {
       label: "Entries",
       color: "var(--color-navy)",
       icon: <BookOpen size={17} />,
-      isActive: !isTrendsView,
-      onClick: () => { if (isTrendsView) setSelectedEntryId("new"); else handleToggleJournalSidebar(); },
-    },
-    {
-      id: "trends",
-      label: "My Trends",
-      color: "#10B981",
-      icon: <TrendingUp size={17} />,
-      isActive: isTrendsView,
-      onClick: () => { setSelectedEntryId("trends"); setListCollapsed(true); },
+      isActive: true,
+      onClick: handleToggleJournalSidebar,
     },
   ];
 
@@ -1088,8 +1075,7 @@ export default function JournalPage() {
             if (id === "new") { handleNewEntry(); } else { handleSelectEntry(id); }
           }}
           showClose onClose={() => setEntryListOpen(false)}
-          onSelectTrends={() => { setSelectedEntryId("trends"); setListCollapsed(true); setEntryListOpen(false); }}
-          isTrendsView={isTrendsView}
+          onSupportClick={(track) => { setSupportTrack(track); setSupportKey(k => k + 1); setSupportOpen(true); setEntryListOpen(false); }}
         />
       </div>
 
@@ -1111,8 +1097,7 @@ export default function JournalPage() {
                   if (id === "new") { handleNewEntry(); } else { handleSelectEntry(id); }
                 }}
                 onCollapse={handleToggleJournalSidebar}
-                onSelectTrends={() => { setSelectedEntryId("trends"); setListCollapsed(true); }}
-                isTrendsView={isTrendsView}
+                onSupportClick={(track) => { setSupportTrack(track); setSupportKey(k => k + 1); setSupportOpen(true); }}
               />
             }
           />
@@ -1126,22 +1111,16 @@ export default function JournalPage() {
             <ChevronLeft size={15} /> Entries
           </button>
 
-          {/* Trends view */}
-          {isTrendsView && (
-            <CheckinTrendChart entries={entries} />
-          )}
-
           {/* Workload nudge banner */}
-          {!isTrendsView && !isViewingEntry && !nudgeDismissed && overdueCount >= 5 && (
+          {!isViewingEntry && !nudgeDismissed && overdueCount >= 5 && (
             <NudgeBanner
               overdueCount={overdueCount}
-              onSupportClick={() => setSupportOpen(true)}
+              onSupportClick={() => { setSupportTrack(undefined); setSupportKey(k => k + 1); setSupportOpen(true); }}
               onDismiss={() => setNudgeDismissed(true)}
             />
           )}
 
-          {/* Header (hidden in trends view) */}
-          {!isTrendsView && <div className="flex items-start justify-between mb-7 gap-3">
+          <div className="flex items-start justify-between mb-7 gap-3">
             <div>
               <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: 0, lineHeight: 1.2 }}>
                 {isViewingEntry && viewedEntry ? formatEntryDate(viewedEntry.date) : "Today's Entry"}
@@ -1151,17 +1130,24 @@ export default function JournalPage() {
               </p>
             </div>
             {!isViewingEntry && (
-              <button onClick={() => setSupportOpen(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg shrink-0" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-navy)", color: "var(--color-navy)", fontSize: 12, fontWeight: 600, borderRadius: 7, cursor: "pointer", minHeight: 44 }}>
+              <button onClick={() => { setSupportTrack(undefined); setSupportKey(k => k + 1); setSupportOpen(true); }} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg shrink-0" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-navy)", color: "var(--color-navy)", fontSize: 12, fontWeight: 600, borderRadius: 7, cursor: "pointer", minHeight: 44 }}>
                 <HelpingHand size={14} />
-                <span className="hidden sm:inline">Need support?</span>
+                <span className="hidden sm:inline">Get support</span>
                 <span className="sm:hidden">Support</span>
               </button>
             )}
-          </div>}
+          </div>
 
           {/* Reflections */}
-          {!isTrendsView && <div className="mb-8">
-            <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", marginBottom: 16 }}>Reflections</h2>
+          <div className="mb-8">
+            <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 16 }}>
+              <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-body)", margin: 0 }}>Reflections</h2>
+              {!isViewingEntry && (
+                <span style={{ fontSize: 12, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)", flexShrink: 0 }}>
+                  Pick any that resonate — add as many as you like.
+                </span>
+              )}
+            </div>
             <div className="space-y-4">
               {isViewingEntry && viewedEntry ? (
                 viewedEntry.prompts.map((pr, i) => (
@@ -1200,7 +1186,7 @@ export default function JournalPage() {
                       <button
                         onClick={() => setPromptPickerOpen((o) => !o)}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(27,46,75,0.06)]"
-                        style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-border)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
+                        style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-navy)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
                       >
                         <Plus size={14} /> Add a prompt
                       </button>
@@ -1212,6 +1198,7 @@ export default function JournalPage() {
                               usedTexts={addedPrompts.map((p) => p.text)}
                               onSelect={addPrompt}
                               onClose={() => setPromptPickerOpen(false)}
+                              availablePrompts={projectPrompts}
                             />
                           </div>
                         </>
@@ -1221,10 +1208,10 @@ export default function JournalPage() {
                 </>
               )}
             </div>
-          </div>}
+          </div>
 
           {/* Weekly check-in */}
-          {!isTrendsView && <div className="mb-8">
+          <div className="mb-8">
             {isViewingEntry && viewedEntry ? (
               // Past entry: only render if that entry had check-in data
               viewedEntry.checkin.length > 0 ? (
@@ -1247,7 +1234,7 @@ export default function JournalPage() {
                 </>
               ) : null
             ) : (
-              // New entry — apply 7-day cadence
+              // New entry - apply 7-day cadence
               showFullCheckin ? (
                 <>
                   <div className="flex items-start justify-between gap-3 mb-4">
@@ -1299,12 +1286,12 @@ export default function JournalPage() {
                 </button>
               )
             )}
-          </div>}
+          </div>
         </div>
 
         {/* Save bar */}
-        {!isTrendsView && !isViewingEntry && (
-          <div className="sticky bottom-0 flex items-center justify-between px-4 md:px-6 py-3 gap-3" style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)" }}>
+        {!isViewingEntry && (
+          <div className="sticky bottom-0 flex items-center justify-between px-4 md:px-6 py-3 gap-3" style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)", paddingRight: "max(24px, 88px)" }}>
             <span style={{ fontSize: 12, color: "var(--color-secondary)" }} className="hidden sm:block">Your entry is private and encrypted.</span>
             <div className="flex items-center gap-2 ml-auto">
               {saveMsg && (
@@ -1312,15 +1299,17 @@ export default function JournalPage() {
               )}
               <button
                 onClick={handleSaveDraft}
-                style={{ fontSize: 12, fontWeight: 700, color: "var(--color-navy)", border: "1px solid var(--color-navy)", borderRadius: 7, padding: "8px 14px", backgroundColor: "transparent", cursor: "pointer", minHeight: 44 }}
+                disabled={saving}
+                style={{ fontSize: 12, fontWeight: 700, color: "var(--color-navy)", border: "1px solid var(--color-navy)", borderRadius: 7, padding: "8px 14px", backgroundColor: "transparent", cursor: saving ? "default" : "pointer", opacity: saving ? 0.5 : 1, minHeight: 44 }}
               >
                 Save draft
               </button>
               <button
                 onClick={handleSaveEntry}
-                style={{ fontSize: 12, fontWeight: 700, color: "#fff", backgroundColor: "var(--color-navy)", border: "none", borderRadius: 7, padding: "8px 14px", cursor: "pointer", minHeight: 44 }}
+                disabled={saving}
+                style={{ fontSize: 12, fontWeight: 700, color: "#fff", backgroundColor: "var(--color-navy)", border: "none", borderRadius: 7, padding: "8px 14px", cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1, minHeight: 44 }}
               >
-                Save entry
+                {saving ? "Saving…" : "Save entry"}
               </button>
             </div>
           </div>
@@ -1329,7 +1318,15 @@ export default function JournalPage() {
 
       </div>
 
-      {supportOpen      && <SupportModal onClose={() => setSupportOpen(false)} userId={authUserId} projectId={projectId} />}
+      {supportOpen && authUserId && (
+        <SupportPanel
+          key={supportKey}
+          onClose={() => setSupportOpen(false)}
+          userId={authUserId}
+          projectId={projectId}
+          track={supportTrack}
+        />
+      )}
       {discardModalOpen && <DiscardDraftModal onKeep={() => setDiscardModalOpen(false)} onDiscard={resetToNew} />}
     </div>
   );

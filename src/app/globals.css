@@ -48,15 +48,15 @@
   --status-done-bg:         rgba(46,125,82,0.10);
 
   /* ── Priority colors — unified ── */
-  --priority-high-dot:    #C0392B;
-  --priority-high-text:   #C0392B;
-  --priority-high-bg:     #FDDCDC;
-  --priority-medium-dot:  #A0622A;
-  --priority-medium-text: #A0622A;
-  --priority-medium-bg:   #FDEFD4;
-  --priority-low-dot:     #2E7D52;
-  --priority-low-text:    #2E7D52;
-  --priority-low-bg:      #D4EDE0;
+  --priority-high-dot:    #B91C1C;
+  --priority-high-text:   #B91C1C;
+  --priority-high-bg:     #FCA5A5;
+  --priority-medium-dot:  #92400E;
+  --priority-medium-text: #92400E;
+  --priority-medium-bg:   #FCD59A;
+  --priority-low-dot:     #166534;
+  --priority-low-text:    #166534;
+  --priority-low-bg:      #A7D7BC;
 
   /* Typography — Inter, 4 sizes */
   --font-inter: var(--font-inter), system-ui, sans-serif;
@@ -277,15 +277,15 @@ body {
   --status-done-dot:        #2E7D52;
   --status-done-text:       #2E7D52;
   --status-done-bg:         rgba(46,125,82,0.10);
-  --priority-high-dot:      #C0392B;
-  --priority-high-text:     #C0392B;
-  --priority-high-bg:       #FDDCDC;
-  --priority-medium-dot:    #A0622A;
-  --priority-medium-text:   #A0622A;
-  --priority-medium-bg:     #FDEFD4;
-  --priority-low-dot:       #2E7D52;
-  --priority-low-text:      #2E7D52;
-  --priority-low-bg:        #D4EDE0;
+  --priority-high-dot:      #B91C1C;
+  --priority-high-text:     #B91C1C;
+  --priority-high-bg:       #FCA5A5;
+  --priority-medium-dot:    #92400E;
+  --priority-medium-text:   #92400E;
+  --priority-medium-bg:     #FCD59A;
+  --priority-low-dot:       #166534;
+  --priority-low-text:      #166534;
+  --priority-low-bg:        #A7D7BC;
 }
 
 @media (prefers-color-scheme: dark) {

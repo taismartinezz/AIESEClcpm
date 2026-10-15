@@ -134,7 +134,7 @@ function SidebarBody({
     return (
       <aside className="flex flex-col h-full items-center" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)", paddingTop: 6, paddingBottom: 6, gap: 2 }}>
 
-        {/* Canopy logo — static branding anchor */}
+        {/* Canopy logo - static branding anchor */}
         <div style={{ ...ICON_BTN, flexShrink: 0, pointerEvents: "none" }} aria-hidden="true">
           <CanopyLogo size={22} />
         </div>
@@ -152,7 +152,7 @@ function SidebarBody({
 
         <Divider />
 
-        {/* Workspace avatar — opens scope/project switcher */}
+        {/* Workspace avatar - opens scope/project switcher */}
         <div style={{ position: "relative" }}>
           <Tooltip label={wsDisplayName || "Workspace"} placement="right">
             <button
@@ -227,15 +227,15 @@ function SidebarBody({
         <nav className="flex-1 flex flex-col items-center overflow-y-auto" style={{ gap: 2, scrollbarWidth: "none" }} aria-label="Main navigation">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
-            const badgeCount = href === "/reminders" ? pastDueCount : href === "/chat" ? chatUnread : 0;
+            const badgeCount = href === "/chat" ? chatUnread : 0;
             const showBadge = badgeCount > 0;
-            const badgeLabel = href === "/chat" ? `${badgeCount} unread` : `${badgeCount} past due`;
+            const badgeLabel = `${badgeCount} unread`;
             return (
               <Tooltip key={href} label={showBadge ? `${label} (${badgeLabel})` : label} placement="right">
                 <Link
                   href={href}
                   onClick={onLinkClick}
-                  aria-label={showBadge ? `${label} — ${badgeLabel}` : label}
+                  aria-label={showBadge ? `${label} - ${badgeLabel}` : label}
                   style={{
                     ...ICON_BTN,
                     position: "relative",
@@ -301,7 +301,7 @@ function SidebarBody({
   // ── Expanded: full sidebar ──────────────────────────────────────────────────
   return (
     <aside className="flex flex-col h-full" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)" }}>
-      {/* Wordmark row — collapse button appears on sidebar hover */}
+      {/* Wordmark row - collapse button appears on sidebar hover */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>
           Canopy
@@ -408,9 +408,9 @@ function SidebarBody({
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
-          const badgeCount = href === "/reminders" ? pastDueCount : href === "/chat" ? chatUnread : 0;
+          const badgeCount = href === "/chat" ? chatUnread : 0;
           const showBadge = badgeCount > 0;
-          const badgeLabel = href === "/chat" ? `${badgeCount} unread` : `${badgeCount} past due`;
+          const badgeLabel = `${badgeCount} unread`;
           return (
             <Link
               key={href}
@@ -526,11 +526,12 @@ function notifHref(n: SupabaseNotif): string {
   return "/dashboard";
 }
 
-function NotifPanel({ onClose, notifications, onNavigate, onMarkAllRead }: {
+function NotifPanel({ onClose, notifications, onNavigate, onMarkAllRead, onDismiss }: {
   onClose: () => void;
   notifications: SupabaseNotif[];
   onNavigate: (n: SupabaseNotif) => void;
   onMarkAllRead?: () => void;
+  onDismiss?: (id: string) => void;
 }) {
   const hasUnread = notifications.some((n) => !n.read);
   return (
@@ -561,18 +562,33 @@ function NotifPanel({ onClose, notifications, onNavigate, onMarkAllRead }: {
           <p className="px-4 py-6 text-center" style={{ color: "var(--color-secondary)", fontSize: 13 }}>No notifications</p>
         ) : (
           notifications.map((n) => (
-            <button
+            <div
               key={n.id}
-              onClick={() => { onNavigate(n); onClose(); }}
-              className="w-full text-left px-4 py-3 transition-colors hover:bg-[var(--color-navy-dim)]"
-              style={{ backgroundColor: n.read ? undefined : "var(--color-navy-dim)", borderBottom: "1px solid var(--color-border)", display: "block", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+              className="flex items-start group"
+              style={{ backgroundColor: n.read ? undefined : "var(--color-navy-dim)", borderBottom: "1px solid var(--color-border)" }}
             >
-              <p style={{ fontSize: 13, color: "var(--color-body)", margin: 0 }}>
-                {!n.read && <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: "var(--color-navy)", verticalAlign: "middle" }} />}
-                {n.title}{n.body ? `: ${n.body}` : ""}
-              </p>
-              <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 2, margin: "2px 0 0" }}>{relTime(n.created_at)}</p>
-            </button>
+              <button
+                onClick={() => { onNavigate(n); onClose(); }}
+                className="flex-1 text-left px-4 py-3 transition-colors hover:bg-[var(--color-navy-dim)]"
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", minWidth: 0 }}
+              >
+                <p style={{ fontSize: 13, color: "var(--color-body)", margin: 0 }}>
+                  {!n.read && <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: "var(--color-navy)", verticalAlign: "middle" }} />}
+                  {n.title}{n.body ? `: ${n.body}` : ""}
+                </p>
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "2px 0 0" }}>{relTime(n.created_at)}</p>
+              </button>
+              {onDismiss && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDismiss(n.id); }}
+                  aria-label="Dismiss notification"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  style={{ width: 36, height: "100%", minHeight: 44, background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: "0 8px", color: "var(--color-secondary)" }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           ))
         )}
       </div>
@@ -705,9 +721,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       // ── Supabase path ─────────────────────────────────────────────────────
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        if (!user) { router.replace("/login"); return; }
+        // Use getUser() (server-verified) not getSession() (localStorage only).
+        // On failure, attempt one refresh before redirecting.
+        let user: import("@supabase/supabase-js").User | null = null;
+        {
+          const { data: { user: verified } } = await supabase.auth.getUser();
+          if (verified) {
+            user = verified;
+          } else {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            if (refreshed?.user) {
+              user = refreshed.user;
+            } else {
+              router.replace("/login?reason=session_expired");
+              return;
+            }
+          }
+        }
+        if (!user) { router.replace("/login?reason=session_expired"); return; }
 
         const { data: prof } = await supabase
           .from("user_profiles")
@@ -752,17 +783,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           })
           .subscribe();
 
-        // Count past-due reminders for badge
+        // Count past-due reminders for badge, scoped to the active project
         const userId = user.id;
         async function refreshPastDueCount() {
           const ts = new Date().toISOString();
+          const projFilter = projectId ? `,and(scope.eq.lab,project_id.eq.${projectId})` : "";
           const { count } = await supabase
             .from("reminders")
             .select("id", { count: "exact", head: true })
             .eq("completed", false)
             .not("due_at", "is", null)
             .lt("due_at", ts)
-            .or(`user_id.eq.${userId},assignee_id.eq.${userId}`);
+            .or(`user_id.eq.${userId},assignee_id.eq.${userId}${projFilter}`);
           setPastDueCount(count ?? 0);
         }
 
@@ -806,15 +838,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_OUT") router.replace("/login");
     });
 
+    function onProfileUpdated(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setProfile(detail);
+    }
+    window.addEventListener("canopy:profile-updated", onProfileUpdated);
+
     return () => {
       subscription.unsubscribe();
       notifChannel?.unsubscribe();
       remindersChannel?.unsubscribe();
+      window.removeEventListener("canopy:profile-updated", onProfileUpdated);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Project data + team — driven by projectId from context ────────────────
+  // ── Project data + team - driven by projectId from context ────────────────
   useEffect(() => {
     if (!projectId) return;
     let canceled = false;
@@ -942,10 +981,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
-    // Remove only auth/session keys; preserve user preferences (theme, sidebar widths)
-    ["canopy_authed", "canopy_project", "pendingInviteCode", "pendingProjectInviteToken"].forEach(k => {
+    // Remove auth/session keys; preserve user preferences (theme, sidebar widths)
+    ["canopy_authed", "canopy_project", "canopy_user", "pendingInviteCode", "pendingProjectInviteToken",
+     "canopy_chat_last_read"].forEach(k => {
       try { localStorage.removeItem(k); } catch { /* ignore */ }
     });
+    // Clear all per-channel read-position keys
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith("chat_channel:")).forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
     router.replace("/login");
   }
 
@@ -987,7 +1031,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ── Nav sidebar — collapses to 52px icon rail, resizable ── */}
+      {/* ── Nav sidebar - collapses to 52px icon rail, resizable ── */}
       <div
         className="hidden md:flex flex-col shrink-0 overflow-hidden group/sidenav"
         style={{
@@ -1086,7 +1130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      {/* ── Mobile nav drawer — fixed overlay, slide in/out ── */}
+      {/* ── Mobile nav drawer - fixed overlay, slide in/out ── */}
       <div
         className="md:hidden fixed top-0 left-0 h-full z-30"
         style={{
@@ -1130,7 +1174,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           className="flex items-center gap-2 px-3 md:px-6"
           style={{ backgroundColor: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", height: 52, minHeight: 52 }}
         >
-          {/* Hamburger — mobile only */}
+          {/* Hamburger - mobile only */}
           <button
             onClick={() => setMobileNavOpen(true)}
             className="md:hidden flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] shrink-0"
@@ -1149,9 +1193,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          {/* Desktop: breadcrumb — "Lab" or "Lab / Project" */}
+          {/* Desktop: breadcrumb - "Lab" or "Lab / Project" */}
           <div className="hidden md:flex items-center gap-1.5 min-w-0">
-            {project?.name && (
+            {project?.name && activeScope !== "personal" && (
               <Link href="/" style={{ fontSize: 12, color: "var(--color-secondary)", whiteSpace: "nowrap", textDecoration: "none" }}
                 className="transition-colors hover:text-[var(--color-body)] hover:underline">
                 {project.name}
@@ -1186,7 +1230,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </Tooltip>
 
-            {/* Institution badge — navigates to team page */}
+            {/* Institution badge - navigates to team page */}
             {project?.institution && (
               <Tooltip label="View lab team" placement="bottom">
                 <Link href="/team" aria-label={`View ${project.institution} team`}
@@ -1226,6 +1270,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     }
                     router.push(notifHref(n));
                     setNotifOpen(false);
+                  }}
+                  onDismiss={(id) => {
+                    const n = notifications.find((x) => x.id === id);
+                    supabase.from("notifications").update({ read: true }).eq("id", id)
+                      .then(() => {
+                        setNotifications((prev) => prev.map((x) => x.id === id ? { ...x, read: true } : x));
+                        if (n && !n.read) setUnreadCount((c) => Math.max(0, c - 1));
+                      });
                   }}
                   onMarkAllRead={() => {
                     if (!profile?.id) return;

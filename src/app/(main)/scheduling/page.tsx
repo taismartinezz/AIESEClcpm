@@ -384,7 +384,7 @@ function CalendarTab({
               <button
                 onClick={() => openAdd(makeDateStr(days.find(d => makeDateStr(d) === todayStr) ?? days[0]))}
                 style={{ fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>
-                + Add event
+                + Add Event
               </button>
             }
           />
@@ -412,7 +412,7 @@ function CalendarTab({
               <button
                 onClick={() => openAdd(makeDateStr(anchor))}
                 style={{ fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>
-                + Add event
+                + Add Event
               </button>
             }
           />
@@ -476,7 +476,7 @@ function CalendarTab({
   function renderYearView() {
     const year = anchor.getFullYear();
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
         {MONTH_NAMES_CAL.map((name, mi) => {
           const startOff = new Date(year, mi, 1).getDay();
           const dim = new Date(year, mi + 1, 0).getDate();
@@ -549,8 +549,8 @@ function CalendarTab({
           </div>
         </div>
 
-        {view === "week" && renderWeekView()}
-        {view === "day" && renderDayView()}
+        {view === "week" && <div style={{ overflowX: "auto" }}>{renderWeekView()}</div>}
+        {view === "day" && <div style={{ overflowX: "auto" }}>{renderDayView()}</div>}
         {view === "month" && renderMonthView()}
         {view === "year" && <div className="p-4">{renderYearView()}</div>}
       </Card>
@@ -722,7 +722,7 @@ function AvailabilityTab({
         ))}
       </div>
 
-      {/* Per-person chips — shown in My Team view; deselect to customise */}
+      {/* Per-person chips - shown in My Team view; deselect to customise */}
       {scope === "all" && teamMembers.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {teamMembers.map(m => {
@@ -1040,13 +1040,14 @@ export default function SchedulingPage() {
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
 
-  // Auth effect — resolve currentUserId once
+  // Auth effect - resolve currentUserId once
   useEffect(() => {
     if (!isSupabaseConfigured) {
       try {
         const stored = localStorage.getItem("canopy_user");
-        if (stored) { const u = JSON.parse(stored); setCurrentUserId(u.id ?? "demo"); }
-      } catch { /* ignore */ }
+        if (stored) { const u = JSON.parse(stored) as { id?: string }; setCurrentUserId(u.id ?? "demo"); }
+        else setCurrentUserId("demo");
+      } catch { setCurrentUserId("demo"); }
       return;
     }
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1054,7 +1055,7 @@ export default function SchedulingPage() {
     });
   }, []);
 
-  // Team + availability + proposals — re-run when projectId or currentUserId resolves
+  // Team + availability + proposals - re-run when projectId or currentUserId resolves
   useEffect(() => {
     if (!projectId || !currentUserId) return;
     if (!isSupabaseConfigured) { setLoading(false); return; }
@@ -1194,7 +1195,7 @@ export default function SchedulingPage() {
     return () => { supabase.removeChannel(channel); };
   }, [projectId, currentUserId]);
 
-  // Events effect — fetches all lab/project events + current user's personal events
+  // Events effect - fetches all lab/project events + current user's personal events
   useEffect(() => {
     if (!projectId || !currentUserId || !isSupabaseConfigured) return;
 
@@ -1322,7 +1323,26 @@ export default function SchedulingPage() {
         .select()
         .single();
       if (!error && data) {
-        setProposals((prev) => [{ ...newProposal, id: data.id as string }, ...prev]);
+        const proposalId = data.id as string;
+        setProposals((prev) => [{ ...newProposal, id: proposalId }, ...prev]);
+        // Notify invitees
+        const toNotify = proposal.inviteeIds.filter((id) => id !== currentUserId);
+        if (toNotify.length > 0) {
+          const dateStr = proposal.proposedDate
+            ? `${proposal.proposedDate}${proposal.proposedTime ? " at " + proposal.proposedTime : ""}`
+            : null;
+          const notifs = toNotify.map((uid) => ({
+            user_id: uid,
+            type: "meeting_invite",
+            title: `You were invited to "${proposal.title}"`,
+            body: dateStr,
+            related_id: proposalId,
+            read: false,
+          }));
+          supabase.from("notifications").insert(notifs).then(({ error: ne }) => {
+            if (ne) console.error("[Scheduling] meeting invite notification:", ne);
+          });
+        }
       } else {
         if (error) console.error("[Scheduling] create proposal:", error);
         setProposals((prev) => [newProposal, ...prev]);
@@ -1381,9 +1401,18 @@ export default function SchedulingPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center" style={{ backgroundColor: "var(--color-canvas)" }}>
-        <div style={{ width: 32, height: 32, border: "3px solid var(--color-border)", borderTopColor: "var(--color-navy)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ padding: "24px 28px", backgroundColor: "var(--color-canvas)", minHeight: "100%" }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{ marginBottom: 16, borderRadius: 10, border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", padding: "18px 20px", overflow: "hidden" }}
+          >
+            <div style={{ width: "35%", height: 14, borderRadius: 6, backgroundColor: "var(--color-border)", marginBottom: 12, animation: "skeleton-pulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.15}s` }} />
+            <div style={{ width: "60%", height: 11, borderRadius: 6, backgroundColor: "var(--color-border)", marginBottom: 8, animation: "skeleton-pulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.15 + 0.1}s` }} />
+            <div style={{ width: "45%", height: 11, borderRadius: 6, backgroundColor: "var(--color-border)", animation: "skeleton-pulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.15 + 0.2}s` }} />
+          </div>
+        ))}
+        <style>{`@keyframes skeleton-pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
       </div>
     );
   }

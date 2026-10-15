@@ -25,14 +25,23 @@ After(async () => {
 // ── Given ─────────────────────────────────────────────────────────────────────
 
 Given('I am logged in', async () => {
-  // Mock session + basic profile
+  const mockUser = { id: 'user-1', aud: 'authenticated', role: 'authenticated', email: 'test@example.com' }
+  const mockSessionBody = JSON.stringify({
+    access_token: 'mock', token_type: 'bearer', expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    refresh_token: 'mock-refresh',
+    user: mockUser,
+  })
+
+  // Mock session/user/token endpoints so AppShell's getUser() + refreshSession() succeed
+  await page.route('**/auth/v1/user**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) })
+  )
+  await page.route('**/auth/v1/token**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: mockSessionBody })
+  )
   await page.route('**/auth/v1/session**', (route) =>
-    route.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'mock', user: { id: 'user-1', email: 'test@example.com' },
-      }),
-    })
+    route.fulfill({ status: 200, contentType: 'application/json', body: mockSessionBody })
   )
   await page.route('**/rest/v1/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })

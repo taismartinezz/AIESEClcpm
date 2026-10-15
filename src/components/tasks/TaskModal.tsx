@@ -95,7 +95,7 @@ export default function TaskModal({
 
     const now = new Date().toISOString();
 
-    // Demo mode — skip Supabase entirely and create a local task
+    // Demo mode - skip Supabase entirely and create a local task
     if (!isSupabaseConfigured) {
       const localId = crypto.randomUUID();
       const saved: Task = {
@@ -118,7 +118,7 @@ export default function TaskModal({
       return;
     }
 
-    // Always resolve userId from session — prop may be empty if parent hasn't loaded yet
+    // Always resolve userId from session - prop may be empty if parent hasn't loaded yet
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id ?? currentUserId ?? CURRENT_USER_ID;
 
@@ -177,7 +177,7 @@ export default function TaskModal({
         subProjectId: resolvedSubProjectId ?? undefined,
       };
 
-      // Notify assignees — use session userId so the filter is never undefined
+      // Notify assignees - use session userId so the filter is never undefined
       const toNotify = assigneeIds.filter((id) => id !== userId);
       if (toNotify.length > 0) {
         const notifs = toNotify.map((aid) => ({
@@ -190,9 +190,20 @@ export default function TaskModal({
         }));
         const { error: notifError } = await supabase.from("notifications").insert(notifs);
         if (notifError) console.error("[TaskModal] notification insert error:", notifError);
+
+        // Send task assignment emails (fire-and-forget)
+        if (session?.access_token) {
+          toNotify.forEach((aid) => {
+            fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({ type: "task_assigned", taskId: saved.id, recipientId: aid }),
+            }).catch(() => {});
+          });
+        }
       }
 
-      // Log activity — task created
+      // Log activity - task created
       supabase.from("activity_feed").insert({
         project_id: projectId,
         user_id: userId,
@@ -249,6 +260,17 @@ export default function TaskModal({
         }));
         const { error: notifError } = await supabase.from("notifications").insert(notifs);
         if (notifError) console.error("[TaskModal] notification insert error:", notifError);
+
+        // Send task assignment emails (fire-and-forget)
+        if (session?.access_token) {
+          newlyAdded.forEach((aid) => {
+            fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({ type: "task_assigned", taskId: task.id, recipientId: aid }),
+            }).catch(() => {});
+          });
+        }
       }
 
       const saved: Task = {
@@ -373,7 +395,7 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* Project — only shown in add mode when sub-projects exist */}
+          {/* Project - only shown in add mode when sub-projects exist */}
           {mode === "add" && subProjects.length > 0 && (
             <div>
               <label style={labelStyle}>Project</label>

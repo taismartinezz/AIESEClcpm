@@ -32,6 +32,7 @@ export function MessageRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(msg.content);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { if (editing) { setDraft(msg.content); setTimeout(() => editRef.current?.focus(), 30); } }, [editing, msg.content]);
@@ -42,7 +43,7 @@ export function MessageRow({
     onEdit(msg.id, t); setEditing(false);
   }
 
-  const showBar = (hovered || emojiOpen) && !editing;
+  const showBar = (hovered || emojiOpen || deleteConfirm) && !editing;
 
   // Thread preview avatar
   const lastReplier = msg.threadLastReplierId
@@ -61,7 +62,7 @@ export function MessageRow({
   return (
     <div
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => { setHovered(false); setDeleteConfirm(false); }}
       style={{ display: "flex", flexDirection: "column", padding: isCont ? "1px 48px 1px 0" : "6px 48px 1px 0", position: "relative", backgroundColor: (hovered || emojiOpen) ? "var(--color-surface-2)" : "transparent", transition: "background-color 0.06s" }}
     >
       {msg.isPinned && (
@@ -144,7 +145,14 @@ export function MessageRow({
                 <Pin size={14} style={{ color: msg.isPinned ? "var(--color-navy)" : undefined }} />
               </TBtn>
               {isOwn && <TBtn label="Edit message" onClick={() => setEditing(true)}><Pencil size={14} /></TBtn>}
-              {isOwn && <TBtn label="Delete message" onClick={() => onDelete(msg.id)} danger><Trash2 size={14} /></TBtn>}
+              {isOwn && !deleteConfirm && <TBtn label="Delete message" onClick={() => setDeleteConfirm(true)} danger><Trash2 size={14} /></TBtn>}
+              {isOwn && deleteConfirm && (
+                <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "0 2px" }}>
+                  <span style={{ fontSize: 11, color: "var(--color-body)", whiteSpace: "nowrap", padding: "0 3px" }}>Delete?</span>
+                  <button onClick={() => setDeleteConfirm(false)} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, border: "1px solid var(--color-border)", background: "none", cursor: "pointer", color: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>No</button>
+                  <button onClick={() => { onDelete(msg.id); setDeleteConfirm(false); }} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, border: "none", backgroundColor: "var(--color-error)", color: "#fff", cursor: "pointer", fontFamily: "var(--font-roboto)", fontWeight: 700 }}>Yes</button>
+                </div>
+              )}
             </div>
             {emojiOpen && <EmojiPicker onSelect={em => { onReact(msg.id, em); setEmojiOpen(false); }} onClose={() => setEmojiOpen(false)} />}
           </div>

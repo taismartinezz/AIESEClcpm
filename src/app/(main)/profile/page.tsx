@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft, GraduationCap, BookOpen, Globe,
-  Link as LinkIcon, Settings, Lock, X, Copy, Plus, Check,
+  Link as LinkIcon, Settings, Lock, X, Copy, Plus, Check, Pencil,
 } from "lucide-react";
 
 function LinkedinIcon() {
@@ -167,7 +168,7 @@ function PromptsModal({
 
   const categories = Array.from(new Set(JOURNAL_PROMPTS.map((p) => p.category)));
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
@@ -254,7 +255,8 @@ function PromptsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -336,7 +338,7 @@ const EMPTY_LINKS: LinkFields = {
   scholar: "", linkedin: "", researchgate: "", twitter: "", website: "", orcid: "",
 };
 
-type TabId = "about" | "links" | "activity" | "lab_settings";
+type TabId = "about" | "links" | "activity";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -347,7 +349,7 @@ export default function ProfilePage() {
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Photo (local only — needs Supabase Storage to persist) ───────────────
+  // ── Photo (local only - needs Supabase Storage to persist) ───────────────
   const [photo, setPhoto] = useState<string | null>(null);
 
   // ── Edit mode ────────────────────────────────────────────────────────────
@@ -391,6 +393,7 @@ export default function ProfilePage() {
   // ── Invite codes (PI only) ────────────────────────────────────────────────
   const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; created_at: string }[]>([]);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [labRoleName, setLabRoleName] = useState<string | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   // ── Activity stats ────────────────────────────────────────────────────────
@@ -416,11 +419,19 @@ export default function ProfilePage() {
 
       const { data: membership } = await supabase
         .from("team_members")
-        .select("project_id")
+        .select("project_id, lab_role_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (membership?.project_id) {
+        if (membership.lab_role_id) {
+          const { data: roleRow } = await supabase
+            .from("lab_roles")
+            .select("name")
+            .eq("id", membership.lab_role_id)
+            .maybeSingle();
+          if (roleRow) setLabRoleName((roleRow as { name: string }).name);
+        }
         const { data: proj } = await supabase
           .from("projects")
           .select("*")
@@ -431,7 +442,7 @@ export default function ProfilePage() {
           setProjectName((proj.name as string) ?? "");
           setProjectInstitution((proj.institution as string) ?? "");
           setResearchType((proj.research_type as string) ?? "");
-          setResearchParticipation((proj.research_participation as string) ?? "");
+          setResearchParticipation((proj.research_participation as string) ?? "private");
         }
       }
 
@@ -599,7 +610,10 @@ export default function ProfilePage() {
           .eq("id", user.id)
           .select("*")
           .maybeSingle();
-        if (updated) setProfile(updated);
+        if (updated) {
+          setProfile(updated);
+          window.dispatchEvent(new CustomEvent("canopy:profile-updated", { detail: updated }));
+        }
       }
     }
     setEditingName(false);
@@ -711,14 +725,13 @@ export default function ProfilePage() {
   const memberSinceDate = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
     : "";
-  const roleBadgeLabel = profile?.role === "pi" ? "Principal Investigator" : "Researcher";
+  const roleBadgeLabel = labRoleName ?? (profile?.role === "pi" ? "Principal Investigator" : "Researcher");
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const tabs: { id: TabId; label: string }[] = [
     { id: "about", label: "About" },
     { id: "links", label: "Links" },
     { id: "activity", label: "Activity" },
-    ...(isPi ? [{ id: "lab_settings" as TabId, label: "Lab Settings" }] : []),
   ];
 
   // ── Link platform definitions ──────────────────────────────────────────────
@@ -900,7 +913,11 @@ export default function ProfilePage() {
                     autoFocus
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Escape") setEditingName(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); handleSaveName(); }
+                      else if (e.key === "Escape") setEditingName(false);
+                    }}
+                    onBlur={handleSaveName}
                     style={{
                       fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 24,
                       color: "var(--color-navy)", border: "none", borderBottom: "2px solid var(--color-navy)",
@@ -909,17 +926,29 @@ export default function ProfilePage() {
                     }}
                   />
                 ) : (
-                  <h1
+                  <div
+                    className="group"
                     onClick={() => { setNameInput(displayName); setEditingName(true); }}
-                    title="Click to edit"
-                    style={{
-                      fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 24,
-                      color: displayName ? "var(--color-navy)" : "var(--color-secondary)", margin: 0, cursor: "text",
-                      wordBreak: "break-word",
-                    }}
+                    title="Click to edit name"
+                    style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}
                   >
-                    {displayName || "Set up your profile"}
-                  </h1>
+                    <h1
+                      style={{
+                        fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 24,
+                        color: displayName ? "var(--color-navy)" : "var(--color-secondary)", margin: 0,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {displayName || "Set up your profile"}
+                    </h1>
+                    <span
+                      className="opacity-0 group-hover:opacity-60 transition-opacity"
+                      aria-hidden="true"
+                      style={{ flexShrink: 0, paddingTop: 4 }}
+                    >
+                      <Pencil size={14} color="var(--color-secondary)" />
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -1036,7 +1065,6 @@ export default function ProfilePage() {
                     marginBottom: -1, whiteSpace: "nowrap", flexShrink: 0,
                   }}
                 >
-                  {tab.id === "lab_settings" && <Settings size={14} />}
                   {tab.label}
                 </button>
               );
@@ -1133,7 +1161,7 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Institution (researchers only — PIs edit this via the inline header or Lab Settings) */}
+                {/* Institution (researchers only - PIs edit this via the inline header or Lab Settings) */}
                 {!isPi && (
                   <div>
                     <SectionLabel>Institution</SectionLabel>
@@ -1311,8 +1339,8 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* ── LAB SETTINGS (PI only) ──────────────────────────────────── */}
-            {activeTab === "lab_settings" && isPi && (
+            {/* Lab settings moved to Settings page */}
+            {false && isPi && (
               <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                 <div>
                   <SectionLabel>Project Name</SectionLabel>

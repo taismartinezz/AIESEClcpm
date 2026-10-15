@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.setAttribute("data-theme", "dark");
       setResolvedTheme("dark");
     } else {
-      // system — remove attribute, let prefers-color-scheme take over
+      // system - remove attribute, let prefers-color-scheme take over
       root.removeAttribute("data-theme");
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       setResolvedTheme(mq.matches ? "dark" : "light");

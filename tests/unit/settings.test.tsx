@@ -79,7 +79,7 @@ async function renderSettings() {
   render(<SettingsPage />)
   // Wait for loading to finish
   await waitFor(() => {
-    expect(screen.queryByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
   }, { timeout: 3000 })
 }
 
@@ -93,7 +93,7 @@ describe('Settings page — Issue #15', () => {
   it('renders without crashing and shows page heading', async () => {
     mockRole = 'pi'
     await renderSettings()
-    expect(screen.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
   })
 
   it('shows profile section', async () => {
@@ -124,5 +124,44 @@ describe('Settings page — Issue #15', () => {
     mockRole = 'researcher'
     await renderSettings()
     expect(screen.queryByRole('heading', { name: /lab.*invite/i })).not.toBeInTheDocument()
+  })
+
+  it('does not crash when project has no active_prompt_ids field', async () => {
+    // The projects mock returns data without active_prompt_ids (undefined),
+    // which exercises the defensive Array.isArray check in settings/page.tsx.
+    mockRole = 'pi'
+    await renderSettings()
+    expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
+  })
+
+  it('does not crash when all table queries return null data', async () => {
+    // Simulates a new user who has no project, no settings, no invite codes yet.
+    mockRole = 'researcher'
+    // All tables return null via the default makeQuery(null) fallback — only user_profiles
+    // returns a row so the page doesn't redirect to /login.
+    await renderSettings()
+    expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
+  })
+
+  it('does not crash when supabase returns an error on a query', async () => {
+    // Simulates a transient DB error on the team_members lookup.
+    mockRole = 'pi'
+    // team_members error: membership is null, so the project branch is skipped entirely.
+    // The page should still render the profile and account sections.
+    const { supabase: sbMock } = await import('@/lib/supabase')
+    const originalFrom = sbMock.from
+    ;(sbMock.from as ReturnType<typeof vi.fn>).mockImplementationOnce((table: string) => {
+      if (table === 'team_members') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection refused', code: '500' } }),
+          order: vi.fn().mockReturnThis(),
+        }
+      }
+      return originalFrom(table)
+    })
+    await renderSettings()
+    expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()
   })
 })

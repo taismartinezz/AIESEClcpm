@@ -256,7 +256,7 @@ export default function PDFViewerInline({
         Select text to highlight · ← → to switch pages
       </div>
 
-      {/* PDF scroll area — inner wrapper ensures centering at all zoom levels */}
+      {/* PDF scroll area - inner wrapper ensures centering at all zoom levels */}
       <div style={{ flex: 1, overflow: "auto" }}>
         <div
           style={{

@@ -75,7 +75,7 @@ export default function TeamOverlapView({ availabilities, teamMembers, onPropose
         )}
       </div>
 
-      {/* Legend — steps scaled to actual member count */}
+      {/* Legend - steps scaled to actual member count */}
       {(() => {
         const intermediates: number[] = total <= 5
           ? Array.from({ length: total }, (_, i) => i)

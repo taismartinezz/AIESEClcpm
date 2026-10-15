@@ -1,152 +1,211 @@
 import { createClient } from "@supabase/supabase-js";
-
-// ── Email delivery via Resend ─────────────────────────────────────────────────
-//
-// To activate: set RESEND_API_KEY in your environment (.env.local / Vercel vars).
-// Without the key, all calls succeed silently — no emails are sent.
-// Resend free tier: 3 000 emails/month, 100/day.
-//
-// Payload schema:
-//   { to: string, subject: string, html: string, text?: string }
-//
-// Called internally from API routes (task assignment, lab-win posting).
-// Users control per-type opt-in via their user_settings row.
-
-const RESEND_KEY = process.env.RESEND_API_KEY ?? "";
-const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS ?? "Canopy <notifications@canopy.app>";
-
-export interface EmailPayload {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-}
-
-async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_KEY) {
-    // Key not configured — skip silently so the rest of the request still succeeds
-    console.info("[Email] RESEND_API_KEY not set — email skipped:", payload.subject);
-    return { ok: true };
-  }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${RESEND_KEY}`,
-    },
-    body: JSON.stringify({
-      from: FROM_ADDRESS,
-      to: [payload.to],
-      subject: payload.subject,
-      html: payload.html,
-      ...(payload.text ? { text: payload.text } : {}),
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    return { ok: false, error: `Resend error ${res.status}: ${body}` };
-  }
-  return { ok: true };
-}
-
-// ── Route handler ─────────────────────────────────────────────────────────────
-//
-// POST /api/email/send
-// Body: { type: "task_assigned" | "lab_win" | "reading_assigned", payload: Record<string, string> }
-//
-// Auth: requires service-role or server-side call (not called from the browser directly).
+import { sendEmail, buildTaskAssignedEmail, buildLabWinEmail } from "@/lib/email";
+import { getMemberships } from "@/lib/membership";
 
 const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? "";
 const serviceKey   = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const anonKey      = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 
-export async function POST(request: Request) {
-  // Simple shared-secret guard: only internal API calls should reach this route
+// ── In-process rate limiter (best-effort in serverless; resets per cold start) ─
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX       = 20; // emails per sender per minute
+const rateMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(senderId: string): boolean {
+  const now = Date.now();
+  const entry = rateMap.get(senderId);
+  if (!entry || now > entry.resetAt) {
+    rateMap.set(senderId, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+// ── Auth: always requires a valid JWT or internal secret ──────────────────────
+async function resolveUser(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization") ?? "";
   const internalSecret = process.env.INTERNAL_API_SECRET ?? "";
-  if (internalSecret && authHeader !== `Bearer ${internalSecret}`) {
+
+  // Internal secret path: caller is the server itself — no user identity
+  if (internalSecret && authHeader === `Bearer ${internalSecret}`) {
+    return "internal";
+  }
+
+  // User JWT path
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token || !anonKey || !supabaseUrl) return null;
+  const anonClient = createClient(supabaseUrl, anonKey);
+  const { data: { user } } = await anonClient.auth.getUser(token);
+  return user?.id ?? null;
+}
+
+// POST /api/email/send
+// Body for task_assigned: { type: "task_assigned", taskId: string, recipientId: string }
+// Body for lab_win:       { type: "lab_win",       labWinId: string, recipientId: string }
+// senderId is always taken from the verified JWT — never from the body.
+export async function POST(request: Request) {
+  const callerId = await resolveUser(request);
+  if (!callerId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await request.json() as {
     type: string;
-    recipientId: string;   // user_id of the person to notify
-    payload: Record<string, string>;
+    recipientId: string;
+    taskId?: string;
+    labWinId?: string;
   };
 
   if (!body.type || !body.recipientId) {
     return Response.json({ error: "type and recipientId are required" }, { status: 400 });
   }
 
-  // Look up recipient email + notification preferences
+  // Never notify yourself; skip silently
+  if (callerId !== "internal" && callerId === body.recipientId) {
+    return Response.json({ ok: true, skipped: "recipient is sender" });
+  }
+
   if (!supabaseUrl || !serviceKey) {
     return Response.json({ ok: true, skipped: "Supabase not configured" });
   }
   const db = createClient(supabaseUrl, serviceKey);
 
-  const { data: profile } = await db
-    .from("user_profiles")
-    .select("email, name")
-    .eq("id", body.recipientId)
-    .maybeSingle();
-
-  if (!profile?.email) {
-    return Response.json({ ok: true, skipped: "No email on file" });
+  // Rate-limit non-internal callers
+  if (callerId !== "internal" && !checkRateLimit(callerId)) {
+    return Response.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
+  // Resolve recipient email via auth.admin (user_profiles has no email column)
+  const { data: { user: authUser }, error: authErr } = await db.auth.admin.getUserById(body.recipientId);
+  if (authErr || !authUser?.email) {
+    return Response.json({ ok: true, skipped: "No email on file" });
+  }
+  const recipientEmail = authUser.email;
+
+  // Resolve recipient display name
+  const { data: recipientProf } = await db.from("user_profiles").select("name").eq("id", body.recipientId).maybeSingle();
+  const recipientName = (recipientProf?.name as string) ?? "there";
+
+  // Check notification preferences
   const { data: settings } = await db
     .from("user_settings")
-    .select("notif_task_assigned, notif_lab_win, notif_reading_assigned")
+    .select("notif_task_assigned, notif_lab_win")
     .eq("user_id", body.recipientId)
     .maybeSingle();
 
-  let emailPayload: EmailPayload | null = null;
+  let emailPayload;
 
   if (body.type === "task_assigned") {
     if (settings?.notif_task_assigned === false) {
-      return Response.json({ ok: true, skipped: "User opted out" });
+      return Response.json({ ok: true, skipped: "opted out" });
     }
-    const { taskTitle = "a task", assignerName = "A teammate", projectName = "your project" } = body.payload;
-    emailPayload = {
-      to: profile.email,
-      subject: `${assignerName} assigned you a task in ${projectName}`,
-      html: `<p>Hi ${profile.name ?? "there"},</p>
-<p><strong>${assignerName}</strong> assigned you the task <strong>"${taskTitle}"</strong> in <em>${projectName}</em>.</p>
-<p>Open Canopy to view it.</p>`,
-      text: `${assignerName} assigned you "${taskTitle}" in ${projectName}.`,
-    };
-  } else if (body.type === "reading_assigned") {
-    if (settings?.notif_task_assigned === false) {
-      return Response.json({ ok: true, skipped: "User opted out" });
+    if (!body.taskId) {
+      return Response.json({ error: "taskId required for task_assigned" }, { status: 400 });
     }
-    const { paperTitle = "a paper", assignerName = "A teammate" } = body.payload;
-    emailPayload = {
-      to: profile.email,
-      subject: `${assignerName} assigned you a paper to read`,
-      html: `<p>Hi ${profile.name ?? "there"},</p>
-<p><strong>${assignerName}</strong> asked you to read <strong>"${paperTitle}"</strong> in Canopy.</p>
-<p>Open the Literature module to find it in your personal library.</p>`,
-      text: `${assignerName} assigned you "${paperTitle}" to read.`,
-    };
+
+    // Load task from DB — verify data, never trust client payload
+    const { data: task } = await db
+      .from("tasks")
+      .select("id, title, project_id, projects(name)")
+      .eq("id", body.taskId)
+      .maybeSingle();
+
+    if (!task) {
+      return Response.json({ ok: true, skipped: "task not found" });
+    }
+
+    const taskProjectId = task.project_id as string;
+    const proj = Array.isArray(task.projects) ? task.projects[0] : task.projects;
+    const projectName = (proj as { name?: string } | null)?.name ?? "your lab";
+
+    // Verify: recipient must be assigned to this task
+    const { data: assignment } = await db
+      .from("task_assignees")
+      .select("user_id")
+      .eq("task_id", body.taskId)
+      .eq("user_id", body.recipientId)
+      .maybeSingle();
+
+    if (!assignment) {
+      return Response.json({ ok: true, skipped: "recipient not assigned to task" });
+    }
+
+    // Verify: caller must be a team_member of the task's project (for user JWT callers)
+    if (callerId !== "internal") {
+      const callerMemberships = await getMemberships(db, callerId);
+      const inProject = callerMemberships.some((m) => m.projectId === taskProjectId);
+      if (!inProject) {
+        return Response.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    // Load assigner name
+    const { data: callerProf } = await db.from("user_profiles").select("name").eq("id", callerId === "internal" ? body.recipientId : callerId).maybeSingle();
+    const assignerName = callerId !== "internal" ? ((callerProf?.name as string) ?? "A teammate") : "Canopy";
+
+    emailPayload = buildTaskAssignedEmail({
+      to: recipientEmail,
+      recipientName,
+      taskTitle: task.title as string,
+      assignerName,
+      projectName,
+    });
+
   } else if (body.type === "lab_win") {
     if (settings?.notif_lab_win === false) {
-      return Response.json({ ok: true, skipped: "User opted out" });
+      return Response.json({ ok: true, skipped: "opted out" });
     }
-    const { winTitle = "a lab win", posterName = "Someone" } = body.payload;
-    emailPayload = {
-      to: profile.email,
-      subject: `New lab win: ${winTitle}`,
-      html: `<p><strong>${posterName}</strong> posted a lab win: <em>${winTitle}</em>.</p>`,
-      text: `${posterName} posted a lab win: ${winTitle}.`,
-    };
-  } else {
-    return Response.json({ error: `Unknown notification type: ${body.type}` }, { status: 400 });
-  }
+    if (!body.labWinId) {
+      return Response.json({ error: "labWinId required for lab_win" }, { status: 400 });
+    }
 
-  if (!emailPayload) return Response.json({ ok: true });
+    // Load lab win from DB
+    const { data: win } = await db
+      .from("lab_wins")
+      .select("id, content, author_id, project_id, projects(name)")
+      .eq("id", body.labWinId)
+      .maybeSingle();
+
+    if (!win) {
+      return Response.json({ ok: true, skipped: "lab win not found" });
+    }
+
+    // Verify: caller must be the poster (for user JWT callers)
+    if (callerId !== "internal" && (win.author_id as string) !== callerId) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Verify: recipient must be a team_member of the win's project
+    const winProjectId = win.project_id as string;
+    const recipientMemberships = await getMemberships(db, body.recipientId);
+    const recipientInProject = recipientMemberships.some((m) => m.projectId === winProjectId);
+    if (!recipientInProject) {
+      return Response.json({ ok: true, skipped: "recipient not in same project" });
+    }
+
+    const winProj = Array.isArray(win.projects) ? win.projects[0] : win.projects;
+    const projectName = (winProj as { name?: string } | null)?.name ?? "your lab";
+
+    // Load poster name
+    const { data: posterProf } = await db.from("user_profiles").select("name").eq("id", win.author_id as string).maybeSingle();
+    const posterName = (posterProf?.name as string) ?? "A teammate";
+
+    emailPayload = buildLabWinEmail({
+      to: recipientEmail,
+      recipientName,
+      posterName,
+      content: win.content as string,
+      projectName,
+    });
+
+  } else {
+    return Response.json({ error: `Unknown type: ${body.type}` }, { status: 400 });
+  }
 
   const result = await sendEmail(emailPayload);
   if (!result.ok) {
-    console.error("[Email] send failed:", result.error);
     return Response.json({ ok: false, error: result.error }, { status: 502 });
   }
   return Response.json({ ok: true });

@@ -74,7 +74,7 @@ export default function PDFViewer({
     }
   }, [numPages, initialPage]);
 
-  // IntersectionObserver — track which page is currently most visible
+  // IntersectionObserver - track which page is currently most visible
   useEffect(() => {
     if (!numPages) return;
     const observer = new IntersectionObserver(
@@ -256,7 +256,7 @@ export default function PDFViewer({
               Highlights
             </p>
             <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, marginBottom: 0 }}>
-              Drag to mark a region. Type the quoted words separately in the popover — the box and the quote are independent.
+              Drag to mark a region. Type the quoted words separately in the popover - the box and the quote are independent.
             </p>
           </div>
 

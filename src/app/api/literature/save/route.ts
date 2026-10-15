@@ -1,7 +1,8 @@
-// Browser-extension endpoint — saves a captured page as a literature item.
+// Browser-extension endpoint - saves a captured page as a literature item.
 // Auth: pass Supabase access token as "Authorization: Bearer <token>" header.
 
 import { createClient } from "@supabase/supabase-js";
+import { getMemberships } from "@/lib/membership";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,8 @@ interface SavePayload {
   journal?: string;
   abstract?: string;
   scope?: "lab" | "my" | "project";
+  /** Explicit project ID. When omitted, defaults to the user's most recently joined project. */
+  projectId?: string;
 }
 
 export async function POST(request: Request) {
@@ -36,18 +39,25 @@ export async function POST(request: Request) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return Response.json({ error: "Invalid token" }, { status: 401 });
 
-  // Look up the user's project
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("project_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.project_id) return Response.json({ error: "No project found for user" }, { status: 403 });
-
   const body = (await request.json()) as SavePayload;
   if (!body.title?.trim()) return Response.json({ error: "title is required" }, { status: 400 });
 
-  const projectId = profile.project_id as string;
+  // Resolve project via team_members (authoritative source; user_profiles.project_id
+  // is unreliable for multi-lab users).
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const db = serviceKey ? createClient(supabaseUrl, serviceKey) : supabase;
+  const memberships = await getMemberships(db, user.id);
+  if (memberships.length === 0) return Response.json({ error: "No project found for user" }, { status: 403 });
+
+  // If caller specified a projectId, verify membership; otherwise use most recently joined.
+  let projectId: string;
+  if (body.projectId) {
+    const match = memberships.find((m) => m.projectId === body.projectId);
+    if (!match) return Response.json({ error: "Forbidden: not a member of that project" }, { status: 403 });
+    projectId = match.projectId;
+  } else {
+    projectId = memberships[memberships.length - 1].projectId;
+  }
   const library   = body.scope ?? "lab";
   const now       = new Date().toISOString();
   const id        = crypto.randomUUID();

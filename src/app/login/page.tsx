@@ -6,6 +6,12 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import CanopyLogo from "@/components/ui/CanopyLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { loadGoogleIdentity, createNonce, renderGisButton, type GoogleCredentialResponse } from "@/lib/googleIdentity";
+import { getPostAuthDestination } from "@/lib/postAuthRedirect";
+
+// When set, Google sign-in uses Google's own button (as an invisible overlay) + an
+// ID token, so the consent screen names our domain instead of the Supabase project URL.
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -52,6 +58,9 @@ function AuthButton({
   onClick,
   muted = false,
   dashed = false,
+  loading = false,
+  disabled = false,
+  forceHovered = false,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -59,15 +68,22 @@ function AuthButton({
   onClick: () => void;
   muted?: boolean;
   dashed?: boolean;
+  loading?: boolean;
+  disabled?: boolean;
+  forceHovered?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const isDisabled = disabled || loading;
+  const showHover = (hovered || forceHovered) && !isDisabled;
 
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={isDisabled ? undefined : onClick}
       aria-label={ariaLabel}
-      onMouseEnter={() => setHovered(true)}
+      aria-busy={loading}
+      disabled={isDisabled}
+      onMouseEnter={() => { if (!isDisabled) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: "flex",
@@ -76,20 +92,21 @@ function AuthButton({
         height: 48,
         minHeight: 48,
         backgroundColor: "var(--color-surface)",
-        border: `1px ${dashed ? "dashed" : "solid"} ${hovered ? "var(--color-navy-dim)" : "var(--color-border)"}`,
+        border: `1px ${dashed ? "dashed" : "solid"} ${showHover ? "var(--color-navy-dim)" : "var(--color-border)"}`,
         borderRadius: 8,
-        cursor: "pointer",
+        cursor: isDisabled ? "not-allowed" : "pointer",
         fontFamily: "var(--font-roboto)",
         fontWeight: 600,
         fontSize: 14,
-        color: muted ? "var(--color-secondary)" : "var(--color-body)",
-        boxShadow: hovered ? "0 2px 8px rgba(27,46,75,0.08)" : "none",
-        transition: "border-color 150ms ease, box-shadow 150ms ease",
+        color: isDisabled ? "var(--color-secondary)" : muted ? "var(--color-secondary)" : "var(--color-body)",
+        opacity: disabled && !loading ? 0.5 : 1,
+        boxShadow: showHover ? "0 2px 8px rgba(27,46,75,0.08)" : "none",
+        transition: "border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease",
         position: "relative",
         padding: 0,
       }}
     >
-      {/* Icon — pinned 24px from left edge */}
+      {/* Icon or spinner - pinned 24px from left edge */}
       <span
         style={{
           position: "absolute",
@@ -100,10 +117,19 @@ function AuthButton({
           pointerEvents: "none",
         }}
       >
-        {icon}
+        {loading ? (
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <circle cx="9" cy="9" r="7" fill="none" stroke="var(--color-border)" strokeWidth="2" />
+            <path d="M9 2a7 7 0 0 1 7 7" fill="none" stroke="var(--color-secondary)" strokeWidth="2" strokeLinecap="round">
+              <animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.8s" repeatCount="indefinite" />
+            </path>
+          </svg>
+        ) : icon}
       </span>
-      {/* Label — centered in the full button width */}
-      <span style={{ flex: 1, textAlign: "center" }}>{label}</span>
+      {/* Label - centered in the full button width */}
+      <span style={{ flex: 1, textAlign: "center" }}>
+        {loading ? `Connecting…` : label}
+      </span>
     </button>
   );
 }
@@ -131,7 +157,7 @@ async function resolveProjectInvite(userId: string, userEmail: string) {
     return;
   }
 
-  // Insert sub_project membership (ON CONFLICT DO NOTHING — idempotent)
+  // Insert sub_project membership (ON CONFLICT DO NOTHING - idempotent)
   await supabase.from("sub_project_members").upsert(
     {
       sub_project_id: invite.sub_project_id as string,
@@ -182,17 +208,53 @@ export default function LoginPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [oAuthLoading, setOAuthLoading] = useState<string | null>(null);
+  const [oAuthError, setOAuthError] = useState<string | null>(null);
   const hasFetched = useRef(false);
+
+  // GIS invisible-overlay state
+  const [gisReady, setGisReady] = useState(false);
+  const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
+  const googleWrapperRef = useRef<HTMLDivElement>(null);
+  const gisContainerRef = useRef<HTMLDivElement>(null);
+
+  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, all three show.
+  const enabledProviders: Set<string> = new Set(
+    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "google,microsoft,github")
+      .toLowerCase().split(",").map(s => s.trim()).filter(Boolean)
+  );
 
   // Already authed? Route to correct destination.
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
 
+    // Surface OAuth errors forwarded from /auth/callback
+    const params = new URLSearchParams(window.location.search);
+
+    // Session-expired redirect from AppShell
+    if (params.get("reason") === "session_expired") {
+      setOAuthError("Your session expired. Please sign in again.");
+    }
+
+    const errorCode = params.get("error");
+    const errorDesc = params.get("error_description") ?? "";
+    if (errorCode) {
+      const providerDisabled =
+        errorDesc.includes("provider is not enabled") ||
+        errorDesc.includes("Unsupported provider") ||
+        errorCode === "provider_disabled";
+      setOAuthError(
+        providerDisabled
+          ? "That sign-in method isn't available right now. Use email or try another provider."
+          : "Sign-in failed. Please try again or use email."
+      );
+    }
+
     // Capture lab and project invite codes from URL before any redirect
-    const inviteParam = new URLSearchParams(window.location.search).get("invite");
+    const inviteParam = params.get("invite");
     if (inviteParam) localStorage.setItem("pendingInviteCode", inviteParam);
-    const projectInviteParam = new URLSearchParams(window.location.search).get("project_invite");
+    const projectInviteParam = params.get("project_invite");
     if (projectInviteParam) localStorage.setItem("pendingProjectInviteToken", projectInviteParam);
 
     if (!isSupabaseConfigured) {
@@ -207,11 +269,11 @@ export default function LoginPage() {
           .from("team_members").select("id").eq("user_id", session.user.id).maybeSingle();
         if (memberError) { setChecking(false); return; }
         if (member) {
-          // Normal lab member — resolve any pending project invite then go home
+          // Normal lab member - resolve any pending project invite then go home
           await resolveProjectInvite(session.user.id, session.user.email ?? "");
           router.replace("/");
         } else {
-          // No lab membership — check if they have a profile (external member or returning user)
+          // No lab membership - check if they have a profile (external member or returning user)
           const { data: profile } = await supabase
             .from("user_profiles").select("id").eq("id", session.user.id).maybeSingle();
           if (profile) {
@@ -299,16 +361,115 @@ export default function LoginPage() {
   }, [forgotEmail]);
 
   const handleOAuth = useCallback(async (provider: "github" | "google" | "azure") => {
+    setOAuthLoading(provider);
+    setOAuthError(null);
     if (isSupabaseConfigured) {
       localStorage.removeItem("canopy_user");
       localStorage.removeItem("canopy_project");
       localStorage.removeItem("canopy_authed");
-      await supabase.auth.signInWithOAuth({ provider });
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+      if (error) {
+        // Provider disabled, network error, or misconfiguration - surface it immediately
+        console.error("[Auth] signInWithOAuth error:", error);
+        const isProviderError =
+          error.message.toLowerCase().includes("provider") ||
+          error.message.toLowerCase().includes("not enabled") ||
+          error.message.toLowerCase().includes("unsupported");
+        setOAuthError(
+          isProviderError
+            ? "That sign-in method isn't available right now. Use email or try another provider."
+            : `Sign-in failed: ${error.message}`
+        );
+        setOAuthLoading(null);
+        return;
+      }
+      // signInWithOAuth redirects the browser on success, so code after here only
+      // runs if the redirect stalls (popup blocked, slow network, etc.).
+      // Reset the stuck button after 5 s so the user isn't left with "Connecting…".
+      setTimeout(() => {
+        setOAuthLoading((cur) => (cur === provider ? null : cur));
+        setOAuthError((cur) => cur ?? "Redirect didn't happen. Please try again or use email.");
+      }, 5000);
       return;
     }
     localStorage.setItem("canopy_authed", "true");
     router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
   }, [router]);
+
+  // ── Google Identity Services invisible overlay (ID-token flow) ─────────────
+  // Our AuthButton stays visible ("Continue with Google"); the GIS button iframe
+  // sits on top at near-zero opacity and intercepts clicks.
+  const useGoogleIdToken =
+    !!GOOGLE_CLIENT_ID && isSupabaseConfigured && enabledProviders.has("google");
+
+  useEffect(() => {
+    if (checking || !useGoogleIdToken) return;
+    let cancelled = false;
+    let observer: ResizeObserver | null = null;
+
+    (async () => {
+      try {
+        const [gis, [rawNonce, hashedNonce]] = await Promise.all([loadGoogleIdentity(), createNonce()]);
+        if (cancelled || !gisContainerRef.current || !googleWrapperRef.current) return;
+
+        gis.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce: hashedNonce,
+          ux_mode: "popup",
+          use_fedcm_for_prompt: true,
+          auto_select: false,
+          cancel_on_tap_outside: false,
+          callback: async ({ credential }: GoogleCredentialResponse) => {
+            setOAuthLoading("google");
+            setOAuthError(null);
+            localStorage.removeItem("canopy_user");
+            localStorage.removeItem("canopy_project");
+            localStorage.removeItem("canopy_authed");
+            try {
+              const { data, error } = await supabase.auth.signInWithIdToken({
+                provider: "google",
+                token: credential,
+                nonce: rawNonce,
+              });
+              if (error || !data.user) {
+                console.error("[Auth] signInWithIdToken error:", error);
+                setOAuthError("Sign-in failed. Please try again or use email.");
+                setOAuthLoading(null);
+                return;
+              }
+              router.replace(await getPostAuthDestination(data.user.id));
+            } catch (err: unknown) {
+              console.error("[Auth] signInWithIdToken threw:", err);
+              setOAuthError("Sign-in failed. Please try again or use email.");
+              setOAuthLoading(null);
+            }
+          },
+        });
+
+        const container = gisContainerRef.current;
+        const wrapper = googleWrapperRef.current;
+        renderGisButton(gis, container, wrapper.offsetWidth || 400);
+        setGisReady(true);
+
+        // Keep the overlay sized to our button
+        observer = new ResizeObserver((entries) => {
+          const width = entries[0]?.contentRect.width;
+          if (width && !cancelled) renderGisButton(gis, container, width);
+        });
+        observer.observe(wrapper);
+      } catch (err) {
+        // Script blocked or offline: our button keeps using the redirect flow.
+        console.warn("[Auth] Google Identity Services unavailable, using redirect flow:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+    };
+  }, [checking, useGoogleIdToken, router]);
+
 
   if (checking) return null;
 
@@ -408,28 +569,88 @@ export default function LoginPage() {
           {mode === "signin" ? "Sign in" : "Create your account"}
         </p>
 
-        {/* Auth buttons */}
+        {/* OAuth error banner */}
+        {oAuthError && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 12,
+              padding: "10px 14px",
+              backgroundColor: "rgba(185,28,28,0.06)",
+              border: "1px solid rgba(185,28,28,0.18)",
+              borderRadius: 8,
+              fontFamily: "var(--font-roboto)",
+              fontSize: 13,
+              color: "var(--color-error)",
+              lineHeight: 1.5,
+            }}
+          >
+            {oAuthError}
+          </div>
+        )}
+
+        {/* Auth buttons -- only renders providers listed in NEXT_PUBLIC_AUTH_PROVIDERS */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <AuthButton
-            icon={<GoogleIcon />}
-            label="Continue with Google"
-            ariaLabel="Sign in with Google"
-            onClick={() => router.push("/coming-soon")}
-          />
+          {enabledProviders.has("google") && (
+            // Wrapper: our button is visible; GIS iframe sits on top at near-zero opacity.
+            // The iframe intercepts clicks for the ID-token flow.
+            // Keyboard fallback: AuthButton remains focusable and Enter/Space use redirect flow.
+            <div
+              ref={googleWrapperRef}
+              style={{ position: "relative" }}
+              onMouseEnter={() => setGoogleButtonHovered(true)}
+              onMouseLeave={() => setGoogleButtonHovered(false)}
+            >
+              <AuthButton
+                icon={<GoogleIcon />}
+                label="Continue with Google"
+                ariaLabel="Sign in with Google"
+                loading={oAuthLoading === "google"}
+                disabled={oAuthLoading !== null && oAuthLoading !== "google"}
+                forceHovered={googleButtonHovered && oAuthLoading === null}
+                onClick={() => handleOAuth("google")}
+              />
+              {/* GIS overlay -- kept mounted so the rendered iframe survives; hidden until ready */}
+              {useGoogleIdToken && (
+                <div
+                  ref={gisContainerRef}
+                  aria-hidden="true"
+                  data-testid="google-signin-button"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    overflow: "hidden",
+                    opacity: 0.01,
+                    zIndex: 1,
+                    display: gisReady ? "block" : "none",
+                    pointerEvents: oAuthLoading !== null ? "none" : "auto",
+                  }}
+                />
+              )}
+            </div>
+          )}
 
-          <AuthButton
-            icon={<MicrosoftIcon />}
-            label="Continue with Microsoft"
-            ariaLabel="Sign in with Microsoft"
-            onClick={() => router.push("/coming-soon")}
-          />
+          {enabledProviders.has("microsoft") && (
+            <AuthButton
+              icon={<MicrosoftIcon />}
+              label="Continue with Microsoft"
+              ariaLabel="Sign in with Microsoft"
+              loading={oAuthLoading === "azure"}
+              disabled={oAuthLoading !== null && oAuthLoading !== "azure"}
+              onClick={() => handleOAuth("azure")}
+            />
+          )}
 
-          <AuthButton
-            icon={<GitHubIcon />}
-            label="Continue with GitHub"
-            ariaLabel="Sign in with GitHub"
-            onClick={() => router.push("/coming-soon")}
-          />
+          {enabledProviders.has("github") && (
+            <AuthButton
+              icon={<GitHubIcon />}
+              label="Continue with GitHub"
+              ariaLabel="Sign in with GitHub"
+              loading={oAuthLoading === "github"}
+              disabled={oAuthLoading !== null && oAuthLoading !== "github"}
+              onClick={() => handleOAuth("github")}
+            />
+          )}
         </div>
 
         {/* Or divider */}
@@ -576,7 +797,7 @@ export default function LoginPage() {
           </p>
         )}
 
-        {/* Forgot password — sign-in only */}
+        {/* Forgot password - sign-in only */}
         {mode === "signin" && !forgotOpen && (
           <div style={{ textAlign: "right", marginTop: 6 }}>
             <button

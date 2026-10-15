@@ -77,6 +77,18 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
     undoRef.current?.();
   }, [dismiss]);
 
+  // Cmd/Ctrl+Z triggers undo while a toast is visible
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey && toast) {
+        e.preventDefault();
+        handleUndo();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [toast, handleUndo]);
+
   const toastEl = toast && mounted ? createPortal(
     <>
       <style>{`

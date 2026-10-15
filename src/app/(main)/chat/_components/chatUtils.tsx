@@ -11,7 +11,7 @@ export function formatTime(iso: string): string {
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
   if (isToday) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
@@ -50,25 +50,93 @@ export function buildUser(id: string, name: string, color?: string): User {
 }
 
 export function renderMd(text: string): ReactNode[] {
-  const codeBlock = /```([\s\S]*?)```/g;
   const out: ReactNode[] = [];
+  const codeBlock = /```([\s\S]*?)```/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = codeBlock.exec(text)) !== null) {
-    if (m.index > last) out.push(...renderInline(text.slice(last, m.index), last));
-    out.push(<pre key={`cb${m.index}`} style={{ fontFamily: "monospace", fontSize: 12, backgroundColor: "var(--color-surface-2)", borderRadius: 6, padding: "8px 10px", margin: "4px 0", overflowX: "auto", whiteSpace: "pre", color: "var(--color-body)", display: "block" }}>{m[1]}</pre>);
+    if (m.index > last) out.push(...renderBlock(text.slice(last, m.index), last));
+    out.push(
+      <pre key={`cb${m.index}`} style={{ fontFamily: "monospace", fontSize: 12, backgroundColor: "var(--color-surface-2)", borderRadius: 6, padding: "8px 10px", margin: "4px 0", overflowX: "auto", whiteSpace: "pre", color: "var(--color-body)", display: "block" }}>
+        {m[1].replace(/^\n/, "")}
+      </pre>
+    );
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push(...renderInline(text.slice(last), last));
+  if (last < text.length) out.push(...renderBlock(text.slice(last), last));
+  return out;
+}
+
+function renderBlock(text: string, offset: number): ReactNode[] {
+  const lines = text.split("\n");
+  const out: ReactNode[] = [];
+  let ulItems: string[] = [];
+  let olItems: string[] = [];
+
+  function flushLists(key: number) {
+    if (ulItems.length) {
+      out.push(
+        <ul key={`ul${key}`} style={{ margin: "4px 0 4px 18px", padding: 0, fontSize: 13, lineHeight: 1.6 }}>
+          {ulItems.map((li, i) => <li key={i} style={{ listStyleType: "disc" }}>{renderInline(li, offset + key + i)}</li>)}
+        </ul>
+      );
+      ulItems = [];
+    }
+    if (olItems.length) {
+      out.push(
+        <ol key={`ol${key}`} style={{ margin: "4px 0 4px 18px", padding: 0, fontSize: 13, lineHeight: 1.6 }}>
+          {olItems.map((li, i) => <li key={i} style={{ listStyleType: "decimal" }}>{renderInline(li, offset + key + i)}</li>)}
+        </ol>
+      );
+      olItems = [];
+    }
+  }
+
+  lines.forEach((line, li) => {
+    // Blockquote
+    if (/^>\s?/.test(line)) {
+      flushLists(li);
+      const content = line.replace(/^>\s?/, "");
+      out.push(
+        <blockquote key={`bq${offset}${li}`} style={{ borderLeft: "3px solid var(--color-border)", paddingLeft: 10, margin: "2px 0", color: "var(--color-secondary)", fontStyle: "italic", fontSize: 13 }}>
+          {renderInline(content, offset + li)}
+        </blockquote>
+      );
+      return;
+    }
+    // Unordered list
+    if (/^[-*]\s/.test(line)) {
+      flushLists(li); // flush ol if switching
+      if (olItems.length === 0) { // only reset ul if no pending ol
+        ulItems.push(line.replace(/^[-*]\s/, ""));
+      }
+      return;
+    }
+    // Ordered list
+    if (/^\d+\.\s/.test(line)) {
+      flushLists(li);
+      olItems.push(line.replace(/^\d+\.\s/, ""));
+      return;
+    }
+    // Normal line
+    flushLists(li);
+    if (li < lines.length - 1) {
+      out.push(<span key={`l${offset}${li}`}>{renderInline(line, offset + li)}<br /></span>);
+    } else {
+      out.push(...renderInline(line, offset + li).map((n, i) => <span key={`lt${offset}${li}${i}`}>{n}</span>));
+    }
+  });
+  flushLists(lines.length);
   return out;
 }
 
 export function renderInline(text: string, offset: number): ReactNode[] {
-  const tokens = text.split(/(\*\*[\s\S]*?\*\*|__[\s\S]*?__|_[\s\S]*?_|\*[^*][\s\S]*?\*|`[^`]*`|\[[\s\S]*?\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s]+|@\w+)/);
+  const tokens = text.split(/(\*\*[\s\S]*?\*\*|__[\s\S]*?__|~~[\s\S]*?~~|_[\s\S]*?_|\*[^*][\s\S]*?\*|`[^`]*`|\[[\s\S]*?\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s]+|@\w+)/);
   return tokens.map((tok, i) => {
     const k = `i${offset}${i}`;
     if (/^\*\*[\s\S]*\*\*$/.test(tok) && tok.length > 4) return <strong key={k}>{tok.slice(2, -2)}</strong>;
     if (/^__[\s\S]*__$/.test(tok) && tok.length > 4) return <strong key={k}>{tok.slice(2, -2)}</strong>;
+    if (/^~~[\s\S]*~~$/.test(tok) && tok.length > 4) return <del key={k}>{tok.slice(2, -2)}</del>;
     if (/^_[\s\S]*_$/.test(tok) && tok.length > 2) return <em key={k}>{tok.slice(1, -1)}</em>;
     if (/^\*[^*][\s\S]*\*$/.test(tok) && tok.length > 2) return <em key={k}>{tok.slice(1, -1)}</em>;
     if (/^`[^`]*`$/.test(tok) && tok.length > 2) return <code key={k} style={{ fontFamily: "monospace", fontSize: 12, backgroundColor: "var(--color-surface-2)", borderRadius: 3, padding: "1px 4px" }}>{tok.slice(1, -1)}</code>;

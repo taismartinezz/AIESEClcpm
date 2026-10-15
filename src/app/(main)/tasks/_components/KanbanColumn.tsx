@@ -19,6 +19,8 @@ export function KanbanColumn({
   onArchiveDone,
   teamMembers = [],
   subtaskCounts = {},
+  subtaskData = {},
+  onToggleSubtask,
   showLabBadge = false,
 }: {
   status: TaskStatus;
@@ -31,16 +33,26 @@ export function KanbanColumn({
   onArchiveDone?: () => void;
   teamMembers?: User[];
   subtaskCounts?: Record<string, { total: number; done: number }>;
+  subtaskData?: Record<string, Task[]>;
+  onToggleSubtask?: (taskId: string, subtaskId: string, done: boolean) => void;
   showLabBadge?: boolean;
 }) {
   const cfg = STATUS_CONFIG[status];
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div className="flex flex-col" style={{ minWidth: 0, flex: 1 }}>
-      <div className="flex items-center gap-2 mb-3 px-1">
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cfg.dot }} />
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--color-body)" }}>
+    <div className="flex flex-col" style={{
+      minWidth: 0, flex: 1,
+      backgroundColor: "var(--color-surface)",
+      border: isOver ? "2px dashed var(--color-navy)" : "1px solid var(--color-border)",
+      borderRadius: 10,
+      overflow: "hidden",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)",
+      transition: "border-color 0.15s",
+    }}>
+      {/* Column header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "11px 14px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-secondary)", flex: 1 }}>
           {cfg.label}
         </span>
         <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-secondary)" }}>
@@ -50,32 +62,25 @@ export function KanbanColumn({
           <button
             onClick={onArchiveDone}
             title="Archive all done tasks"
-            style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", background: "none", border: "1px solid var(--color-border)", borderRadius: 4, padding: "2px 6px", cursor: "pointer", whiteSpace: "nowrap" }}
+            style={{ fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", background: "none", border: "1px solid var(--color-border)", borderRadius: 4, padding: "2px 6px", cursor: "pointer", whiteSpace: "nowrap" }}
           >
             Archive all
           </button>
         )}
       </div>
 
-      <div
-        ref={setDropRef}
-        style={{
-          flex: 1,
-          borderRadius: 8,
-          border: isOver ? "2px dashed var(--color-navy)" : "2px dashed transparent",
-          transition: "border-color 0.15s",
-          padding: 2,
-          minHeight: 60,
-        }}
-      >
+      {/* Droppable task area */}
+      <div ref={setDropRef} style={{ flex: 1, minHeight: 60 }}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {tasks.length === 0 && (
-              <EmptyState
-                variant={status === "done" ? "done" : "column"}
-                title={status === "done" ? "No completed tasks" : "No tasks yet"}
-                compact
-              />
+              <div style={{ padding: "10px 14px 6px" }}>
+                <EmptyState
+                  variant={status === "done" ? "done" : "column"}
+                  title={status === "done" ? "No completed tasks" : "No tasks yet"}
+                  compact
+                />
+              </div>
             )}
             {tasks.map((task) => (
               <TaskCard
@@ -85,8 +90,11 @@ export function KanbanColumn({
                 onMoveStatus={(s) => onMoveTask(task.id, s)}
                 onEdit={() => onEditTask(task)}
                 onDelete={() => onDeleteTask(task.id)}
+                rowMode
                 teamMembers={teamMembers}
                 subtaskProgress={subtaskCounts[task.id]}
+                subtasks={subtaskData[task.id]}
+                onToggleSubtask={onToggleSubtask ? (subId, done) => onToggleSubtask(task.id, subId, done) : undefined}
                 showLabBadge={showLabBadge}
               />
             ))}
@@ -94,10 +102,18 @@ export function KanbanColumn({
         </SortableContext>
       </div>
 
+      {/* Add task footer */}
       <button
         onClick={() => onAddTask(status)}
-        className="flex items-center gap-1.5 mt-3 px-1 py-1 transition-opacity hover:opacity-70"
-        style={{ fontSize: 12, color: "var(--color-navy)", minHeight: 36, background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
+        className="flex items-center gap-1.5 w-full transition-colors"
+        style={{
+          fontSize: 12, color: "var(--color-secondary)", padding: "8px 14px",
+          borderLeft: "none", borderRight: "none", borderBottom: "none",
+          borderTop: "1px solid var(--color-border)", background: "none",
+          cursor: "pointer", fontFamily: "var(--font-roboto)", textAlign: "left",
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(27,46,75,0.03)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-navy)"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-secondary)"; }}
       >
         <Plus size={13} /> Add task
       </button>

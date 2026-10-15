@@ -1,7 +1,9 @@
-// Zotero Web API v3 proxy — fetches collections and group libraries.
+// Zotero Web API v3 proxy - fetches collections and group libraries.
 // Runs server-side to keep the API key out of browser network requests.
 
 export const runtime = "nodejs";
+
+import { requireAuth } from "@/lib/api-auth";
 
 async function fetchCollections(base: string, apiKey: string): Promise<{ key: string; name: string }[]> {
   const res = await fetch(`${base}/collections?limit=100`, {
@@ -15,6 +17,9 @@ async function fetchCollections(base: string, apiKey: string): Promise<{ key: st
 }
 
 export async function POST(request: Request) {
+  const callerId = await requireAuth(request);
+  if (!callerId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
   const { apiKey, zoteroUserId, groupId } = (await request.json()) as {
     apiKey?: string;
     zoteroUserId?: string;

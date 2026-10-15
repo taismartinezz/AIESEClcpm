@@ -49,7 +49,8 @@ export async function POST(request: Request) {
     title?: string;
   };
 
-  if (!doi || !sourceItemId || !projectId) {
+  // A title alone is enough - the title-search fallback can run without a DOI.
+  if ((!doi && !title) || !sourceItemId || !projectId) {
     return Response.json({ recommendations: [] });
   }
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check cache — return if fresh enough
+  // Check cache - return if fresh enough
   const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 3600 * 1000).toISOString();
   const { data: cached } = await supabase
     .from("lit_recommendation_cache")
@@ -101,31 +102,33 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Primary: look up by DOI and use OpenAlex related_works links
+    // Primary: look up by DOI and use OpenAlex related_works links (skipped when no DOI)
     let recommendations: RecResult[] = [];
-    const workRes = await fetch(
-      `https://api.openalex.org/works/doi:${encodeURIComponent(doi)}`,
-      { headers: OA_HEADERS }
-    );
+    if (doi) {
+      const workRes = await fetch(
+        `https://api.openalex.org/works/doi:${encodeURIComponent(doi)}`,
+        { headers: OA_HEADERS }
+      );
 
-    if (workRes.ok) {
-      const work = await workRes.json() as { related_works?: string[] };
-      const relatedIds: string[] = (work.related_works ?? []).slice(0, 10);
+      if (workRes.ok) {
+        const work = await workRes.json() as { related_works?: string[] };
+        const relatedIds: string[] = (work.related_works ?? []).slice(0, 10);
 
-      if (relatedIds.length > 0) {
-        const recsRes = await fetch(
-          `https://api.openalex.org/works?filter=ids.openalex:${encodeURIComponent(relatedIds.join("|"))}&per_page=5&select=id,display_name,authorships,publication_year,primary_location,doi`,
-          { headers: OA_HEADERS }
-        );
-        if (recsRes.ok) {
-          const { results = [] } = await recsRes.json() as { results: OAWork[] };
-          recommendations = results.map(mapWork);
+        if (relatedIds.length > 0) {
+          const recsRes = await fetch(
+            `https://api.openalex.org/works?filter=ids.openalex:${encodeURIComponent(relatedIds.join("|"))}&per_page=5&select=id,display_name,authorships,publication_year,primary_location,doi`,
+            { headers: OA_HEADERS }
+          );
+          if (recsRes.ok) {
+            const { results = [] } = await recsRes.json() as { results: OAWork[] };
+            recommendations = results.map(mapWork);
+          }
         }
       }
     }
 
     // Fallback: title keyword search when DOI lookup fails or returns no related works.
-    // Covers cases where the paper is absent from OpenAlex or has an empty related_works list.
+    // Also the primary path for items that have no DOI (e.g. external PDFs).
     if (recommendations.length === 0 && title) {
       const searchRes = await fetch(
         `https://api.openalex.org/works?search=${encodeURIComponent(title)}&per_page=5&select=id,display_name,authorships,publication_year,primary_location,doi`,
@@ -133,10 +136,9 @@ export async function POST(request: Request) {
       );
       if (searchRes.ok) {
         const { results = [] } = await searchRes.json() as { results: OAWork[] };
-        // Exclude the source paper itself (same DOI)
-        const normDoi = doi.toLowerCase();
+        const normDoi = doi ? doi.toLowerCase() : null;
         recommendations = results
-          .filter((w) => !w.doi || w.doi.replace("https://doi.org/", "").toLowerCase() !== normDoi)
+          .filter((w) => !normDoi || !w.doi || w.doi.replace("https://doi.org/", "").toLowerCase() !== normDoi)
           .slice(0, 5)
           .map(mapWork);
       }

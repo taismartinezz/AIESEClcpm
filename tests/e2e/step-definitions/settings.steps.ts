@@ -1,65 +1,12 @@
 import { Given, When, Then, Before, After, setDefaultTimeout } from '@cucumber/cucumber'
 import { chromium, Browser, Page } from 'playwright'
 import assert from 'node:assert/strict'
+import { setupAuthMocks } from '../helpers/mocks'
 
 setDefaultTimeout(30_000)
 
 let browser: Browser
 let page: Page
-
-const MOCK_USER_ID = 'mock-user-id'
-const MOCK_EMAIL = 'test@example.com'
-
-function fakeSession() {
-  return JSON.stringify({
-    access_token: 'mock-access-token',
-    token_type: 'bearer',
-    expires_in: 3600,
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
-    refresh_token: 'mock-refresh-token',
-    user: {
-      id: MOCK_USER_ID,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: MOCK_EMAIL,
-      email_confirmed_at: '2024-01-01T00:00:00.000Z',
-      app_metadata: { provider: 'email' },
-      user_metadata: {},
-      created_at: '2024-01-01T00:00:00.000Z',
-    },
-  })
-}
-
-async function setupMocks(role: 'pi' | 'researcher') {
-  const session = fakeSession()
-  const profileData = { id: MOCK_USER_ID, name: 'Test User', role, avatar_color: '#B4D4E3', avatar_initials: 'TU', email: MOCK_EMAIL, bio: '' }
-  const membershipData = { project_id: 'proj-1', user_id: MOCK_USER_ID, role }
-  const projectData = { id: 'proj-1', name: 'Lab', institution: 'Uni' }
-  const inviteCodes = role === 'pi' ? [{ id: 'c1', code: 'CANOPY-TEST', used_by: null }] : []
-
-  await page.addInitScript(
-    ({ session, profileData, membershipData, projectData, inviteCodes }) => {
-      const _origGet = Storage.prototype.getItem
-      Storage.prototype.getItem = function (key) {
-        if (typeof key === 'string' && /^sb-.+-auth-token$/.test(key)) return session
-        return _origGet.call(this, key)
-      }
-      const _origFetch = window.fetch
-      const ok = (body: unknown) =>
-        Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-      window.fetch = function (input, init) {
-        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
-        if (url.includes('/rest/v1/user_profiles')) return ok([profileData])
-        if (url.includes('/rest/v1/team_members'))  return ok([membershipData])
-        if (url.includes('/rest/v1/projects'))       return ok([projectData])
-        if (url.includes('/rest/v1/invite_codes'))   return ok(inviteCodes)
-        if (url.includes('/rest/v1/'))               return ok([])
-        return _origFetch.call(this, input, init)
-      }
-    },
-    { session, profileData, membershipData, projectData, inviteCodes }
-  )
-}
 
 Before(async () => {
   browser = await chromium.launch({ headless: true })
@@ -74,15 +21,15 @@ After(async () => {
 // ── Given ─────────────────────────────────────────────────────────────────────
 
 Given('I am logged in', async () => {
-  await setupMocks('researcher')
+  await setupAuthMocks(page, 'researcher')
 })
 
 Given('I am logged in as a PI', async () => {
-  await setupMocks('pi')
+  await setupAuthMocks(page, 'pi')
 })
 
 Given('I am logged in as a researcher', async () => {
-  await setupMocks('researcher')
+  await setupAuthMocks(page, 'researcher')
 })
 
 // ── When ──────────────────────────────────────────────────────────────────────

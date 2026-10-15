@@ -196,36 +196,45 @@ function SortableSubtaskRow({
         <GripVertical size={12} />
       </button>
 
-      {/* Status dot → dropdown */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleStatusMenu(); }}
-          title={`Status: ${statusCfg.label}`}
-          style={{
-            width: 13, height: 13, borderRadius: "50%",
-            backgroundColor: statusCfg.dot, border: "none",
-            cursor: "pointer", flexShrink: 0, display: "block",
-            boxShadow: `0 0 0 2px ${statusCfg.dot}20`,
-          }}
+      {/* Checkbox (done toggle) + status dot (full status dropdown) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          checked={sub.status === "done"}
+          onChange={(e) => { e.stopPropagation(); onUpdateStatus(e.target.checked ? "done" : "todo"); }}
+          onClick={(e) => e.stopPropagation()}
+          title="Mark done"
+          style={{ accentColor: "var(--color-navy)", cursor: "pointer", width: 13, height: 13, flexShrink: 0 }}
         />
-        {isStatusMenuOpen && (
-          <div className="absolute left-0 z-40 animate-fade-in" style={{ top: 16, width: 140, ...DROPDOWN_STYLE }}>
-            {STATUS_ORDER.map(s => (
-              <button
-                key={s}
-                onClick={(e) => { e.stopPropagation(); onUpdateStatus(s); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(27,46,75,0.06)]"
-                style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: STATUS_CONFIG[s].dot, flexShrink: 0 }} />
-                {STATUS_CONFIG[s].label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleStatusMenu(); }}
+            title={`Status: ${statusCfg.label}`}
+            style={{
+              width: 7, height: 7, borderRadius: "50%",
+              backgroundColor: statusCfg.dot, border: "none",
+              cursor: "pointer", flexShrink: 0, display: "block",
+            }}
+          />
+          {isStatusMenuOpen && (
+            <div className="absolute left-0 z-40 animate-fade-in" style={{ top: 14, width: 140, ...DROPDOWN_STYLE }}>
+              {STATUS_ORDER.map(s => (
+                <button
+                  key={s}
+                  onClick={(e) => { e.stopPropagation(); onUpdateStatus(s); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(27,46,75,0.06)]"
+                  style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: STATUS_CONFIG[s].dot, flexShrink: 0 }} />
+                  {STATUS_CONFIG[s].label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Title — click to open full detail */}
+      {/* Title - click to open full detail */}
       <button
         onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
         style={{
@@ -410,7 +419,7 @@ export default function TaskDetailPanel({
   const [calPos, setCalPos] = useState<{ top: number; left: number } | null>(null);
   const dueDateBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Local copies — initialized from task, mutated locally & pushed to parent
+  // Local copies - initialized from task, mutated locally & pushed to parent
   const [localComments, setLocalComments] = useState<TaskComment[]>(task.comments);
   const [localFiles, setLocalFiles]       = useState<TaskFile[]>(task.files);
   const [localAssigneeIds, setLocalAssigneeIds] = useState<string[]>(task.assigneeIds);
@@ -421,7 +430,7 @@ export default function TaskDetailPanel({
   const [subtaskInput, setSubtaskInput] = useState("");
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   const [subtasksOpen, setSubtasksOpen] = useState(true);
-  // Per-subtask menu open tracking — null means none open
+  // Per-subtask menu open tracking - null means none open
   const [openSubtaskMenus, setOpenSubtaskMenus] = useState<{
     status: string | null;
     assignee: string | null;
@@ -583,7 +592,7 @@ export default function TaskDetailPanel({
       }
     }
 
-    // Assignees live in the task_assignees join table — replace all rows for this task
+    // Assignees live in the task_assignees join table - replace all rows for this task
     if (updates.assigneeIds !== undefined) {
       const { error: delErr } = await supabase.from("task_assignees").delete().eq("task_id", id);
       if (delErr) { console.error("[Subtask] assignee delete:", delErr); showToast("Failed to update assignees.", "error"); return; }
@@ -1115,7 +1124,7 @@ export default function TaskDetailPanel({
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Subtasks
               </span>
-              {/* Count badge — always visible regardless of open/collapsed state */}
+              {/* Count badge - always visible regardless of open/collapsed state */}
               <span style={{
                 fontSize: 11, fontWeight: 600,
                 color: doneCount === totalCount && totalCount > 0 ? "#2E7D52" : "var(--color-secondary)",
@@ -1144,7 +1153,7 @@ export default function TaskDetailPanel({
             )}
           </div>
 
-          {/* Progress bar — always visible when there are subtasks, even when collapsed */}
+          {/* Progress bar - always visible when there are subtasks, even when collapsed */}
           {totalCount > 0 && (
             <div className="px-6 pb-2">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

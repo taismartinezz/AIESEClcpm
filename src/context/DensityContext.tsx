@@ -18,13 +18,15 @@ export function DensityProvider({ children }: { children: React.ReactNode }) {
   const [density, setDensity] = useState<Density>("comfortable");
 
   useEffect(() => {
-    const saved = localStorage.getItem("canopy_density") as Density | null;
-    if (saved === "compact" || saved === "comfortable") setDensity(saved);
+    try {
+      const saved = localStorage.getItem("canopy_density") as Density | null;
+      if (saved === "compact" || saved === "comfortable") setDensity(saved);
+    } catch { /* storage blocked — use default */ }
   }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("density-compact", density === "compact");
-    localStorage.setItem("canopy_density", density);
+    try { localStorage.setItem("canopy_density", density); } catch { /* ignore */ }
   }, [density]);
 
   const toggle = () => setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));

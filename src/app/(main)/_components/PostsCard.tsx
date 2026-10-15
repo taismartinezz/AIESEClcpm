@@ -68,6 +68,10 @@ export function PostsCard({
 
   const currentUser = teamMembers.find((u) => u.id === userId) ?? getUser(CURRENT_USER_ID);
 
+  const description = type === "opportunity"
+    ? "Grants, conferences, and collaborations worth sharing with the lab"
+    : "Celebrate progress - submissions, acceptances, milestones";
+
   return (
     <Card>
       <CardHeader
@@ -83,6 +87,7 @@ export function PostsCard({
           </button>
         }
       />
+      <p style={{ fontSize: 12, color: "var(--color-secondary)", padding: "6px 20px 0", lineHeight: 1.4 }}>{description}</p>
       <div className="px-5 py-3 space-y-3">
         {filtered.length === 0 && !showForm && (
           <p style={{ color: "var(--color-secondary)", fontSize: 13 }}>Nothing posted yet. Add the first one.</p>

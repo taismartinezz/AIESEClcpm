@@ -1,40 +1,29 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, MapPin, Keyboard, BellOff } from "lucide-react";
+import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, FlaskConical, Link2, Link2Off } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
-import type { WorkingHours } from "@/types";
+import type { WorkingHours, LabRole, PromptCategory } from "@/types";
+import { WorkingHoursEditor, DEFAULT_WORKING_HOURS } from "@/components/ui/WorkingHoursEditor";
+import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
+import { useProject } from "@/context/ProjectContext";
 
-// ── Working-hours helpers ─────────────────────────────────────────────────────
-
-const DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-const DEFAULT_WORKING_HOURS: WorkingHours = {
-  "0": { start: "09:00", end: "17:00" },
-  "1": { start: "09:00", end: "17:00" },
-  "2": { start: "09:00", end: "17:00" },
-  "3": { start: "09:00", end: "17:00" },
-  "4": { start: "09:00", end: "17:00" },
-  "5": null,
-  "6": null,
+const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
+  emotional_processing: "Emotional Processing",
+  research_reflection: "Research Reflection",
+  team_support: "Team & Support",
+  boundaries_workload: "Boundaries & Workload",
+  looking_forward: "Looking Forward",
 };
 
-const COMMON_TIMEZONES = [
-  "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-  "America/Anchorage", "America/Honolulu", "America/Toronto", "America/Vancouver",
-  "America/Mexico_City", "America/Sao_Paulo", "America/Buenos_Aires",
-  "Europe/London", "Europe/Dublin", "Europe/Lisbon",
-  "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Rome",
-  "Europe/Amsterdam", "Europe/Stockholm", "Europe/Warsaw", "Europe/Zurich",
-  "Europe/Helsinki", "Europe/Athens", "Europe/Istanbul",
-  "Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos",
-  "Asia/Dubai", "Asia/Kolkata", "Asia/Dhaka", "Asia/Bangkok",
-  "Asia/Singapore", "Asia/Hong_Kong", "Asia/Shanghai", "Asia/Tokyo",
-  "Asia/Seoul", "Australia/Sydney", "Australia/Melbourne", "Pacific/Auckland",
-  "UTC",
+const RESEARCH_PARTICIPATION_OPTIONS = [
+  { value: "both_publications", label: "Participate in both publications" },
+  { value: "wellbeing_only", label: "Well-being research only" },
+  { value: "private", label: "Keep data private" },
 ];
 
 const sectionStyle: React.CSSProperties = {
@@ -81,13 +70,30 @@ const readonlyInputStyle: React.CSSProperties = {
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { activeScope } = useProject();
   const [profile, setProfile] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
-  const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null }[]>([]);
+  const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; lab_role_id: string | null; invited_email: string | null; email_sent_at: string | null }[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [revealedCode, setRevealedCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Lab roles management
+  const [labRoles, setLabRoles] = useState<LabRole[]>([]);
+  const [myLabRoleName, setMyLabRoleName] = useState<string | null>(null);
+  const [newInviteRoleId, setNewInviteRoleId] = useState<string>("");
+  // Email invite flow
+  const [emailInviteInput, setEmailInviteInput] = useState("");
+  const [emailInviteRoleId, setEmailInviteRoleId] = useState<string>("");
+  const [emailInviteError, setEmailInviteError] = useState("");
+  const [sendingEmailInvites, setSendingEmailInvites] = useState(false);
+  const [copiedEmailCode, setCopiedEmailCode] = useState<string | null>(null);
+  const [showAdvancedInvites, setShowAdvancedInvites] = useState(false);
+  const [addingRole, setAddingRole] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [renamingRoleId, setRenamingRoleId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   // Notification preferences
   const [notifTaskAssigned, setNotifTaskAssigned] = useState(true);
@@ -99,6 +105,21 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState("America/New_York");
   const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
   const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Lab settings (PI only)
+  const [projectName, setProjectName] = useState("");
+  const [projectInstitution, setProjectInstitution] = useState("");
+  const [researchType, setResearchType] = useState("");
+  const [researchParticipation, setResearchParticipation] = useState("private");
+  const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
+  const [customPrompts, setCustomPrompts] = useState<{ id: string; text: string }[]>([]);
+  const [customPromptInput, setCustomPromptInput] = useState("");
+  const [promptModalOpen, setPromptModalOpen] = useState(false);
+  const [savingLabSettings, setSavingLabSettings] = useState(false);
+
+  // Google Calendar integration
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
 
   // DND / quiet hours
   const [dndEnabled, setDndEnabled]               = useState(false);
@@ -123,6 +144,7 @@ export default function SettingsPage() {
         const { data: prof } = await supabase
           .from("user_profiles").select("*").eq("id", user.id).maybeSingle();
         setProfile(prof ? { ...prof, email: user.email } : { email: user.email });
+        setGoogleCalendarConnected(!!(prof as any)?.google_access_token);
 
         const { data: membership } = await supabase
           .from("team_members").select("project_id").eq("user_id", user.id).maybeSingle();
@@ -131,6 +153,18 @@ export default function SettingsPage() {
           const { data: proj } = await supabase
             .from("projects").select("*").eq("id", membership.project_id).maybeSingle();
           setProject(proj);
+          if (proj) {
+            setProjectName((proj.name as string) ?? "");
+            setProjectInstitution((proj.institution as string) ?? "");
+            setResearchType((proj.research_type as string) ?? "");
+            setResearchParticipation((proj.research_participation as string) ?? "private");
+            const loadedIds = proj.active_prompt_ids as string[] | null | undefined;
+            if (Array.isArray(loadedIds)) {
+              // NULL/undefined = not yet set; keep defaults. [] = PI chose none.
+              setActivePromptIds(loadedIds);
+            }
+            if (proj.custom_prompts) setCustomPrompts(proj.custom_prompts as { id: string; text: string }[]);
+          }
 
           // Load working hours + timezone
           const { data: userSettings } = await supabase
@@ -141,16 +175,60 @@ export default function SettingsPage() {
             setDndEnabled((userSettings.dnd_enabled as boolean) ?? false);
             setQuietHoursStart((userSettings.quiet_hours_start as string) ?? "22:00");
             setQuietHoursEnd((userSettings.quiet_hours_end as string) ?? "08:00");
+            if (userSettings.notif_task_assigned != null) setNotifTaskAssigned(userSettings.notif_task_assigned as boolean);
+            if (userSettings.notif_lab_win != null) setNotifLabWin(userSettings.notif_lab_win as boolean);
+            if (userSettings.notif_digest != null) setNotifDigest(userSettings.notif_digest as boolean);
+          }
+
+          // Fetch current user's lab role name for the Profile section
+          const { data: memberRow } = await supabase
+            .from("team_members")
+            .select("lab_role_id")
+            .eq("user_id", user.id)
+            .eq("project_id", membership.project_id)
+            .maybeSingle();
+          if (memberRow?.lab_role_id) {
+            const { data: roleRow } = await supabase
+              .from("lab_roles")
+              .select("name")
+              .eq("id", memberRow.lab_role_id as string)
+              .maybeSingle();
+            if (roleRow?.name) setMyLabRoleName(roleRow.name as string);
           }
 
           if (prof?.role === "pi") {
-            const { data: codes } = await supabase
-              .from("invite_codes")
-              .select("id, code, used_by")
-              .eq("created_by", user.id)
-              .order("created_at", { ascending: false })
-              .limit(5);
+            const [{ data: codes }, { data: roles }] = await Promise.all([
+              supabase
+                .from("invite_codes")
+                .select("id, code, used_by, lab_role_id, invited_email, email_sent_at")
+                .eq("project_id", membership.project_id)
+                .order("created_at", { ascending: false }),
+              supabase
+                .from("lab_roles")
+                .select("id, name, permission_level, is_system, created_at")
+                .eq("project_id", membership.project_id)
+                .order("is_system", { ascending: false })
+                .order("name"),
+            ]);
             if (codes) setInviteCodes(codes as typeof inviteCodes);
+            if (roles) {
+              setLabRoles(roles.map((r: { id: string; name: string; permission_level: string; is_system: boolean; created_at: string }) => ({
+                id: r.id,
+                projectId: membership.project_id,
+                name: r.name,
+                permissionLevel: r.permission_level as "pi" | "researcher",
+                isSystem: r.is_system,
+                createdAt: r.created_at,
+              })));
+              // Default invite role to "Researcher" by name, fallback to first researcher-level role
+              const defaultRole =
+                roles.find((r: { name: string }) => r.name === "Researcher") ??
+                roles.find((r: { permission_level: string }) => r.permission_level === "researcher");
+              if (defaultRole) {
+                setNewInviteRoleId(defaultRole.id);
+                setEmailInviteRoleId(defaultRole.id);
+              }
+            }
           }
         }
       } catch (err) {
@@ -180,12 +258,97 @@ export default function SettingsPage() {
     const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
     const { data } = await supabase
       .from("invite_codes")
-      .insert({ code, project_id: project.id, created_by: user.id })
-      .select("id, code, used_by")
+      .insert({ code, project_id: project.id, created_by: user.id, lab_role_id: newInviteRoleId || null })
+      .select("id, code, used_by, lab_role_id")
       .single();
     if (data) setInviteCodes((prev) => [data as (typeof inviteCodes)[0], ...prev]);
     setGeneratingCode(false);
-  }, [project]);
+  }, [project, newInviteRoleId]);
+
+  const handleSaveLabSettings = useCallback(async () => {
+    if (!project?.id) return;
+    setSavingLabSettings(true);
+    const { error } = await supabase.from("projects").update({
+      name: projectName,
+      institution: projectInstitution,
+      research_type: researchType,
+      research_participation: researchParticipation,
+      active_prompt_ids: activePromptIds,
+      custom_prompts: customPrompts,
+    }).eq("id", project.id);
+    setSavingLabSettings(false);
+    if (error) { showToast("Failed to save: " + error.message); }
+    else { showToast("Lab settings saved."); }
+  }, [project, projectName, projectInstitution, researchType, researchParticipation, activePromptIds, customPrompts]);
+
+  const handleSendEmailInvites = useCallback(async () => {
+    if (!project?.id) return;
+    const rawEmails = emailInviteInput
+      .split(/[\n,]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    const valid = rawEmails.filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    const invalid = rawEmails.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (invalid.length > 0) {
+      setEmailInviteError(`Invalid email${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}`);
+      return;
+    }
+    if (valid.length === 0) { setEmailInviteError("Enter at least one email address."); return; }
+    setEmailInviteError("");
+    setSendingEmailInvites(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
+    if (!user) { setSendingEmailInvites(false); return; }
+
+    const newCodes: (typeof inviteCodes)[0][] = [];
+    for (const email of valid) {
+      const code = "CANOPY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const { data: inserted, error } = await supabase.from("invite_codes").insert({
+        code, project_id: project.id, created_by: user.id,
+        invited_email: email,
+        lab_role_id: emailInviteRoleId || null,
+      }).select("id, code, used_by, lab_role_id, invited_email, email_sent_at").single();
+      if (!error && inserted) newCodes.push(inserted as (typeof inviteCodes)[0]);
+    }
+    if (newCodes.length > 0) {
+      setInviteCodes((prev) => [...newCodes, ...prev]);
+      const token = session?.access_token;
+      if (token) {
+        fetch("/api/invite/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ inviteIds: newCodes.map(c => c.id) }),
+        }).then(async (r) => {
+          const data = await r.json().catch(() => ({})) as { ok: boolean; error?: string; results?: { id: string; ok: boolean }[] };
+          if (!r.ok) {
+            showToast(data.error ?? "Invites created but email delivery failed.", "error");
+          } else if (data.ok || data.results?.some(res => res.ok)) {
+            showToast("Invites sent!");
+            const sentIds = new Set((data.results ?? []).filter(res => res.ok).map(res => res.id));
+            const sentAt = new Date().toISOString();
+            setInviteCodes(prev => prev.map(ic => sentIds.has(ic.id) ? { ...ic, email_sent_at: sentAt } : ic));
+          } else {
+            showToast(data.error ?? "Invites created but email delivery failed.", "error");
+          }
+        }).catch(() => showToast("Invites created but email delivery failed.", "error"));
+      }
+    }
+    setEmailInviteInput("");
+    setSendingEmailInvites(false);
+  }, [project, emailInviteInput, emailInviteRoleId]);
+
+  const handleCopyEmailCode = useCallback(async (code: string) => {
+    const link = `${window.location.origin}/login?invite=${code}`;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    setCopiedEmailCode(code);
+    setTimeout(() => setCopiedEmailCode((prev) => (prev === code ? null : prev)), 2000);
+  }, []);
+
+  const handleRevokeInvite = useCallback(async (id: string) => {
+    await supabase.from("invite_codes").delete().eq("id", id);
+    setInviteCodes((prev) => prev.filter((ic) => ic.id !== id));
+    showToast("Invite revoked.");
+  }, []);
 
   const handlePasswordReset = useCallback(async () => {
     if (!profile?.email) return;
@@ -200,7 +363,7 @@ export default function SettingsPage() {
   }, [profile]);
 
   const handleSaveSchedule = useCallback(async () => {
-    if (!isSupabaseConfigured) { showToast("Demo mode — settings not persisted."); return; }
+    if (!isSupabaseConfigured) { showToast("Demo mode - settings not persisted."); return; }
     setSavingSchedule(true);
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
@@ -229,9 +392,67 @@ export default function SettingsPage() {
     else { showToast("Focus settings saved."); }
   }, [dndEnabled, quietHoursStart, quietHoursEnd]);
 
-  if (loading) return null;
+  const handleSaveNotifications = useCallback(async () => {
+    if (!isSupabaseConfigured) { showToast("Demo mode - settings not persisted."); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) return;
+    const { error } = await supabase.from("user_settings").upsert(
+      { user_id: userId, notif_task_assigned: notifTaskAssigned, notif_lab_win: notifLabWin, notif_digest: notifDigest, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+    if (error) showToast("Failed to save: " + error.message);
+    else showToast("Notification preferences saved.");
+  }, [notifTaskAssigned, notifLabWin, notifDigest]);
+
+  const handleConnectGoogleCalendar = useCallback(async () => {
+    if (!isSupabaseConfigured) { showToast("Demo mode -- Google Calendar not available."); return; }
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: [
+          "email",
+          "profile",
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/calendar.events",
+        ].join(" "),
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
+    });
+  }, []);
+
+  const handleDisconnectGoogleCalendar = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    setDisconnectingGoogle(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (userId) {
+      await supabase.from("user_profiles").update({
+        google_access_token: null,
+        google_refresh_token: null,
+        google_token_expiry: null,
+      }).eq("id", userId);
+    }
+    setGoogleCalendarConnected(false);
+    setDisconnectingGoogle(false);
+    showToast("Google Calendar disconnected.");
+  }, []);
+
+  if (loading) return (
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "32px 20px" }} className="space-y-6">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} style={{ borderRadius: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", padding: "20px 24px" }}>
+          <div style={{ height: 14, width: "30%", backgroundColor: "var(--color-border)", borderRadius: 4, marginBottom: 16 }} className="animate-pulse" />
+          <div style={{ height: 11, width: "75%", backgroundColor: "var(--color-border)", borderRadius: 4, marginBottom: 10 }} className="animate-pulse" />
+          <div style={{ height: 36, width: "55%", backgroundColor: "var(--color-border)", borderRadius: 6 }} className="animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
 
   return (
+    <>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: isMobile ? "16px" : "32px 20px", fontFamily: "var(--font-roboto)" }}>
       <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: "0 0 24px" }}>
         Settings
@@ -252,8 +473,18 @@ export default function SettingsPage() {
               <input readOnly value={profile?.name ?? ""} style={readonlyInputStyle} aria-label="Display name (read-only)" />
             </div>
             <div>
-              <label style={labelStyle}>Role</label>
-              <input readOnly value={profile?.role === "pi" ? "Principal Investigator" : "Researcher"} style={readonlyInputStyle} aria-label="Role (read-only)" />
+              <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 5 }}>
+                Role <Lock size={10} color="var(--color-secondary)" style={{ opacity: 0.7 }} />
+              </label>
+              <input
+                readOnly
+                value={myLabRoleName ?? (profile?.role === "pi" ? "Principal Investigator" : "Researcher")}
+                style={{ ...readonlyInputStyle, backgroundColor: "var(--color-canvas)", opacity: 0.75, cursor: "not-allowed" }}
+                aria-label="Role (read-only)"
+              />
+              <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 4, marginBottom: 0 }}>
+                {profile?.role === "pi" ? "You are the Principal Investigator for this lab." : "Contact your PI to change your lab role."}
+              </p>
             </div>
           </div>
           {profile?.bio && (
@@ -295,8 +526,24 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Lab & Invite — PI only */}
-      {profile?.role === "pi" && (
+      {/* Research participation note - researchers only */}
+      {profile?.role !== "pi" && activeScope !== "personal" && (
+        <section style={sectionStyle} aria-labelledby="settings-research-note-heading">
+          <div style={sectionHeaderStyle}>
+            <h2 id="settings-research-note-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Research Participation
+            </h2>
+          </div>
+          <div style={{ padding: "16px 20px" }}>
+            <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0, lineHeight: 1.6 }}>
+              Whether your lab&rsquo;s anonymized data contributes to Canopy&rsquo;s research studies is a setting each lab member controls individually. Your PI has set a default for the lab, but <strong style={{ color: "var(--color-body)" }}>your own participation is separate</strong> &mdash; ask your PI to update it in Lab Settings if you&rsquo;d like to change it. Your journal entries and check-in responses are always private to you and are never shared with your team or included in any study without your explicit consent.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Lab & Invite - PI only, hidden in Personal workspace */}
+      {profile?.role === "pi" && activeScope !== "personal" && (
         <section style={sectionStyle} aria-labelledby="settings-invite-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
@@ -305,57 +552,358 @@ export default function SettingsPage() {
             </h2>
           </div>
           <div style={{ padding: "20px" }}>
-            <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 16 }}>
-              Share an invite link so researchers can join your lab.
-            </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {inviteCodes.map((ic) => {
-                const fullLink = `${typeof window !== "undefined" ? window.location.origin : ""}/login?invite=${ic.code}`;
-                const isRevealed = revealedCode === ic.id;
-                return (
-                  <div key={ic.id} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 8 }}>
-                    <input
-                      readOnly
-                      value={isRevealed ? fullLink : `${typeof window !== "undefined" ? window.location.origin : "canopy.app"}/login?invite=••••••••`}
-                      style={{ ...readonlyInputStyle, flex: 1, fontFamily: "monospace", fontSize: 12 }}
-                      aria-label={`Invite link ${ic.code}`}
-                    />
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <button
-                        onClick={() => setRevealedCode(isRevealed ? null : ic.id)}
-                        style={{ minHeight: 44, height: 40, padding: "0 10px", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontFamily: "var(--font-roboto)", color: "var(--color-secondary)", whiteSpace: "nowrap" }}
-                        aria-label={isRevealed ? "Hide invite link" : "Reveal invite link"}
-                      >
-                        {isRevealed ? "Hide" : "Reveal"}
-                      </button>
-                      <span style={{ fontSize: 11, color: ic.used_by ? "#2E7D52" : "var(--color-secondary)", whiteSpace: "nowrap" }}>
-                        {ic.used_by ? "Used" : "Active"}
-                      </span>
-                      <button
-                        onClick={() => handleCopyCode(ic.code)}
-                        style={{ minHeight: 44, height: 40, width: 40, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, cursor: "pointer" }}
-                        aria-label={`Copy invite link ${ic.code}`}
-                      >
-                        {copiedCode === ic.code ? <Check size={14} color="#2E7D52" /> : <Copy size={14} color="var(--color-secondary)" />}
-                      </button>
+            {/* Role management */}
+            {labRoles.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ ...labelStyle, marginBottom: 10 }}>Lab roles</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {labRoles.map((role) => (
+                    <div key={role.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {renamingRoleId === role.id ? (
+                        <>
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter" && renameValue.trim()) {
+                                await supabase.from("lab_roles").update({ name: renameValue.trim() }).eq("id", role.id);
+                                setLabRoles((prev) => prev.map((r) => r.id === role.id ? { ...r, name: renameValue.trim() } : r));
+                                setRenamingRoleId(null);
+                              } else if (e.key === "Escape") {
+                                setRenamingRoleId(null);
+                              }
+                            }}
+                            style={{ flex: 1, height: 34, border: "1px solid var(--color-navy)", borderRadius: 6, padding: "0 10px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none" }}
+                          />
+                          <button
+                            onClick={async () => {
+                              if (!renameValue.trim()) return;
+                              await supabase.from("lab_roles").update({ name: renameValue.trim() }).eq("id", role.id);
+                              setLabRoles((prev) => prev.map((r) => r.id === role.id ? { ...r, name: renameValue.trim() } : r));
+                              setRenamingRoleId(null);
+                            }}
+                            style={{ height: 34, padding: "0 12px", backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >Save</button>
+                          <button
+                            onClick={() => setRenamingRoleId(null)}
+                            style={{ height: 34, width: 34, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer" }}
+                          ><X size={13} color="var(--color-secondary)" /></button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)" }}>
+                            {role.name}
+                            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-secondary)", textTransform: "capitalize" }}>
+                              ({role.permissionLevel})
+                            </span>
+                          </span>
+                          {!role.isSystem && (
+                            <>
+                              <button
+                                onClick={() => { setRenamingRoleId(role.id); setRenameValue(role.name); }}
+                                style={{ height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer" }}
+                                aria-label={`Rename role ${role.name}`}
+                              ><Pencil size={12} color="var(--color-secondary)" /></button>
+                              <button
+                                onClick={async () => {
+                                  await supabase.from("lab_roles").delete().eq("id", role.id);
+                                  setLabRoles((prev) => prev.filter((r) => r.id !== role.id));
+                                  if (newInviteRoleId === role.id) setNewInviteRoleId("");
+                                }}
+                                style={{ height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer" }}
+                                aria-label={`Delete role ${role.name}`}
+                              ><Trash2 size={12} color="var(--color-secondary)" /></button>
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
 
-              {inviteCodes.length === 0 && (
-                <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>No invite codes yet. Generate one below.</p>
+                {/* Add custom role */}
+                {addingRole ? (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <input
+                      autoFocus
+                      value={newRoleName}
+                      onChange={(e) => setNewRoleName(e.target.value)}
+                      placeholder="Role name (e.g. Lab Manager)"
+                      onKeyDown={async (e) => {
+                        if (e.key === "Escape") { setAddingRole(false); setNewRoleName(""); }
+                      }}
+                      style={{ flex: 1, height: 34, border: "1px solid var(--color-border)", borderRadius: 6, padding: "0 10px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none" }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!newRoleName.trim() || !project?.id) return;
+                        const { data: newRole } = await supabase
+                          .from("lab_roles")
+                          .insert({ project_id: project.id, name: newRoleName.trim(), permission_level: "researcher", is_system: false })
+                          .select("id, name, permission_level, is_system, created_at")
+                          .single();
+                        if (newRole) {
+                          setLabRoles((prev) => [...prev, { id: newRole.id, projectId: project.id, name: newRole.name, permissionLevel: newRole.permission_level as "pi" | "researcher", isSystem: newRole.is_system, createdAt: newRole.created_at }]);
+                        }
+                        setAddingRole(false);
+                        setNewRoleName("");
+                      }}
+                      style={{ height: 34, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >Add</button>
+                    <button
+                      onClick={() => { setAddingRole(false); setNewRoleName(""); }}
+                      style={{ height: 34, width: 34, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer" }}
+                    ><X size={13} color="var(--color-secondary)" /></button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingRole(true)}
+                    style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-navy)", backgroundColor: "transparent", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font-roboto)", fontWeight: 600 }}
+                  >
+                    <Plus size={13} />
+                    Add custom role
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Email invite form */}
+            <div style={{ marginBottom: 24 }}>
+              <p style={{ ...labelStyle, marginBottom: 6 }}>Invite by email</p>
+              <p style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 12, marginTop: 0 }}>
+                Enter one or more email addresses. Each person gets a unique invite link tied to their address.
+              </p>
+              <textarea
+                value={emailInviteInput}
+                onChange={(e) => { setEmailInviteInput(e.target.value); setEmailInviteError(""); }}
+                placeholder={"colleague@university.edu\nanother@lab.org"}
+                rows={3}
+                style={{
+                  display: "block", width: "100%", padding: "10px 12px", boxSizing: "border-box",
+                  fontSize: 13, fontFamily: "var(--font-roboto)", color: "var(--color-body)",
+                  backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)",
+                  borderRadius: 8, resize: "vertical", outline: "none", lineHeight: 1.5,
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
+              />
+              {emailInviteError && (
+                <p style={{ fontSize: 12, color: "var(--color-error, #dc2626)", margin: "4px 0 0" }}>{emailInviteError}</p>
               )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+                {labRoles.length > 0 && (
+                  <div style={{ position: "relative" }}>
+                    <select
+                      value={emailInviteRoleId}
+                      onChange={(e) => setEmailInviteRoleId(e.target.value)}
+                      style={{ height: 36, border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 28px 0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none", cursor: "pointer", appearance: "none" }}
+                      aria-label="Role for email invites"
+                    >
+                      {labRoles.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={13} color="var(--color-secondary)" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                  </div>
+                )}
+                <button
+                  onClick={handleSendEmailInvites}
+                  disabled={sendingEmailInvites || !emailInviteInput.trim()}
+                  style={{ minHeight: 36, height: 36, padding: "0 16px", display: "flex", alignItems: "center", gap: 6, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: sendingEmailInvites || !emailInviteInput.trim() ? "default" : "pointer", opacity: sendingEmailInvites || !emailInviteInput.trim() ? 0.6 : 1 }}
+                >
+                  {sendingEmailInvites ? "Sending…" : "Send invites"}
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={handleGenerateCode}
-              disabled={generatingCode}
-              style={{ marginTop: 16, minHeight: 44, height: 38, padding: "0 16px", display: "flex", alignItems: "center", gap: 6, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-            >
-              <RefreshCw size={13} />
-              {generatingCode ? "Generating…" : "Generate new invite code"}
+            {/* Pending invites list */}
+            {inviteCodes.filter(ic => ic.invited_email).length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ ...labelStyle, marginBottom: 10 }}>Pending invites</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {inviteCodes.filter(ic => ic.invited_email).map((ic) => {
+                    const roleName = ic.lab_role_id ? labRoles.find((r) => r.id === ic.lab_role_id)?.name : null;
+                    return (
+                      <div key={ic.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, color: "var(--color-body)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ic.invited_email}</span>
+                        {roleName && (
+                          <span style={{ fontSize: 11, color: "var(--color-secondary)", border: "1px solid var(--color-border)", borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>{roleName}</span>
+                        )}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: ic.used_by ? "var(--color-secondary)" : "#2E7D52" }} />
+                          <span style={{ fontSize: 11, color: ic.used_by ? "var(--color-secondary)" : "#2E7D52" }}>{ic.used_by ? "Accepted" : "Pending"}</span>
+                        </span>
+                        <button
+                          onClick={() => handleCopyEmailCode(ic.code)}
+                          style={{ height: 30, padding: "0 10px", display: "flex", alignItems: "center", gap: 5, backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 600, color: copiedEmailCode === ic.code ? "#2E7D52" : "var(--color-navy)", flexShrink: 0, fontFamily: "var(--font-roboto)", whiteSpace: "nowrap" }}
+                        >
+                          {copiedEmailCode === ic.code ? <Check size={12} color="#2E7D52" /> : <Copy size={12} />}
+                          {copiedEmailCode === ic.code ? "Copied" : "Copy link"}
+                        </button>
+                        {!ic.used_by && (
+                          <button
+                            onClick={() => handleRevokeInvite(ic.id)}
+                            style={{ height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}
+                            aria-label={`Revoke invite for ${ic.invited_email}`}
+                          >
+                            <X size={12} color="var(--color-secondary)" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Advanced: generic invite codes */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <button
+                onClick={() => setShowAdvancedInvites(v => !v)}
+                style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "transparent", border: "none", cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}
+              >
+                <ChevronDown size={13} style={{ transform: showAdvancedInvites ? "rotate(180deg)" : "none", transition: "transform 150ms" }} />
+                Advanced
+              </button>
+              {showAdvancedInvites && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 0, marginBottom: 12 }}>
+                    Generic links let anyone who has the URL join your lab without email verification. Use with caution.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {inviteCodes.filter(ic => !ic.invited_email).map((ic) => {
+                      const fullLink = `${typeof window !== "undefined" ? window.location.origin : ""}/login?invite=${ic.code}`;
+                      const isRevealed = revealedCode === ic.id;
+                      const roleName = ic.lab_role_id ? labRoles.find((r) => r.id === ic.lab_role_id)?.name : null;
+                      return (
+                        <div key={ic.id} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 8 }}>
+                          <input
+                            readOnly
+                            value={isRevealed ? fullLink : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "canopyteams.tech")}/login?invite=••••••••`}
+                            style={{ ...readonlyInputStyle, flex: 1, fontFamily: "monospace", fontSize: 12 }}
+                            aria-label={`Generic invite link ${ic.code}`}
+                          />
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 84, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", borderRadius: 5, padding: "2px 8px", backgroundColor: roleName ? "rgba(27,46,75,0.08)" : "transparent", color: roleName ? "var(--color-navy)" : "var(--color-secondary)" }}>
+                              {roleName ?? "No role"}
+                            </span>
+                            <button onClick={() => setRevealedCode(isRevealed ? null : ic.id)}
+                              style={{ height: 34, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 7, cursor: "pointer", fontSize: 12, fontFamily: "var(--font-roboto)", fontWeight: 500, color: "var(--color-body)", whiteSpace: "nowrap" }}
+                              aria-label={isRevealed ? "Hide invite link" : "Reveal invite link"}>
+                              {isRevealed ? "Hide" : "Reveal"}
+                            </button>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 52, whiteSpace: "nowrap" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, backgroundColor: ic.used_by ? "var(--color-secondary)" : "#2E7D52" }} />
+                              <span style={{ fontSize: 11, fontWeight: 500, color: ic.used_by ? "var(--color-secondary)" : "#2E7D52" }}>{ic.used_by ? "Used" : "Active"}</span>
+                            </span>
+                            <button onClick={() => handleCopyCode(ic.code)}
+                              style={{ height: 34, width: 36, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 7, cursor: "pointer", flexShrink: 0 }}
+                              aria-label={`Copy invite link ${ic.code}`}>
+                              {copiedCode === ic.code ? <Check size={13} color="#2E7D52" /> : <Copy size={13} color="var(--color-secondary)" />}
+                            </button>
+                            {!ic.used_by && (
+                              <button onClick={() => handleRevokeInvite(ic.id)}
+                                style={{ height: 34, width: 34, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 7, cursor: "pointer", flexShrink: 0 }}
+                                aria-label={`Revoke invite ${ic.code}`}>
+                                <X size={12} color="var(--color-secondary)" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {inviteCodes.filter(ic => !ic.invited_email).length === 0 && (
+                      <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>No generic invite codes yet.</p>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    {labRoles.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12, color: "var(--color-secondary)", whiteSpace: "nowrap" }}>Role:</span>
+                        <div style={{ position: "relative" }}>
+                          <select value={newInviteRoleId} onChange={(e) => setNewInviteRoleId(e.target.value)}
+                            style={{ height: 38, border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 28px 0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none", cursor: "pointer", appearance: "none" }}
+                            aria-label="Role for new generic invite">
+                            {labRoles.map((r) => (
+                              <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown size={13} color="var(--color-secondary)" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={handleGenerateCode} disabled={generatingCode}
+                      style={{ minHeight: 44, height: 38, padding: "0 16px", display: "flex", alignItems: "center", gap: 6, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                      <RefreshCw size={13} />
+                      {generatingCode ? "Generating…" : "Generate generic invite"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Lab Settings section (PI only, hidden in Personal workspace) */}
+      {profile?.role === "pi" && activeScope !== "personal" && (
+        <section style={sectionStyle} aria-labelledby="settings-lab-heading">
+          <div style={sectionHeaderStyle}>
+            <FlaskConical size={16} color="var(--color-secondary)" />
+            <h2 id="settings-lab-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              Lab Settings
+            </h2>
+          </div>
+          <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 18 }}>
+            <div>
+              <label style={labelStyle}>Project Name</label>
+              <input value={projectName} onChange={e => setProjectName(e.target.value)}
+                placeholder="Project name"
+                style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Institution</label>
+              <input value={projectInstitution} onChange={e => setProjectInstitution(e.target.value)}
+                placeholder="Institution name"
+                style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Research Type</label>
+              <input value={researchType} onChange={e => setResearchType(e.target.value)}
+                placeholder="e.g. Trauma, Oncology, Veteran PTSD"
+                style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Research Participation</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                {RESEARCH_PARTICIPATION_OPTIONS.map(opt => (
+                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--color-body)", cursor: "pointer" }}>
+                    <input type="radio" name="settings_research_participation" value={opt.value}
+                      checked={researchParticipation === opt.value}
+                      onChange={() => setResearchParticipation(opt.value)}
+                      style={{ accentColor: "var(--color-navy)", width: 16, height: 16, flexShrink: 0 }} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 8 }}>
+                Controls how your lab&rsquo;s anonymized data contributes to Canopy&rsquo;s research. <strong>Both publications</strong> shares aggregated task and journal patterns for two studies: one on researcher well-being, one on team collaboration. <strong>Well-being only</strong> limits sharing to the well-being study. <strong>Keep data private</strong>{" "}means your lab&rsquo;s data is never included in any publication. All data is anonymized before analysis and can never be traced back to individuals. You can change this at any time.
+              </p>
+            </div>
+            <div>
+              <label style={labelStyle}>Journal Prompts</label>
+              <button
+                onClick={() => setPromptModalOpen(true)}
+                style={{ height: 40, padding: "0 18px", backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, color: "var(--color-navy)", cursor: "pointer" }}
+              >
+                Manage prompts ({(activePromptIds ?? []).length} active)
+              </button>
+            </div>
+            <button onClick={handleSaveLabSettings} disabled={savingLabSettings}
+              style={{ alignSelf: "flex-start", minHeight: 44, height: 40, padding: "0 22px", backgroundColor: savingLabSettings ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingLabSettings ? "default" : "pointer" }}>
+              {savingLabSettings ? "Saving…" : "Save lab settings"}
             </button>
           </div>
         </section>
@@ -370,61 +918,66 @@ export default function SettingsPage() {
           </h2>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
-
-          {/* Timezone */}
-          <div>
-            <label htmlFor="tz-select" style={labelStyle}>Time zone</label>
-            <select id="tz-select" value={timezone} onChange={e => setTimezone(e.target.value)}
-              style={{ ...readonlyInputStyle, backgroundColor: "var(--color-surface-2)", color: "var(--color-body)", cursor: "pointer", appearance: "auto" }}>
-              {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>)}
-            </select>
-            <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 4 }}>
-              Used for scheduling suggestions and (when enabled) the weekly digest email.
-            </p>
-          </div>
-
-          {/* Per-day working hours */}
-          <div>
-            <span style={labelStyle}>Working hours</span>
-            <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 0, marginBottom: 12 }}>
-              The &ldquo;Find best times&rdquo; feature in Scheduling will only suggest slots within these hours.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {DAY_LABELS.map((dayName, idx) => {
-                const key = String(idx);
-                const val = workingHours[key];
-                const isOn = val !== null && val !== undefined;
-                return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 40 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, width: isMobile ? 92 : 110, cursor: "pointer", flexShrink: 0 }}>
-                      <input type="checkbox" checked={isOn}
-                        onChange={e => setWorkingHours(prev => ({ ...prev, [key]: e.target.checked ? { start: "09:00", end: "17:00" } : null }))}
-                        style={{ width: 15, height: 15, accentColor: "var(--color-navy)", cursor: "pointer" }} />
-                      <span style={{ fontSize: 13, color: "var(--color-body)", fontWeight: isOn ? 500 : 400 }}>{dayName}</span>
-                    </label>
-                    {isOn ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input type="time" value={val!.start}
-                          onChange={e => setWorkingHours(prev => ({ ...prev, [key]: { ...(prev[key] as { start: string; end: string }), start: e.target.value } }))}
-                          style={{ height: 34, border: "1px solid var(--color-border)", borderRadius: 6, padding: "0 8px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-surface-2)", color: "var(--color-body)", outline: "none" }} />
-                        <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>to</span>
-                        <input type="time" value={val!.end}
-                          onChange={e => setWorkingHours(prev => ({ ...prev, [key]: { ...(prev[key] as { start: string; end: string }), end: e.target.value } }))}
-                          style={{ height: 34, border: "1px solid var(--color-border)", borderRadius: 6, padding: "0 8px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-surface-2)", color: "var(--color-body)", outline: "none" }} />
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, color: "var(--color-secondary)", fontStyle: "italic" }}>Off</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
+          <WorkingHoursEditor
+            timezone={timezone}
+            onTimezoneChange={setTimezone}
+            workingHours={workingHours}
+            onWorkingHoursChange={setWorkingHours}
+          />
           <button onClick={handleSaveSchedule} disabled={savingSchedule}
             style={{ alignSelf: "flex-start", minHeight: 44, height: 38, padding: "0 20px", backgroundColor: savingSchedule ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingSchedule ? "default" : "pointer" }}>
             {savingSchedule ? "Saving…" : "Save schedule settings"}
           </button>
+        </div>
+      </section>
+
+      {/* Integrations section */}
+      <section style={sectionStyle} aria-labelledby="settings-integrations-heading">
+        <div style={sectionHeaderStyle}>
+          <Link2 size={16} color="var(--color-secondary)" />
+          <h2 id="settings-integrations-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+            Integrations
+          </h2>
+        </div>
+        <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 0 }}>
+          {/* Google Calendar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {/* Google Calendar icon */}
+              <div style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, backgroundColor: "var(--color-canvas)" }}>
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3H4.5A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm0 16.5h-15V9h15v10.5zM7.5 4.5V6H9V4.5h6V6h1.5V4.5H19.5V7.5h-15V4.5H7.5z" fill="#4285F4"/>
+                  <text x="12" y="17" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#1A73E8">CAL</text>
+                </svg>
+              </div>
+              <div>
+                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, color: "var(--color-body)", margin: 0 }}>
+                  Google Calendar
+                </p>
+                <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "2px 0 0" }}>
+                  {googleCalendarConnected ? "Connected — events sync to Scheduling" : "Sync your calendar events to Scheduling"}
+                </p>
+              </div>
+            </div>
+            {googleCalendarConnected ? (
+              <button
+                onClick={handleDisconnectGoogleCalendar}
+                disabled={disconnectingGoogle}
+                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "var(--color-secondary)", cursor: disconnectingGoogle ? "default" : "pointer" }}
+              >
+                <Link2Off size={13} />
+                {disconnectingGoogle ? "Disconnecting…" : "Disconnect"}
+              </button>
+            ) : (
+              <button
+                onClick={handleConnectGoogleCalendar}
+                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "#fff", cursor: "pointer" }}
+              >
+                <Link2 size={13} />
+                Connect
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -495,11 +1048,10 @@ export default function SettingsPage() {
               </div>
             </label>
           ))}
-          <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 4 }}>
-            Email delivery is active — emails are sent when the{" "}
-            <code style={{ fontFamily: "monospace", fontSize: 10, backgroundColor: "var(--color-canvas)", padding: "1px 4px", borderRadius: 3 }}>RESEND_API_KEY</code>{" "}
-            environment variable is configured.
-          </p>
+          <button onClick={handleSaveNotifications}
+            style={{ alignSelf: "flex-start", marginTop: 4, minHeight: 44, height: 38, padding: "0 20px", backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            Save notification preferences
+          </button>
         </div>
       </section>
 
@@ -572,7 +1124,7 @@ export default function SettingsPage() {
       {/* Tour section */}
       <section style={sectionStyle} aria-labelledby="settings-tour-heading">
         <div style={sectionHeaderStyle}>
-          <MapPin size={16} color="var(--color-secondary)" />
+          <Compass size={16} color="var(--color-secondary)" />
           <h2 id="settings-tour-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
             Welcome Tour
           </h2>
@@ -591,5 +1143,101 @@ export default function SettingsPage() {
         </div>
       </section>
     </div>
+
+    {promptModalOpen && createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+        style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+        onClick={() => setPromptModalOpen(false)}>
+        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(27,46,75,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+          onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
+            <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: 0 }}>Manage Journal Prompts</h2>
+            <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", marginTop: 4 }}>Select which prompts are available to your team.</p>
+          </div>
+          <div style={{ overflowY: "auto", flex: 1, padding: "16px 24px" }}>
+            {Array.from(new Set(JOURNAL_PROMPTS.map(p => p.category))).map(cat => (
+              <div key={cat} style={{ marginBottom: 20 }}>
+                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
+                  {PROMPT_CATEGORY_LABELS[cat]}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {JOURNAL_PROMPTS.filter(p => p.category === cat).map(prompt => {
+                    const active = (activePromptIds ?? []).includes(prompt.id);
+                    return (
+                      <button key={prompt.id}
+                        onClick={() => setActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
+                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(27,46,75,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
+                        {prompt.text}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Custom prompts */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
+                Custom Prompts
+              </p>
+              {customPrompts.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                  {customPrompts.map((cp) => (
+                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(27,46,75,0.04)", border: "1px solid var(--color-navy)" }}>
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
+                      <button
+                        onClick={() => setCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}
+                        style={{ flexShrink: 0, height: 24, width: 24, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "none", cursor: "pointer", borderRadius: 4 }}
+                        aria-label="Remove custom prompt"
+                      >
+                        <X size={13} color="var(--color-secondary)" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={customPromptInput}
+                  onChange={(e) => setCustomPromptInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customPromptInput.trim()) {
+                      setCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: customPromptInput.trim() }]);
+                      setCustomPromptInput("");
+                    }
+                  }}
+                  placeholder="Type a custom prompt and press Enter or Add"
+                  style={{ flex: 1, height: 38, border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none", boxSizing: "border-box" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
+                />
+                <button
+                  onClick={() => {
+                    if (!customPromptInput.trim()) return;
+                    setCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: customPromptInput.trim() }]);
+                    setCustomPromptInput("");
+                  }}
+                  style={{ height: 38, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                >
+                  Add
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 6 }}>
+                Custom prompts appear alongside presets for all team members.
+              </p>
+            </div>
+          </div>
+          <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
+            <button onClick={() => { setPromptModalOpen(false); handleSaveLabSettings(); }}
+              style={{ height: 44, padding: "0 24px", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              Done
+            </button>
+            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Saves along with other Lab Settings</span>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }

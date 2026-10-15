@@ -50,6 +50,7 @@ export default function TasksPage() {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [subtaskCounts, setSubtaskCounts] = useState<Record<string, { total: number; done: number }>>({});
+  const [subtaskData, setSubtaskData] = useState<Record<string, Task[]>>({});
   const [taskNavStack, setTaskNavStack] = useState<Task[]>([]);
   const [boardWidth, setBoardWidth] = useState(1440);
 
@@ -62,16 +63,30 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      // Demo mode — use mock data, restoring any in-session mutations from sessionStorage
+      // Demo mode - use mock data, restoring any in-session mutations from sessionStorage
       const sp = getStoredProject();
       setProjectId(sp.id);
       setTeamMembers(USERS);
+      let allTasks: Task[];
       try {
         const saved = sessionStorage.getItem("canopy_demo_tasks");
-        setTasks(saved ? (JSON.parse(saved) as Task[]) : MOCK_TASKS);
+        allTasks = saved ? (JSON.parse(saved) as Task[]) : MOCK_TASKS;
       } catch {
-        setTasks(MOCK_TASKS);
+        allTasks = MOCK_TASKS;
       }
+      setTasks(allTasks.filter((t) => !t.parentId));
+      // Build demo subtask data from tasks that have a parentId
+      const demoSubtaskData: Record<string, Task[]> = {};
+      const demoSubtaskCounts: Record<string, { total: number; done: number }> = {};
+      for (const t of allTasks) {
+        if (!t.parentId) continue;
+        if (!demoSubtaskData[t.parentId]) { demoSubtaskData[t.parentId] = []; demoSubtaskCounts[t.parentId] = { total: 0, done: 0 }; }
+        demoSubtaskData[t.parentId].push(t);
+        demoSubtaskCounts[t.parentId].total++;
+        if (t.status === "done") demoSubtaskCounts[t.parentId].done++;
+      }
+      setSubtaskData(demoSubtaskData);
+      setSubtaskCounts(demoSubtaskCounts);
       setLoading(false);
       return;
     }
@@ -129,22 +144,38 @@ export default function TasksPage() {
       if (cancelled) return;
       if (error) console.error("[Tasks] fetch error:", error);
       if (!error && data) {
-        // Fetch subtask counts for progress bars
+        // Fetch subtask rows for inline expand + counts
         const { data: scData } = await supabase
           .from("tasks")
-          .select("parent_id, status")
+          .select("id, parent_id, title, status, priority, due_date, task_assignees(user_id)")
           .eq("project_id", pid)
           .not("parent_id", "is", null)
-          .or("archived.is.null,archived.eq.false");
+          .or("archived.is.null,archived.eq.false")
+          .order("display_order", { ascending: true });
         if (!cancelled && scData) {
           const counts: Record<string, { total: number; done: number }> = {};
-          for (const r of scData) {
+          const subs: Record<string, Task[]> = {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const r of scData as any[]) {
             const parentId = r.parent_id as string;
-            if (!counts[parentId]) counts[parentId] = { total: 0, done: 0 };
+            if (!counts[parentId]) { counts[parentId] = { total: 0, done: 0 }; subs[parentId] = []; }
             counts[parentId].total++;
             if (r.status === "done") counts[parentId].done++;
+            subs[parentId].push({
+              id: r.id as string,
+              projectId: pid,
+              parentId,
+              title: r.title as string,
+              status: r.status as TaskStatus,
+              priority: r.priority as Task["priority"],
+              assigneeIds: ((r.task_assignees as { user_id: string }[]) ?? []).map((ta) => ta.user_id),
+              dueDate: r.due_date as string | undefined,
+              createdAt: "", updatedAt: "",
+              comments: [], files: [], links: [],
+            });
           }
           setSubtaskCounts(counts);
+          setSubtaskData(subs);
         }
         setTasks(data.map((row) => ({
           id: row.id as string,
@@ -395,6 +426,22 @@ export default function TasksPage() {
     });
   }, []);
 
+  const handleToggleSubtask = useCallback((taskId: string, subtaskId: string, done: boolean) => {
+    const newStatus: TaskStatus = done ? "done" : "todo";
+    setSubtaskData((prev) => ({
+      ...prev,
+      [taskId]: (prev[taskId] ?? []).map((s) => s.id === subtaskId ? { ...s, status: newStatus } : s),
+    }));
+    setSubtaskCounts((prev) => {
+      const curr = prev[taskId] ?? { total: 0, done: 0 };
+      return { ...prev, [taskId]: { total: curr.total, done: done ? curr.done + 1 : Math.max(0, curr.done - 1) } };
+    });
+    if (isSupabaseConfigured) {
+      supabase.from("tasks").update({ status: newStatus }).eq("id", subtaskId)
+        .then(({ error }) => { if (error) console.error("[Tasks] subtask toggle error:", error); });
+    }
+  }, []);
+
   const handleUpdateTaskAssignees = useCallback(async (taskId: string, ids: string[]) => {
     setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, assigneeIds: ids } : t));
     if (!isSupabaseConfigured) return;
@@ -541,7 +588,7 @@ export default function TasksPage() {
           </FilterSelect>
         </div>
 
-        {/* Mobile scope chips — lab-home only, hidden on md+ where sidebar shows */}
+        {/* Mobile scope chips - lab-home only, hidden on md+ where sidebar shows */}
         {isLabHome && (
           <div className="md:hidden flex items-center gap-2 overflow-x-auto py-2" style={{ scrollbarWidth: "none" }}>
             {sidebarSections.map((s) => (
@@ -581,12 +628,32 @@ export default function TasksPage() {
             />
           </div>
         )}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto" style={{ padding: "20px 24px" }}>
         {loading && (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)", padding: 8 }}>Loading tasks…</p>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+            {[1, 2, 3, 4].map((col) => (
+              <div key={col} style={{ flex: "1 1 0", minWidth: 0, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border)" }}>
+                  <div style={{ width: "50%", height: 13, borderRadius: 4, backgroundColor: "var(--color-border)" }} className="animate-pulse" />
+                </div>
+                <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[1, 2, 3].map((row) => (
+                    <div key={row} style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ width: `${55 + row * 12}%`, height: 12, borderRadius: 4, backgroundColor: "var(--color-border)", marginBottom: 8 }} className="animate-pulse" />
+                      <div style={{ width: "40%", height: 10, borderRadius: 4, backgroundColor: "var(--color-border)", opacity: 0.6 }} className="animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
         {!loading && view === "board" ? (
           <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div style={{ position: "relative" }}>
+            {boardWidth >= 640 && boardWidth < 1024 && (
+              <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 48, pointerEvents: "none", background: "linear-gradient(to right, transparent, var(--color-canvas))", zIndex: 2 }} />
+            )}
             <div style={{
               overflowX: boardWidth < 1024 ? "auto" : "visible",
               WebkitOverflowScrolling: "touch",
@@ -616,11 +683,14 @@ export default function TasksPage() {
                       onArchiveDone={archiveDoneTasks}
                       teamMembers={teamMembers}
                       subtaskCounts={subtaskCounts}
+                      subtaskData={subtaskData}
+                      onToggleSubtask={handleToggleSubtask}
                       showLabBadge={false}
                     />
                   </div>
                 ))}
               </div>
+            </div>
             </div>
             <DragOverlay>
               {activeTask && (
@@ -640,7 +710,7 @@ export default function TasksPage() {
             </DragOverlay>
           </DndContext>
         ) : !loading ? (
-          <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "auto" }}>
+          <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "auto", boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)" }}>
             <table className="border-collapse" style={{ width: "100%", minWidth: 600 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -671,17 +741,27 @@ export default function TasksPage() {
                     onUpdateDueDate={(d) => handleUpdateTaskDueDate(task.id, d)}
                     teamMembers={teamMembers}
                     subtaskProgress={subtaskCounts[task.id]}
+                    subtasks={subtaskData[task.id]}
+                    onToggleSubtask={(subId, done) => handleToggleSubtask(task.id, subId, done)}
                     showLabBadge={false}
                   />
                 ))}
                 {filteredTasks.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ padding: "8px 0" }}>
-                      <EmptyState
-                        variant="tasks"
-                        title="No tasks match your filters"
-                        description="Try adjusting the search or filter options above."
-                      />
+                      {scopedTasks.length === 0 ? (
+                        <EmptyState
+                          variant="tasks"
+                          title="No tasks yet"
+                          description="Add your first task to get started."
+                        />
+                      ) : (
+                        <EmptyState
+                          variant="tasks"
+                          title="No tasks match your filters"
+                          description="Try adjusting the search or filter options above."
+                        />
+                      )}
                     </td>
                   </tr>
                 )}

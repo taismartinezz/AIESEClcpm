@@ -5,7 +5,7 @@ import { X, Sparkles } from "lucide-react";
 import type { User, MeetingProposal, WeeklyAvailability, ScheduleEvent, UserSettings, WorkingHours } from "@/types";
 import Avatar from "@/components/ui/Avatar";
 
-// Mirror slot constants from AvailabilityGrid — grid covers 9:00–16:30 in 30-min steps
+// Mirror slot constants from AvailabilityGrid - grid covers 9:00–16:30 in 30-min steps
 const HOUR_START = 9;
 const SLOT_COUNT = 16;
 

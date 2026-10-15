@@ -1,9 +1,11 @@
-// Zotero Web API v3 proxy — fetches items in CSL JSON format for a user library.
+// Zotero Web API v3 proxy - fetches items in CSL JSON format for a user library.
 // Runs server-side so the API key is never exposed in browser network requests.
 
 export const runtime = "nodejs";
 
-// Canopy uses five highlight colors. Zotero uses a broader palette — map to nearest.
+import { requireAuth } from "@/lib/api-auth";
+
+// Canopy uses five highlight colors. Zotero uses a broader palette - map to nearest.
 const ZOTERO_COLOR_MAP: Record<string, string> = {
   "#ffd400": "#FBBF24", // yellow → yellow
   "#ff6666": "#F87171", // red    → red
@@ -24,7 +26,7 @@ function mapZoteroColor(hex?: string): string {
 // Convert a Zotero PDF annotation position (PDF coordinate space, origin at
 // bottom-left) to Canopy's normalized bbox (0–1 fractions, origin at top-left).
 // Uses US Letter (612 × 792 pt) as the default page size, which produces < 3%
-// error on A4 pages — acceptable for highlight placement.
+// error on A4 pages - acceptable for highlight placement.
 function zoteroPosToBbox(
   pos: unknown
 ): { x: number; y: number; w: number; h: number } | null {
@@ -40,7 +42,7 @@ function zoteroPosToBbox(
   if (!rect || rect.length < 4) return null;
   const [x1, y1, x2, y2] = rect;
   const pageW = parsed.width ?? 612;
-  const pageH = 792; // height is not provided by Zotero — assume Letter
+  const pageH = 792; // height is not provided by Zotero - assume Letter
   const x = Math.max(0, Math.min(1, x1 / pageW));
   const y = Math.max(0, Math.min(1, (pageH - y2) / pageH)); // flip Y axis
   const w = Math.max(0, Math.min(1, (x2 - x1) / pageW));
@@ -60,6 +62,9 @@ export interface ZoteroAnnotation {
 }
 
 export async function POST(request: Request) {
+  const callerId = await requireAuth(request);
+  if (!callerId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
   const { apiKey, zoteroUserId, groupId, collectionKey } = (await request.json()) as {
     apiKey?: string;
     zoteroUserId?: string;
@@ -115,16 +120,22 @@ export async function POST(request: Request) {
 
   // Second pass: discover PDF attachments stored in Zotero cloud.
   // Both "imported_file" (added from local) and "imported_url" (added from URL) mean the
-  // PDF is stored in Zotero cloud — group libraries predominantly use "imported_url".
+  // PDF is stored in Zotero cloud - group libraries predominantly use "imported_url".
   // Also builds attachmentParentMap (attachmentKey → parentItemKey) for the annotation pass.
-  // Also tracks linkedUrlItems (parentKey → url) — items with only a linked/web URL and no
+  // Also tracks linkedUrlItems (parentKey → url) - items with only a linked/web URL and no
   // stored PDF, so the UI can show a distinct "no PDF available" message instead of "Attach PDF".
   const pdfAttachments: Record<string, { attachmentKey: string; filename: string }> = {};
   const attachmentParentMap: Record<string, string> = {};
   const linkedUrlItems: Record<string, true> = {};
+  // Child items (attachments, notes) are never direct collection members - the collection-scoped
+  // endpoint always returns 0 for itemType=attachment/note. Always query the library root
+  // (${base}/items) so child items are found regardless of whether a collection filter is active.
+  // The resulting maps are naturally filtered downstream because only items whose parentItem
+  // matches a key from the first-pass CSL response will ever be looked up.
+  const childItemsBase = `${base}/items`;
   let attStart = 0;
   while (true) {
-    const attUrl = `${itemsPath}?itemType=attachment&format=json&limit=100&start=${attStart}${recursiveSuffix}`;
+    const attUrl = `${childItemsBase}?itemType=attachment&format=json&limit=100&start=${attStart}`;
     const attRes = await fetch(attUrl, {
       headers: { "Zotero-API-Key": apiKey, "Zotero-API-Version": "3" },
     });
@@ -144,7 +155,7 @@ export async function POST(request: Request) {
       const { parentItem, contentType, title, linkMode } = att.data ?? {};
       // Track every attachment for annotation resolution
       if (parentItem) attachmentParentMap[att.key] = parentItem;
-      // Accept both linkModes — both mean the file lives in Zotero cloud storage
+      // Accept both linkModes - both mean the file lives in Zotero cloud storage
       if (
         contentType === "application/pdf" &&
         (linkMode === "imported_file" || linkMode === "imported_url") &&
@@ -174,7 +185,7 @@ export async function POST(request: Request) {
   const notesMap: Record<string, string[]> = {};
   let noteStart = 0;
   while (true) {
-    const noteUrl = `${itemsPath}?itemType=note&format=json&limit=100&start=${noteStart}${recursiveSuffix}`;
+    const noteUrl = `${childItemsBase}?itemType=note&format=json&limit=100&start=${noteStart}`;
     const noteRes = await fetch(noteUrl, {
       headers: { "Zotero-API-Key": apiKey, "Zotero-API-Version": "3" },
     });
@@ -204,7 +215,7 @@ export async function POST(request: Request) {
   //
   // IMPORTANT: annotations are GRANDCHILDREN of top-level items (child of PDF
   // attachment, which is child of the main item). Zotero's collection-scoped
-  // endpoint only returns direct children — querying itemsPath?itemType=annotation
+  // endpoint only returns direct children - querying itemsPath?itemType=annotation
   // returns 0 results when a collection is selected. Always use the library root
   // so we get all annotations; attachmentParentMap then filters to only those
   // belonging to items we actually processed.
@@ -241,7 +252,7 @@ export async function POST(request: Request) {
         annotationColor, annotationPageLabel, annotationPosition,
       } = ann.data;
 
-      // Parse position once — shared by both pageNumber and bbox.
+      // Parse position once - shared by both pageNumber and bbox.
       // pageIndex is 0-based and maps directly to PDF viewer page numbers (pageIndex 0 = page 1).
       // annotationPageLabel is the *printed* journal page (e.g. "77" for an article on pp. 77–101)
       // which does NOT correspond to the PDF's internal page numbers, so we prefer pageIndex.
@@ -289,7 +300,7 @@ export async function POST(request: Request) {
   console.log(`[ZoteroSync] annotations found: ${annotTotal} across ${annotItemCount} item(s)`);
 
   // Fifth pass: native JSON items to collect Zotero tags AND detect CSL-drop gaps.
-  // CSL JSON format does not include Zotero-specific tags — a separate native-format
+  // CSL JSON format does not include Zotero-specific tags - a separate native-format
   // pass is required. Each item's key matches the key embedded in the CSL id URI.
   // We also use this pass to cross-reference against the CSL JSON output: if an item
   // is present in native JSON but absent from CSL JSON, it was silently dropped by

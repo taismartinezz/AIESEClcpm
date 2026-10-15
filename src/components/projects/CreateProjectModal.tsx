@@ -136,7 +136,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
         }
       }
 
-      // Add selected lab members (fire-and-forget — never blocks project creation)
+      // Add selected lab members (fire-and-forget - never blocks project creation)
       if (selectedMembers.size > 0 && userId) {
         const rows = [...selectedMembers].map((uid) => ({
           sub_project_id: data.id,
@@ -148,7 +148,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
         });
       }
 
-      // Optimistically update context — no re-fetch needed
+      // Optimistically update context - no re-fetch needed
       const newSp: SubProject = {
         id:          data.id          as string,
         projectId:   data.project_id  as string,

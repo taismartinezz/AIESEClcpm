@@ -4,6 +4,20 @@ A research lab management platform built for trauma, psychology, and sensitive-p
 
 Live app: [canopy-tawny-six.vercel.app](https://canopy-tawny-six.vercel.app)
 
+## Screenshots
+
+**Dashboard** — daily overview of upcoming events, team activity, and task status
+![Dashboard](screenshots/dashboard.png)
+
+**Tasks** — Kanban board across the research lifecycle
+![Tasks board](screenshots/tasks-board.png)
+
+**Scheduling** — team availability heat map showing overlap across members
+![Team availability](screenshots/team-availability.png)
+
+**Journal** — private, encrypted weekly check-ins and reflective prompts
+![Journal](screenshots/journal.png)
+
 ## Product context
 
 Research teams working with vulnerable populations (trauma survivors and other sensitive-population studies) were coordinating tasks, scheduling, and emotional check-ins across tools that were never built to protect participant or researcher privacy. Before writing any code, I ran 2 contextual inquiries and a competitive analysis to understand how these teams actually worked day to day, then designed the product privacy-first from the start rather than bolting privacy on later.

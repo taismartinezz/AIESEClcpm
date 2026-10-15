@@ -16,6 +16,7 @@ export function ThreadPanel({ parent, currentUserId, currentUserName, projectId,
   const [replies, setReplies] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const avUser = buildUser(parent.senderId, parent.senderName, parent.senderColor);
@@ -63,18 +64,35 @@ export function ThreadPanel({ parent, currentUserId, currentUserName, projectId,
     const text = draft.trim();
     if (!text || sending || !currentUserId || !projectId) return;
     setSending(true);
+    setSendError(null);
     if (!isSupabaseConfigured) {
-      setReplies(p => [...p, { id: crypto.randomUUID(), channel: parent.channel, senderId: currentUserId, senderName: currentUserName, content: text, createdAt: new Date().toISOString(), threadParentId: parent.id, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] }]);
-      setDraft(""); setSending(false); return;
+      try {
+        setReplies(p => [...p, { id: crypto.randomUUID(), channel: parent.channel, senderId: currentUserId, senderName: currentUserName, content: text, createdAt: new Date().toISOString(), threadParentId: parent.id, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] }]);
+        setDraft("");
+      } finally {
+        setSending(false);
+      }
+      return;
     }
-    const id = crypto.randomUUID();
-    const createdAt = new Date().toISOString();
-    await supabase.from("chat_messages").insert({ id, channel: parent.channel, sender_id: currentUserId, content: text, created_at: createdAt, thread_parent_id: parent.id });
-    await supabase.from("chat_messages").update({ thread_last_replier_id: currentUserId }).eq("id", parent.id);
-    setReplies(p => [...p, { id, channel: parent.channel, senderId: currentUserId, senderName: currentUserName, content: text, createdAt, threadParentId: parent.id, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] }]);
-    onReplyAdded?.(parent.id, currentUserId);
-    setDraft(""); setSending(false);
-    inputRef.current?.focus();
+    try {
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const { error } = await supabase.from("chat_messages").insert({ id, channel: parent.channel, sender_id: currentUserId, content: text, created_at: createdAt, thread_parent_id: parent.id });
+      if (error) throw error;
+      supabase.from("chat_messages").update({ thread_last_replier_id: currentUserId }).eq("id", parent.id).then(({ error: ue }) => {
+        if (ue) console.error("[Chat] thread_last_replier update:", { message: ue.message, code: ue.code });
+      });
+      setReplies(p => [...p, { id, channel: parent.channel, senderId: currentUserId, senderName: currentUserName, content: text, createdAt, threadParentId: parent.id, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] }]);
+      onReplyAdded?.(parent.id, currentUserId);
+      setDraft("");
+    } catch (err) {
+      const e = err as { message?: string; details?: string; hint?: string; code?: string };
+      console.error("[Chat] reply error:", { message: e?.message, details: e?.details, hint: e?.hint, code: e?.code });
+      setSendError(e?.message ?? "Reply failed. Tap to retry.");
+    } finally {
+      setSending(false);
+      inputRef.current?.focus();
+    }
   }
 
   return (
@@ -113,6 +131,12 @@ export function ThreadPanel({ parent, currentUserId, currentUserName, projectId,
         <div ref={bottomRef} />
       </div>
       <div style={{ padding: "10px 12px", borderTop: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", flexShrink: 0 }}>
+        {sendError && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "5px 8px", backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 6, fontSize: 11, color: "#dc2626" }}>
+            <span style={{ flex: 1 }}>{sendError}</span>
+            <button onClick={sendReply} style={{ fontSize: 11, fontWeight: 600, color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: "1px 4px" }}>Retry</button>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, border: "1px solid var(--color-border)", borderRadius: 10, backgroundColor: "var(--color-canvas)", padding: "6px 6px 6px 10px" }}>
           <textarea ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}

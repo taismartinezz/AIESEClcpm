@@ -33,7 +33,7 @@ const LIST_LABELS: Record<ListType, string> = {
   today: "Today", scheduled: "Scheduled", priority: "Priority",
   all: "All", personal: "Personal", lab: "Lab", project: "Projects",
 };
-// No drag-reorder — all views use date-sorted grouped layout
+// No drag-reorder - all views use date-sorted grouped layout
 const DRAGGABLE_LISTS: ListType[] = [];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ function ReminderRow({ reminder, currentUserId, teamMembers, isDraggable, showSc
     >
       <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
         style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "7px 16px 7px 12px", borderBottom: "1px solid var(--color-border)", backgroundColor: hovered ? "rgba(0,0,0,0.02)" : "transparent", transition: "background-color 0.1s", cursor: "default" }}>
-        {/* Drag handle — only shows when draggable and hovered */}
+        {/* Drag handle - only shows when draggable and hovered */}
         <div style={{ width: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 2, opacity: isDraggable && hovered ? 0.4 : 0, cursor: "grab", transition: "opacity 0.12s" }}>
           <GripVertical size={14} color="var(--color-secondary)" />
         </div>
@@ -237,7 +237,7 @@ function ReminderRow({ reminder, currentUserId, teamMembers, isDraggable, showSc
             <span style={{ fontSize: 15, color: "var(--color-body)", fontWeight: 400, fontFamily: "var(--font-roboto)", lineHeight: 1.3 }}>{reminder.title}</span>
           </div>
           {reminder.dueAt && (
-            <div style={{ fontSize: 12, marginTop: 2, color: "var(--color-secondary)" }}>
+            <div style={{ fontSize: 12, marginTop: 2, color: "var(--color-secondary)", fontWeight: 400 }}>
               {formatDueDate(reminder.dueAt)}
             </div>
           )}
@@ -285,7 +285,7 @@ function CompletedReminderRow({ reminder, currentUserId, onUncomplete }: {
   );
 }
 
-// ── DraggableList — wraps reminder rows with drag-and-drop ────────────────────
+// ── DraggableList - wraps reminder rows with drag-and-drop ────────────────────
 
 interface DragListProps {
   items: Reminder[]; isDraggable: boolean; accentColor: string;
@@ -585,7 +585,7 @@ function DndReminderRow({ reminder, ...rowProps }: { reminder: Reminder } & Omit
   );
 }
 
-// ── GroupedView — Apple-density date-grouped layout with reschedule drag ──────
+// ── GroupedView - Apple-density date-grouped layout with reschedule drag ──────
 
 function GroupedView({ includeNoDate, ...props }: CardProps & { includeNoDate: boolean }) {
   const groups = useMemo(() => groupByDate(props.items), [props.items]);

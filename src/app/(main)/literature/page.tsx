@@ -163,7 +163,7 @@ function timeAgo(dateStr: string): string {
   return `Removed ${days} days ago`;
 }
 
-// ── Insert payload builder — single source of truth for real DB schema ────────
+// ── Insert payload builder - single source of truth for real DB schema ────────
 // Real columns (confirmed from live DB): id, project_id, user_id, library,
 //   title, authors, year, journal, doi, abstract, status, tags, created_at
 // Any key not in REAL_LIT_COLS is dropped with a console.warn so drift is
@@ -539,7 +539,7 @@ function normalizeTitle(raw: string): string {
     .replace(/\s+/g, " ")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
+    .replace(/[–-]/g, "-")
     .toLowerCase();
 }
 
@@ -551,14 +551,14 @@ function litIsDupe(
   year: number,
   zoteroKey?: string
 ): boolean {
-  // Zotero item key — stable per library item, works even when DOI is absent
+  // Zotero item key - stable per library item, works even when DOI is absent
   if (zoteroKey && existing.zoteroKey && existing.zoteroKey === zoteroKey) return true;
   // DOI match (normalized both sides to catch URL-prefix and case variants)
   if (doi && existing.doi) {
     if (normalizeDoi(existing.doi) === normalizeDoi(doi)) return true;
   }
   // Title + first-author-last-name match.
-  // Year is used as a tie-breaker only when BOTH sides have a valid year — items
+  // Year is used as a tie-breaker only when BOTH sides have a valid year - items
   // with year=0 (Zotero sometimes omits date-parts) would otherwise never match
   // and accumulate duplicate rows on every re-sync.
   const titleMatch = normalizeTitle(existing.title) === normalizeTitle(title);
@@ -568,7 +568,7 @@ function litIsDupe(
     litLastName(existing.authors[0]) === litLastName(firstAuthor);
   if (titleMatch && authorMatch) {
     if (year > 0 && existing.year > 0) return existing.year === year;
-    return true; // one or both sides missing year — title+author match is sufficient
+    return true; // one or both sides missing year - title+author match is sufficient
   }
   return false;
 }
@@ -585,7 +585,7 @@ function computeMergeUpdates(existing: LiteratureItem, incoming: LiteratureItem)
   const ea = existing.abstract ?? "";
   const ia = incoming.abstract ?? "";
   if (ia && ia.length > ea.length) u.abstract = ia;
-  // Union incoming tags into existing ones — never overwrites manually-added Canopy tags,
+  // Union incoming tags into existing ones - never overwrites manually-added Canopy tags,
   // but surfaces new Zotero tags on re-sync. Respects removedTags to avoid re-adding
   // tags the user explicitly deleted.
   const incomingTags = incoming.tags ?? [];
@@ -798,14 +798,14 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
   const dragCounterRef = useRef(0);
   const dropzoneInputRef = useRef<HTMLInputElement>(null);
 
-  // PDF attachment state — API sync
+  // PDF attachment state - API sync
   const [pdfAttachments, setPdfAttachments] = useState<Record<string, { attachmentKey: string; filename: string }>>({});
   const [pdfKeyMap, setPdfKeyMap]           = useState<Record<string, string>>({}); // uuid → zotero key
-  // Structured annotations from Zotero API — keyed by client-side item uuid
+  // Structured annotations from Zotero API - keyed by client-side item uuid
   const [annotationsForImport, setAnnotationsForImport] = useState<Record<string, import("@/app/api/zotero/sync/route").ZoteroAnnotation[]>>({});
-  // Items that have only a linked URL in Zotero (no stored PDF) — keyed by Zotero item key
+  // Items that have only a linked URL in Zotero (no stored PDF) - keyed by Zotero item key
   const [linkedUrlZoteroKeys, setLinkedUrlZoteroKeys]   = useState<Record<string, true>>({});
-  // PDF attachment state — RDF file import
+  // PDF attachment state - RDF file import
   const [parsedPDFLinks, setParsedPDFLinks] = useState<{ itemId: string; filename: string }[]>([]);
   const [selectedPDFFiles, setSelectedPDFFiles] = useState<File[]>([]);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -854,7 +854,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
           setParsed(items); setPendingNotes(notes); setPendingMerges(merges); setPendingTagUpdates(tagUpdates);
           setParsedPDFLinks(pdfLinks);
           if (items.length === 0 && merges.length === 0) {
-            setError("No items found in this file. If you meant to export a single collection, right-click it in Zotero and choose Export Collection… — File → Export Library always exports everything and may have picked up an empty or wrong library.");
+            setError("No items found in this file. If you meant to export a single collection, right-click it in Zotero and choose Export Collection… - File → Export Library always exports everything and may have picked up an empty or wrong library.");
           }
         } else {
           // CSL JSON export
@@ -887,7 +887,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
           setParsed(items); setPendingMerges(cslMerges);
           if (items.length === 0 && cslMerges.length === 0) {
             setError(raw.length === 0
-              ? "No items found in this file. If you meant to export a single collection, right-click it in Zotero and choose Export Collection… — File → Export Library always exports everything and may have picked up an empty or wrong library."
+              ? "No items found in this file. If you meant to export a single collection, right-click it in Zotero and choose Export Collection… - File → Export Library always exports everything and may have picked up an empty or wrong library."
               : `All ${raw.length} item${raw.length > 1 ? "s" : ""} already exist in your library and were detected as duplicates.`
             );
           }
@@ -1116,7 +1116,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
     // updates existing annotations instead of creating duplicates.
     const upsertAnnotations = async (itemId: string, clientId: string) => {
       const annots = annotationsForImport[clientId];
-      if (!annots?.length) return; // no annotations for this item — silently skip
+      if (!annots?.length) return; // no annotations for this item - silently skip
       const rows = annots.map((a) => ({
         id: crypto.randomUUID(),
         item_id: itemId,
@@ -1140,7 +1140,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
           onConflict: "item_id,zotero_key", ignoreDuplicates: false,
         });
         if (e2) {
-          // Layer 3: strip zotero_key too (migration 018 not applied) — plain insert, accepts duplicates on re-sync
+          // Layer 3: strip zotero_key too (migration 018 not applied) - plain insert, accepts duplicates on re-sync
           console.warn("[ZoteroImport] annotation upsert (no color) failed:", e2.message);
           const rowsMinimal = rowsNoColor.map(({ zotero_key: _zk, ...rest }) => rest);
           const { error: e3 } = await supabase.from("lit_annotations").insert(rowsMinimal);
@@ -1181,7 +1181,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
   }
 
   // Accepts an explicit groupId so it can be called right from the group
-  // <select>'s onChange with the just-picked value — reading `selectedGroupId`
+  // <select>'s onChange with the just-picked value - reading `selectedGroupId`
   // there would still see the pre-change value, since the setState from the
   // same handler hasn't applied yet.
   async function handleFetchCollections(groupIdOverride?: string) {
@@ -1253,7 +1253,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
       // Surface items that Zotero's CSL serializer silently dropped.
       if (rawDropped?.length) {
         setSyncWarnings(
-          rawDropped.map((d) => `"${d.title || d.key}" was in your Zotero library but dropped by Zotero's CSL export — import via File export (Zotero RDF) to capture it`)
+          rawDropped.map((d) => `"${d.title || d.key}" was in your Zotero library but dropped by Zotero's CSL export - import via File export (Zotero RDF) to capture it`)
         );
         console.warn("[ZoteroSync] CSL-dropped items:", rawDropped);
       } else {
@@ -1339,7 +1339,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
           addedById: currentUserId, addedAt: now, importSource: "zotero_api",
           ...(zoteroKey ? { zoteroKey } : {}),
         };
-        // Check against fresh DB state (primary) — catches items added by other team
+        // Check against fresh DB state (primary) - catches items added by other team
         // members or from a previous import in this session
         const freshDupeIdx = freshExisting.findIndex(
           (ex) => litIsDupe(ex as LiteratureItem, doi, title, authors[0] ?? "", year, zoteroKey)
@@ -1354,7 +1354,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
           console.log(`[ZoteroSync] dupe (DB match): "${title}" doi=${doi ?? "none"} zoteroKey=${zoteroKey ?? "none"} year=${year}`);
           continue;
         }
-        // Also check within the current batch — Zotero can return the same item
+        // Also check within the current batch - Zotero can return the same item
         // multiple times (e.g. in multiple collections), creating phantom duplicates.
         const inBatchDupe = items.findIndex(
           (ex) => litIsDupe(ex, doi, title, authors[0] ?? "", year, zoteroKey)
@@ -1513,7 +1513,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
                   {parsedPDFLinks.length} PDF attachment{parsedPDFLinks.length > 1 ? "s" : ""} found in this RDF
                 </p>
                 <p style={{ fontSize: 11, color: "var(--color-secondary)", marginBottom: 8 }}>
-                  In Zotero, export with both <strong>Export Files</strong> and <strong>Include Annotations</strong> checked. Then select the PDFs from the exported <em>files/</em> folder below (optional — skip to import metadata only).
+                  In Zotero, export with both <strong>Export Files</strong> and <strong>Include Annotations</strong> checked. Then select the PDFs from the exported <em>files/</em> folder below (optional - skip to import metadata only).
                 </p>
                 <input
                   ref={pdfInputRef}
@@ -1578,7 +1578,7 @@ function ZoteroImportModal({ existingItems, onImport, onUpdateItem, onClose, pro
                 </button>
               </div>
               {collectionsError && <p style={{ fontSize: 11, color: "var(--color-error)", marginBottom: 6 }}>{collectionsError}</p>}
-              {/* Group selector — shown when the user has group libraries */}
+              {/* Group selector - shown when the user has group libraries */}
               {groups.length > 0 && (
                 <div className="mb-2">
                   <select
@@ -1743,7 +1743,7 @@ function DOILookupModal({ onSave, onMerge, onClose, projectId, currentUserId, su
     const doiMatch = /10\.\d{4,}\/[^\s"<>]+/.exec(input);
     if (doiMatch) { await fetchDOI(doiMatch[0]); return; }
 
-    // Google Scholar — try SerpApi first (if configured server-side), then Semantic Scholar
+    // Google Scholar - try SerpApi first (if configured server-side), then Semantic Scholar
     if (/scholar\.google\./i.test(input)) {
       if (/[?&]user=/.test(input)) {
         setPreview({ title: "", authors: [], year: 0, url: input });
@@ -1766,7 +1766,7 @@ function DOILookupModal({ onSave, onMerge, onClose, projectId, currentUserId, su
           const data = await serpRes.json() as Partial<LiteratureItem>;
           if (data.title) { setPreview(data); setLoading(false); return; }
         }
-        // SerpApi not configured or returned nothing — fall through to Semantic Scholar
+        // SerpApi not configured or returned nothing - fall through to Semantic Scholar
       } catch { /* fall through */ }
       // Semantic Scholar fallback using title/q param
       const titleParam = /[?&](?:title|q)=([^&]+)/.exec(input)?.[1];
@@ -1838,7 +1838,7 @@ function DOILookupModal({ onSave, onMerge, onClose, projectId, currentUserId, su
         onClose();
         return;
       }
-      // User chose "Add anyway" — fall through to insert
+      // User chose "Add anyway" - fall through to insert
     }
 
     const item: LiteratureItem = {
@@ -2256,8 +2256,13 @@ function ReadingProgressDashboard({
   }
 
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center" style={{ color: "var(--color-secondary)", fontSize: 13 }}>
-      Loading reading progress…
+    <div className="flex-1" style={{ padding: "20px 24px" }}>
+      {[1, 2, 3].map((i) => (
+        <div key={i} style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "14px 18px", marginBottom: 12 }}>
+          <div style={{ width: "45%", height: 13, borderRadius: 4, backgroundColor: "var(--color-border)", marginBottom: 10 }} className="animate-pulse" />
+          <div style={{ width: "70%", height: 10, borderRadius: 4, backgroundColor: "var(--color-border)", opacity: 0.6 }} className="animate-pulse" />
+        </div>
+      ))}
     </div>
   );
 
@@ -2275,7 +2280,7 @@ function ReadingProgressDashboard({
         Reading Progress
       </h3>
 
-      {/* Team overview table — PI only */}
+      {/* Team overview table - PI only */}
       {currentUserRole === "pi" && memberMap.size > 0 && (
         <section className="mb-6">
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-secondary)", marginBottom: 8 }}>Team overview</p>
@@ -2377,7 +2382,7 @@ function AssignReadingForm({ itemId, projectId, assignedBy, teamMembers, onAssig
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState("");
 
-  // Exclude the current user — you can't assign a reading to yourself
+  // Exclude the current user - you can't assign a reading to yourself
   const assignableMembers = teamMembers.filter((m) => m.id !== assignedBy);
 
   function toggle(id: string) {
@@ -2508,7 +2513,7 @@ interface ParsedCitation {
 
 function parseCitations(text: string): ParsedCitation[] {
   const patterns: RegExp[] = [
-    // (Author, YEAR) — with optional page ref suffix
+    // (Author, YEAR) - with optional page ref suffix
     /\(([A-Z][a-zA-ZÀ-ɏ'\-]+(?:\s+(?:et\s+al\.?|&\s+[A-Z][a-zA-Z'\-]+|and\s+[A-Z][a-zA-Z'\-]+))?),\s*((?:19|20)\d{2})(?:[,;][^)]{0,30})?\)/g,
     // [Author, YEAR] bracket style
     /\[([A-Z][a-zA-ZÀ-ɏ'\-]+(?:\s+et\s+al\.?)?),\s*((?:19|20)\d{2})\]/g,
@@ -2524,7 +2529,7 @@ function parseCitations(text: string): ParsedCitation[] {
     }
   }
   all.sort((a, b) => a.start - b.start);
-  // Remove overlaps — keep first match at each position
+  // Remove overlaps - keep first match at each position
   const out: ParsedCitation[] = [];
   let lastEnd = -1;
   for (const c of all) {
@@ -2708,13 +2713,13 @@ function DetailPanelContent({
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep localFiles in sync when the item's files array is mutated externally while
-  // the same item is open — e.g. Zotero PDF fetched right after import. The effect
+  // the same item is open - e.g. Zotero PDF fetched right after import. The effect
   // above only fires on item.id change, leaving localFiles stale in that window.
   useEffect(() => {
     setLocalFiles(item.files);
   }, [item.files]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Eagerly fetch annotations whenever item changes — not just when the Annotations tab is open.
+  // Eagerly fetch annotations whenever item changes - not just when the Annotations tab is open.
   // This ensures the PDF viewer's `annotations` prop is populated before the viewer mounts.
   useEffect(() => {
     const seedMap: Record<string, string> = {};
@@ -2822,7 +2827,7 @@ function DetailPanelContent({
   }
 
   async function fetchRecs() {
-    if (!item.doi) return;
+    if (!item.doi && !item.title) return;
     setRecsLoading(true); setRecsError(""); setRecsFetched(true);
     try {
       const { data: { session: recsSession } } = await supabase.auth.getSession();
@@ -2935,7 +2940,7 @@ function DetailPanelContent({
   async function handleFileFromSource(file: File) {
     const MAX_MB = 50;
     if (file.size > MAX_MB * 1024 * 1024) {
-      setFilesError(`File is ${Math.round(file.size / 1024 / 1024)} MB — exceeds the ${MAX_MB} MB limit. Try compressing it first.`);
+      setFilesError(`File is ${Math.round(file.size / 1024 / 1024)} MB - exceeds the ${MAX_MB} MB limit. Try compressing it first.`);
       return;
     }
     setFilesError("");
@@ -3207,7 +3212,7 @@ function DetailPanelContent({
             </div>
 
             {(() => {
-              // Any attached file with a URL counts — extension check silently fails for
+              // Any attached file with a URL counts - extension check silently fails for
               // some Zotero-synced filenames that lack a .pdf suffix in the stored name.
               const uploadedPdf = localFiles.find((f) => f.url);
               const isDirectPdfUrl = item.url && (() => {
@@ -3217,7 +3222,7 @@ function DetailPanelContent({
               return (
                 <>
                   <div className="flex gap-2 pt-2">
-                    {/* PDF button — always present regardless of DOI/URL */}
+                    {/* PDF button - always present regardless of DOI/URL */}
                     {hasPdf ? (
                       uploadedPdf ? (
                         <button
@@ -3240,7 +3245,7 @@ function DetailPanelContent({
                       <div
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg"
                         style={{ backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)", fontSize: 12, fontWeight: 500, border: "1px solid var(--color-border)", borderRadius: 7, minHeight: 44 }}
-                        title="No PDF stored in Zotero for this item — link-only or no attachment"
+                        title="No PDF stored in Zotero for this item - link-only or no attachment"
                       >
                         <FileText size={13} /> No PDF in Zotero
                       </div>
@@ -3249,12 +3254,12 @@ function DetailPanelContent({
                         onClick={() => setTab("Files")}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg"
                         style={{ backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)", fontSize: 12, fontWeight: 600, border: "1px dashed var(--color-border)", borderRadius: 7, cursor: "pointer", minHeight: 44 }}
-                        title="No PDF attached — click to open the Files tab and upload one"
+                        title="No PDF attached - click to open the Files tab and upload one"
                       >
                         <FileText size={13} /> Attach PDF
                       </button>
                     )}
-                    {/* DOI/URL button — independent of PDF state; both can show simultaneously */}
+                    {/* DOI/URL button - independent of PDF state; both can show simultaneously */}
                     {item.doi && (
                       <a href={`https://doi.org/${item.doi}`} target="_blank" rel="noopener noreferrer"
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg"
@@ -3381,7 +3386,7 @@ function DetailPanelContent({
             {localFiles.length === 0 && !fileUploading && (
               item.zoteroKey ? (
                 <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 12 }}>
-                  No PDF stored in Zotero — link only or no attachment.
+                  No PDF stored in Zotero - link only or no attachment.
                 </p>
               ) : (
                 <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 12 }}>No files attached.</p>
@@ -3478,7 +3483,7 @@ function DetailPanelContent({
             <div className="mt-5">
               <div className="flex items-center justify-between mb-3">
                 <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)" }}>AI Suggestions</p>
-                {!recsFetched && item.doi && (
+                {!recsFetched && (
                   <button onClick={fetchRecs} disabled={recsLoading}
                     className="flex items-center gap-1.5"
                     style={{ fontSize: 11, fontWeight: 700, color: "var(--color-navy)", backgroundColor: "rgba(27,46,75,0.06)", border: "1px solid var(--color-border)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", minHeight: 30 }}>
@@ -3491,16 +3496,10 @@ function DetailPanelContent({
                   </button>
                 )}
               </div>
-              {!item.doi && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>
-                    A DOI is required for similarity search (uses OpenAlex). External or preprint papers without a DOI can be added manually via the Info tab.
-                  </p>
-                  <button onClick={() => setTab("Info")}
-                    style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 6, backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", color: "var(--color-navy)", cursor: "pointer" }}>
-                    Add DOI in Info →
-                  </button>
-                </div>
+              {!item.doi && !recsFetched && (
+                <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>
+                  Works best with a DOI - results come from OpenAlex related-works when available, then title search.
+                </p>
               )}
               {recsLoading && <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>Fetching suggestions from OpenAlex…</p>}
               {recsError && <p style={{ fontSize: 12, color: "var(--color-error)" }}>{recsError}</p>}
@@ -3705,7 +3704,7 @@ function DetailPanelContent({
                             </p>
                             {a.dueDate && <p style={{ fontSize: 11, color: "var(--color-secondary)" }}>Due {new Date(a.dueDate).toLocaleDateString()}</p>}
                             {a.note && <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 2 }}>{a.note}</p>}
-                            {/* Status — only the assignee can update; peers may see "—" if hidden */}
+                            {/* Status - only the assignee can update; peers may see "-" if hidden */}
                             {a.assigneeId === currentUserId ? (
                               <div className="flex items-center gap-2 mt-1">
                                 <select
@@ -3725,7 +3724,7 @@ function DetailPanelContent({
                                     <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                                   ))}
                                 </select>
-                                {/* Visibility toggle — only the assignee sees this */}
+                                {/* Visibility toggle - only the assignee sees this */}
                                 <button
                                   title={a.statusHidden ? "Status hidden from peers. Click to show." : "Status visible to peers. Click to hide."}
                                   onClick={async () => {
@@ -3769,7 +3768,7 @@ function DetailPanelContent({
                 teamMembers={teamMembers}
                 onAssigned={(a) => {
                   setAssigned((prev) => [...prev, a]);
-                  // Fire email notification — best-effort, non-blocking
+                  // Fire email notification - best-effort, non-blocking
                   const assignerName = teamMembers.find((m) => m.id === currentUserId)?.name ?? "A teammate";
                   fetch("/api/email/send", {
                     method: "POST",
@@ -3786,7 +3785,7 @@ function DetailPanelContent({
         })()}
       </div>
 
-      {/* PDF Viewer overlay — position: fixed, renders above everything */}
+      {/* PDF Viewer overlay - position: fixed, renders above everything */}
       {showPDFViewer && (() => {
         const pdfFile = localFiles.find((f) => f.url);
         // Prefer an uploaded/stored file; fall back to external PDF URL for direct-.pdf links.
@@ -3958,6 +3957,29 @@ export default function LiteraturePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep myAssignedItemIds in sync in real-time so newly assigned documents appear
+  // in the assignee's personal library without requiring a page reload.
+  useEffect(() => {
+    if (!currentUserId || !projectId || !isSupabaseConfigured) return;
+    const channel = supabase
+      .channel(`lit_assigned_readings:${projectId}:${currentUserId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lit_assigned_readings", filter: `assignee_id=eq.${currentUserId}` },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const itemId = (payload.new as { item_id: string }).item_id;
+            setMyAssignedItemIds((prev) => new Set([...prev, itemId]));
+          } else if (payload.eventType === "DELETE") {
+            const itemId = (payload.old as { item_id: string }).item_id;
+            setMyAssignedItemIds((prev) => { const next = new Set(prev); next.delete(itemId); return next; });
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUserId, projectId]);
+
   useEffect(() => {
     if (collectionsOpen) { document.body.style.overflow = "hidden"; }
     else { document.body.style.overflow = ""; }
@@ -3970,7 +3992,7 @@ export default function LiteraturePage() {
     setSelectedItemId(null);
   }, [effectiveLitScope, effectiveLitSubProjectId]);
 
-  // Derive selectedItem from items so updates are atomic — no two-render flicker
+  // Derive selectedItem from items so updates are atomic - no two-render flicker
   const selectedItem = items.find((i) => i.id === selectedItemId) ?? null;
 
   function updateItem(id: string, updates: Partial<LiteratureItem>) {
@@ -4175,7 +4197,7 @@ export default function LiteraturePage() {
         <div className="fixed inset-0 z-20" style={{ display: isMobile ? "block" : "none", backgroundColor: "rgba(0,0,0,0.3)" }} onClick={() => setCollectionsOpen(false)} aria-hidden="true" />
       )}
 
-      {/* Left panel — collections sidebar with shared resize/collapse shell */}
+      {/* Left panel - collections sidebar with shared resize/collapse shell */}
       {!isMobile && (
         <ScopeSidebar
           sections={[{

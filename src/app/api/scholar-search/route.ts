@@ -17,24 +17,24 @@ interface SerpResponse {
   error?: string;
 }
 
+import { requireAuth } from "@/lib/api-auth";
+
 export async function POST(request: Request) {
-  const authHeader = request.headers.get("Authorization") ?? "";
-  if (!authHeader.replace(/^Bearer\s+/i, "").trim()) {
-    return Response.json({ error: "Authorization header required" }, { status: 401 });
-  }
+  const userId = await requireAuth(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { url } = (await request.json()) as { url?: string };
   if (!url?.trim()) return Response.json({ error: "url required" }, { status: 400 });
 
   const key = process.env.SERPAPI_KEY;
-  if (!key) return Response.json({}, { status: 200 }); // unconfigured — caller falls through
+  if (!key) return Response.json({}, { status: 200 }); // unconfigured - caller falls through
 
   // Extract search query from Scholar URL params (title=, q=, query=)
   let query = "";
   try {
     const u = new URL(url);
     query = u.searchParams.get("title") ?? u.searchParams.get("q") ?? u.searchParams.get("query") ?? "";
-  } catch { /* not a valid URL — use the raw string as query */ query = url; }
+  } catch { /* not a valid URL - use the raw string as query */ query = url; }
 
   if (!query) return Response.json({}, { status: 200 });
 

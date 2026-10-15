@@ -6,7 +6,8 @@ import { useProject } from "@/context/ProjectContext";
 import { useUndoToast } from "@/context/UndoToastContext";
 import Avatar from "@/components/ui/Avatar";
 import type { User } from "@/types";
-import { MessageSquare, Send, Hash, ChevronDown, Plus, Search, Pin, X, FileText, HelpCircle } from "lucide-react";
+import { MessageSquare, Hash, ChevronDown, Search, Pin, X } from "lucide-react";
+import { ChatComposer } from "./_components/ChatComposer";
 import ScopeSidebar, { type ScopeSection } from "@/components/ui/ScopeSidebar";
 import PageHeader from "@/components/ui/PageHeader";
 import { computeInitials } from "@/lib/utils";
@@ -36,13 +37,12 @@ export default function ChatPage() {
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [threadMsg, setThreadMsg] = useState<ChatMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<{ userId: string; name: string }[]>([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [hasNewMessages, setHasNewMessages] = useState(false);
-  const [showFormattingHint, setShowFormattingHint] = useState(false);
 
   // F1: Presence
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
@@ -53,9 +53,6 @@ export default function ChatPage() {
   // Read receipts: map of userId -> last_read_at for the active channel
   const [peerReadStates, setPeerReadStates] = useState<Record<string, string>>({});
 
-  // F3: @Mentions autocomplete
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionIndex, setMentionIndex] = useState(0);
 
   // F4: Pinned panel
   const [showPinned, setShowPinned] = useState(false);
@@ -71,7 +68,6 @@ export default function ChatPage() {
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ file: File; preview?: string }>>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastCountRef = useRef(0);
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -112,8 +108,24 @@ export default function ChatPage() {
     load();
   }, [projectId, currentUserId, isProjectView, subProjectId]);
 
-  // Reset channel
-  useEffect(() => { setActiveChannel(defaultChannel); setThreadMsg(null); }, [activeScope, subProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Persist active channel per project so navigating away and back restores position
+  const channelRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!projectId || channelRestoredRef.current) return;
+    channelRestoredRef.current = true;
+    try {
+      const saved = localStorage.getItem(`chat_channel:${projectId}`) as ActiveChannel | null;
+      if (saved) setActiveChannel(saved);
+    } catch { /* ignore */ }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    try { localStorage.setItem(`chat_channel:${projectId}`, String(activeChannel)); } catch { /* ignore */ }
+  }, [activeChannel, projectId]);
+
+  // Reset channel when scope changes (intentional navigation)
+  useEffect(() => { setActiveChannel(defaultChannel); setThreadMsg(null); channelRestoredRef.current = false; }, [activeScope, subProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // F1: Presence
   useEffect(() => {
@@ -230,41 +242,36 @@ export default function ChatPage() {
     if (error) { console.error("[Chat] fetch:", error); setLoading(false); return; }
     const rows = data ?? [];
     const sids = [...new Set(rows.map(r => r.sender_id as string))];
-    const nameMap: Record<string, string> = {};
-    if (sids.length) {
-      const { data: ps } = await supabase.from("user_profiles").select("id, name").in("id", sids);
-      for (const p of ps ?? []) nameMap[p.id as string] = p.name as string;
-    }
-
     const mids = rows.map(r => r.id as string);
-    let tcMap: Record<string, number> = {};
-    let rxMap: Record<string, MessageReaction[]> = {};
-    let lastReplierMap: Record<string, string> = {};
 
-    if (mids.length) {
-      const [tc, rx] = await Promise.all([
-        supabase.from("chat_messages")
-          .select("thread_parent_id, sender_id")
-          .in("thread_parent_id", mids)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .then(r => r.data ?? []),
-        supabase.from("message_reactions")
-          .select("message_id, emoji, user_id")
-          .in("message_id", mids)
-          .then(r => r.data ?? []),
-      ]);
-      for (const t of tc) {
-        const pid = t.thread_parent_id as string;
-        tcMap[pid] = (tcMap[pid] ?? 0) + 1;
-        if (!lastReplierMap[pid]) lastReplierMap[pid] = t.sender_id as string;
-      }
-      for (const r of rx) {
-        if (!rxMap[r.message_id]) rxMap[r.message_id] = [];
-        const ex = rxMap[r.message_id].find(x => x.emoji === r.emoji);
-        if (ex) { ex.count++; if (r.user_id === currentUserId) ex.hasReacted = true; }
-        else rxMap[r.message_id].push({ emoji: r.emoji, count: 1, hasReacted: r.user_id === currentUserId });
-      }
+    const [ps, tc, rx] = await Promise.all([
+      sids.length
+        ? supabase.from("user_profiles").select("id, name").in("id", sids).then(r => r.data ?? [])
+        : Promise.resolve([]),
+      mids.length
+        ? supabase.from("chat_messages").select("thread_parent_id, sender_id").in("thread_parent_id", mids).is("deleted_at", null).order("created_at", { ascending: false }).then(r => r.data ?? [])
+        : Promise.resolve([]),
+      mids.length
+        ? supabase.from("message_reactions").select("message_id, emoji, user_id").in("message_id", mids).then(r => r.data ?? [])
+        : Promise.resolve([]),
+    ]);
+
+    const nameMap: Record<string, string> = {};
+    for (const p of ps) nameMap[p.id as string] = p.name as string;
+
+    const tcMap: Record<string, number> = {};
+    const rxMap: Record<string, MessageReaction[]> = {};
+    const lastReplierMap: Record<string, string> = {};
+    for (const t of tc) {
+      const pid = t.thread_parent_id as string;
+      tcMap[pid] = (tcMap[pid] ?? 0) + 1;
+      if (!lastReplierMap[pid]) lastReplierMap[pid] = t.sender_id as string;
+    }
+    for (const r of rx) {
+      if (!rxMap[r.message_id]) rxMap[r.message_id] = [];
+      const ex = rxMap[r.message_id].find(x => x.emoji === r.emoji);
+      if (ex) { ex.count++; if (r.user_id === currentUserId) ex.hasReacted = true; }
+      else rxMap[r.message_id].push({ emoji: r.emoji, count: 1, hasReacted: r.user_id === currentUserId });
     }
 
     setMessages(rows.map(row => ({
@@ -418,55 +425,55 @@ export default function ChatPage() {
     return results;
   }
 
-  // F3: Mention helpers
-  const mentionCandidates = mentionQuery === null ? [] :
-    teamMembers.filter(m => m.name.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5);
-
-  function insertMention(member: User) {
-    const el = inputRef.current;
-    if (!el) return;
-    const cursor = el.selectionStart ?? draft.length;
-    const before = draft.slice(0, cursor).replace(/@\w*$/, `@${member.name} `);
-    const after = draft.slice(cursor);
-    setDraft(before + after);
-    setMentionQuery(null);
-    setTimeout(() => { el.focus(); el.setSelectionRange(before.length, before.length); }, 10);
-  }
-
-  async function sendMessage() {
-    const text = draft.trim();
+  async function sendMessage(text: string, capturedMentionIds: string[]) {
     if (!text && !pendingAttachments.length || sending || !currentUserId || !projectId) return;
     setSending(true);
+    setSendError(null);
     const key = resolveChannelKey(projectId, currentUserId, activeChannel);
 
-    const mentionedUserIds = teamMembers.filter(m => text.includes(`@${m.name}`)).map(m => m.id);
-
     if (!isSupabaseConfigured) {
-      const attachments = await uploadAttachments();
-      setMessages(p => [...p, { id: crypto.randomUUID(), channel: key, senderId: currentUserId, senderName: currentUserName, content: text, createdAt: new Date().toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds, isPinned: false, attachments }]);
-      setDraft(""); setPendingAttachments([]); setSending(false); return;
+      try {
+        const attachments = await uploadAttachments();
+        setMessages(p => [...p, { id: crypto.randomUUID(), channel: key, senderId: currentUserId, senderName: currentUserName, content: text, createdAt: new Date().toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: capturedMentionIds, isPinned: false, attachments }]);
+        setPendingAttachments([]);
+      } finally {
+        setSending(false);
+      }
+      return;
     }
 
-    const attachments = await uploadAttachments();
-    const id = crypto.randomUUID();
-    const createdAt = new Date().toISOString();
-    const { error } = await supabase.from("chat_messages").insert({ id, channel: key, sender_id: currentUserId, content: text, created_at: createdAt, thread_parent_id: null, mentioned_user_ids: mentionedUserIds, attachments });
-    if (!error) {
-      setMessages(p => [...p, { id, channel: key, senderId: currentUserId, senderName: currentUserName, content: text, createdAt, threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds, isPinned: false, attachments }]);
-      setDraft(""); setPendingAttachments([]);
+    try {
+      const attachments = await uploadAttachments();
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const { error } = await supabase.from("chat_messages").insert({
+        id, channel: key, sender_id: currentUserId, content: text,
+        created_at: createdAt, thread_parent_id: null,
+        mentioned_user_ids: capturedMentionIds, attachments,
+      });
+      if (error) throw error;
 
-      const toNotify = mentionedUserIds.filter(uid => uid !== currentUserId);
+      setMessages(p => [...p, { id, channel: key, senderId: currentUserId, senderName: currentUserName, content: text, createdAt, threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: capturedMentionIds, isPinned: false, attachments }]);
+      setPendingAttachments([]);
+
+      const toNotify = capturedMentionIds.filter(uid => uid !== currentUserId);
       if (toNotify.length) {
         const notifs = toNotify.map(uid => ({
           user_id: uid, type: "task_mention",
           title: `${currentUserName} mentioned you in ${channelLabel()}`,
           body: text.slice(0, 100), related_id: id, read: false,
         }));
-        supabase.from("notifications").insert(notifs).then(({ error: ne }) => { if (ne) console.error("[Chat] mention notif:", ne); });
+        supabase.from("notifications").insert(notifs).then(({ error: ne }) => {
+          if (ne) console.error("[Chat] mention notif:", { message: ne.message, code: ne.code });
+        });
       }
+    } catch (err) {
+      const e = err as { message?: string; details?: string; hint?: string; code?: string };
+      console.error("[Chat] send error:", { message: e?.message, details: e?.details, hint: e?.hint, code: e?.code });
+      setSendError(e?.message ?? "Message failed to send.");
+    } finally {
+      setSending(false);
     }
-    setSending(false);
-    inputRef.current?.focus();
   }
 
   function handleEdit(id: string, content: string) {
@@ -480,9 +487,9 @@ export default function ChatPage() {
     if (!msg) return;
     const now = new Date().toISOString();
     setMessages(p => p.map(m => m.id === id ? { ...m, deletedAt: now } : m));
-    if (isSupabaseConfigured) supabase.from("chat_messages").update({ deleted_at: now }).eq("id", id);
+    if (isSupabaseConfigured) supabase.from("chat_messages").update({ deleted_at: now }).eq("id", id).then(({ error }) => { if (error) console.error("[Chat] delete:", error); });
     showUndoToast("Message deleted",
-      () => { setMessages(p => p.map(m => m.id === id ? { ...m, deletedAt: null } : m)); if (isSupabaseConfigured) supabase.from("chat_messages").update({ deleted_at: null }).eq("id", id); },
+      () => { setMessages(p => p.map(m => m.id === id ? { ...m, deletedAt: null } : m)); if (isSupabaseConfigured) supabase.from("chat_messages").update({ deleted_at: null }).eq("id", id).then(({ error }) => { if (error) console.error("[Chat] undo delete:", error); }); },
       async () => { /* already applied */ },
     );
   }
@@ -490,22 +497,25 @@ export default function ChatPage() {
   // F4: Pin handler
   function handlePin(id: string, pin: boolean) {
     setMessages(p => p.map(m => m.id === id ? { ...m, isPinned: pin } : m));
-    if (isSupabaseConfigured) supabase.from("chat_messages").update({ is_pinned: pin }).eq("id", id);
+    if (isSupabaseConfigured) supabase.from("chat_messages").update({ is_pinned: pin }).eq("id", id).then(({ error }) => { if (error) console.error("[Chat] pin:", error); });
   }
 
   async function handleReact(msgId: string, emoji: string) {
-    if (!isSupabaseConfigured) {
-      setMessages(p => p.map(m => {
-        if (m.id !== msgId) return m;
-        const ex = m.reactions.find(r => r.emoji === emoji);
-        if (ex?.hasReacted) return { ...m, reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r).filter(r => r.count > 0) };
-        if (ex) return { ...m, reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, hasReacted: true } : r) };
-        return { ...m, reactions: [...m.reactions, { emoji, count: 1, hasReacted: true }] };
-      }));
-      return;
-    }
     const msg = messages.find(m => m.id === msgId);
     const alreadyReacted = msg?.reactions.find(r => r.emoji === emoji)?.hasReacted;
+
+    // Optimistic update - applies immediately regardless of Supabase status
+    setMessages(p => p.map(m => {
+      if (m.id !== msgId) return m;
+      const ex = m.reactions.find(r => r.emoji === emoji);
+      if (alreadyReacted) {
+        return { ...m, reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r).filter(r => r.count > 0) };
+      }
+      if (ex) return { ...m, reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, hasReacted: true } : r) };
+      return { ...m, reactions: [...m.reactions, { emoji, count: 1, hasReacted: true }] };
+    }));
+
+    if (!isSupabaseConfigured) return;
     if (alreadyReacted) {
       await supabase.from("message_reactions").delete().eq("message_id", msgId).eq("user_id", currentUserId).eq("emoji", emoji);
     } else {
@@ -575,7 +585,7 @@ export default function ChatPage() {
 
   const chatSections: ScopeSection[] = !isProjectView
     ? [{
-        id: "lab", label: "Lab", color: "#0ea5e9", icon: <Hash size={17} />, isActive: activeChannel === "lab",
+        id: "lab", label: "Lab", color: "var(--color-navy)", icon: <Hash size={17} />, isActive: activeChannel === "lab",
         onClick: () => { setActiveChannel("lab"); setMessages([]); setThreadMsg(null); },
         count: unreadCounts[resolveChannelKey(projectId ?? "", currentUserId, "lab")] || undefined,
       }]
@@ -780,14 +790,14 @@ export default function ChatPage() {
                       <p style={{ fontSize: 16, fontWeight: 700, color: "var(--color-body)", margin: 0 }}>{dmPeer.name}</p>
                       <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: "6px 0 0" }}>This is the start of your conversation with {dmPeer.name}.</p>
                     </div>
-                    <button onClick={() => inputRef.current?.focus()} style={{ marginTop: 4, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Say hello</button>
+                    <button onClick={() => {}} style={{ marginTop: 4, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Say hello</button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center flex-1 px-6 py-12 text-center gap-3">
                     <Hash size={40} style={{ color: "var(--color-border)" }} />
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>Welcome to #{channelLabel()}</p>
                     <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>This is the beginning of the #{channelLabel()} channel. Be the first to post something.</p>
-                    <button onClick={() => inputRef.current?.focus()} style={{ marginTop: 6, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Send a message</button>
+                    <button onClick={() => {}} style={{ marginTop: 6, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Send a message</button>
                   </div>
                 )
               )}
@@ -837,103 +847,17 @@ export default function ChatPage() {
 
             <TypingIndicator names={typingUsers.map(u => u.name)} />
 
-            <div style={{ padding: "10px 16px 12px", borderTop: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", flexShrink: 0 }}>
-              {pendingAttachments.length > 0 && (
-                <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                  {pendingAttachments.map((a, i) => (
-                    <div key={i} style={{ position: "relative", display: "inline-flex" }}>
-                      {a.preview ? (
-                        <img src={a.preview} alt={a.file.name} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, border: "1px solid var(--color-border)" }} />
-                      ) : (
-                        <div style={{ width: 72, height: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", gap: 3 }}>
-                          <FileText size={18} color="var(--color-secondary)" />
-                          <span style={{ fontSize: 9, color: "var(--color-secondary)", maxWidth: 64, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>{a.file.name}</span>
-                        </div>
-                      )}
-                      <button onClick={() => setPendingAttachments(p => p.filter((_, j) => j !== i))}
-                        style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, borderRadius: "50%", backgroundColor: "var(--color-error)", color: "#fff", border: "none", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
-                        x
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ position: "relative" }}>
-                {mentionQuery !== null && mentionCandidates.length > 0 && (
-                  <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, zIndex: 100, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", overflow: "hidden" }}>
-                    {mentionCandidates.map((m, i) => (
-                      <button key={m.id} onClick={() => insertMention(m)}
-                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", border: "none", background: i === mentionIndex ? "rgba(14,165,233,0.08)" : "transparent", cursor: "pointer", textAlign: "left" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(14,165,233,0.08)")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = i === mentionIndex ? "rgba(14,165,233,0.08)" : "transparent")}
-                      >
-                        <Avatar user={m} size={20} />
-                        <span style={{ fontSize: 13, color: "var(--color-body)" }}>{m.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, border: "1px solid var(--color-border)", borderRadius: 10, backgroundColor: "var(--color-canvas)", padding: "6px 6px 6px 10px" }}>
-                  <button title="Attach file" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} style={{ width: 28, height: 28, borderRadius: 7, border: "none", backgroundColor: "transparent", color: "var(--color-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Plus size={16} />
-                  </button>
-                  <textarea
-                    ref={inputRef}
-                    value={draft}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setDraft(val);
-                      broadcastTyping();
-                      const cursor = e.target.selectionStart ?? val.length;
-                      const atMatch = val.slice(0, cursor).match(/@(\w*)$/);
-                      if (atMatch) { setMentionQuery(atMatch[1]); setMentionIndex(0); }
-                      else setMentionQuery(null);
-                    }}
-                    onKeyDown={e => {
-                      if (mentionQuery !== null && mentionCandidates.length > 0) {
-                        if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionCandidates.length - 1)); return; }
-                        if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return; }
-                        if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionCandidates[mentionIndex]); return; }
-                        if (e.key === "Escape") { setMentionQuery(null); return; }
-                      }
-                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-                    }}
-                    placeholder={`Message ${channelLabel()}...`}
-                    rows={1}
-                    style={{ flex: 1, resize: "none", border: "none", outline: "none", background: "transparent", color: "var(--color-body)", fontSize: 14, lineHeight: 1.5, fontFamily: "var(--font-roboto)", maxHeight: 120, overflowY: "auto" }}
-                  />
-                  {/* Formatting hint toggle */}
-                  <div style={{ position: "relative", flexShrink: 0 }}>
-                    <button
-                      title="Formatting help"
-                      aria-label="Formatting help"
-                      onMouseEnter={() => setShowFormattingHint(true)}
-                      onMouseLeave={() => setShowFormattingHint(false)}
-                      onFocus={() => setShowFormattingHint(true)}
-                      onBlur={() => setShowFormattingHint(false)}
-                      style={{ width: 28, height: 28, borderRadius: 7, border: "none", backgroundColor: "transparent", color: "var(--color-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                    >
-                      <HelpCircle size={14} />
-                    </button>
-                    {showFormattingHint && (
-                      <div style={{ position: "absolute", bottom: "calc(100% + 6px)", right: 0, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "8px 12px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", whiteSpace: "nowrap", zIndex: 200, fontSize: 12, color: "var(--color-secondary)" }}>
-                        <strong style={{ color: "var(--color-body)" }}>**bold**</strong>
-                        {" "}&bull;{" "}
-                        <em>_italic_</em>
-                        {" "}&bull;{" "}
-                        <code style={{ fontFamily: "monospace", fontSize: 11 }}>`code`</code>
-                        {" "}&bull;{" "}
-                        @Name{" "}&bull;{" "}Shift+Enter for newline
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={sendMessage} disabled={(!draft.trim() && !pendingAttachments.length) || sending} aria-label="Send message"
-                    style={{ width: 32, height: 32, borderRadius: 7, border: "none", backgroundColor: (draft.trim() || pendingAttachments.length) ? "var(--color-btn-primary)" : "transparent", color: (draft.trim() || pendingAttachments.length) ? "#fff" : "var(--color-secondary)", cursor: (draft.trim() || pendingAttachments.length) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background-color 0.15s" }}>
-                    <Send size={15} />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ChatComposer
+              channelLabel={channelLabel()}
+              teamMembers={teamMembers}
+              sending={sending}
+              sendError={sendError}
+              onSend={sendMessage}
+              onTyping={broadcastTyping}
+              onAttach={() => fileInputRef.current?.click()}
+              pendingAttachments={pendingAttachments}
+              onRemoveAttachment={i => setPendingAttachments(p => p.filter((_, j) => j !== i))}
+            />
           </div>
 
           {showPinned && (
