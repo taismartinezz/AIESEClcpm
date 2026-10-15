@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatRelativeTime } from "@/lib/mock-data";
 import type { User } from "@/types";
 import Avatar from "@/components/ui/Avatar";
+import { TASK_STATUS_LABELS } from "@/lib/tasks";
 
 export type ActivityRow = {
   id: string;
@@ -42,9 +43,7 @@ function activityVerb(row: ActivityRow): string {
 
 function activitySuffix(row: ActivityRow): string | null {
   if (row.action_type === "moved" && row.to_status) {
-    const labels: Record<string, string> = {
-      todo: "To Do", in_progress: "In Progress", in_review: "In Review", done: "Done",
-    };
+    const labels: Record<string, string> = TASK_STATUS_LABELS;
     return `→ ${labels[row.to_status] ?? row.to_status}`;
   }
   return null;

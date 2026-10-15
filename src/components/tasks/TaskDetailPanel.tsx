@@ -21,17 +21,15 @@ import {
   SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, TASK_STATUS_ORDER } from "@/lib/tasks";
 
 // ── Shared config ─────────────────────────────────────────────────────────────
 
-export const STATUS_CONFIG: Record<TaskStatus, { label: string; dot: string }> = {
-  todo:        { label: "To Do",       dot: "var(--status-todo-dot)" },
-  in_progress: { label: "In Progress", dot: "var(--status-inprogress-dot)" },
-  in_review:   { label: "In Review",   dot: "var(--status-inreview-dot)" },
-  done:        { label: "Done",        dot: "var(--status-done-dot)" },
-};
+export const STATUS_CONFIG: Record<TaskStatus, { label: string; dot: string }> = Object.fromEntries(
+  TASK_STATUS_ORDER.map((s) => [s, { label: TASK_STATUS_LABELS[s], dot: TASK_STATUS_COLORS[s] }]),
+) as Record<TaskStatus, { label: string; dot: string }>;
 
-export const STATUS_ORDER: TaskStatus[] = ["todo", "in_progress", "in_review", "done"];
+export const STATUS_ORDER: TaskStatus[] = TASK_STATUS_ORDER;
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; bg: string; symbol: string }> = {
   high:   { label: "High",   color: "var(--priority-high-text)",   bg: "var(--priority-high-bg)",   symbol: "▲" },

@@ -235,6 +235,7 @@ export default function DashboardPage() {
             links: (row.links as Task["links"]) ?? [],
             scope: (row.scope as Task["scope"]) ?? undefined,
             subProjectId: (row.sub_project_id as string | null) ?? undefined,
+            departmentId: (row.department_id as string | null) ?? null,
           })));
         }
 

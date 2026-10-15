@@ -82,7 +82,7 @@ export interface Project {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
+export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done";
 export type TaskPriority = "high" | "medium" | "low";
 
 export interface TaskComment {

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search, X, CheckSquare, Bell, Bookmark, ExternalLink, BookOpen, MessageSquare, Calendar } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { TASK_STATUS_LABELS } from "@/lib/tasks";
 
 interface SearchResult {
   id: string;
@@ -30,13 +31,7 @@ const TYPE_COLOR: Record<SearchResult["type"], string> = {
   task: "#1B2E4B", reminder: "#A0622A", bookmark: "#7C3AED", journal: "#1E6FA5", chat: "#2563EB", event: "#0F766E",
 };
 
-const TASK_STATUS_LABEL: Record<string, string> = {
-  todo:        "To Do",
-  in_progress: "In Progress",
-  in_review:   "In Review",
-  done:        "Done",
-  archived:    "Archived",
-};
+const TASK_STATUS_LABEL: Record<string, string> = { ...TASK_STATUS_LABELS, archived: "Archived" };
 
 function formatTaskStatus(raw: string | null | undefined): string | undefined {
   if (!raw) return undefined;

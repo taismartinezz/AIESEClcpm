@@ -527,31 +527,31 @@ export const JOURNAL_ENTRIES: JournalEntry[] = [
 export const TEAM_MEMBERS: TeamMember[] = [
   {
     ...USERS[0],
-    taskCounts: { todo: 2, in_progress: 1, in_review: 1, done: 2 },
+    taskCounts: { backlog: 0, todo: 2, in_progress: 1, in_review: 1, done: 2 },
     weeklyUpdate: "Reviewing Phase 1 coding and preparing debrief protocol.",
     weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
   },
   {
     ...USERS[1],
-    taskCounts: { todo: 1, in_progress: 1, in_review: 1, done: 1 },
+    taskCounts: { backlog: 0, todo: 1, in_progress: 1, in_review: 1, done: 1 },
     weeklyUpdate: "Literature review + consent form final review.",
     weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
   },
   {
     ...USERS[2],
-    taskCounts: { todo: 0, in_progress: 1, in_review: 0, done: 1 },
+    taskCounts: { backlog: 0, todo: 0, in_progress: 1, in_review: 0, done: 1 },
     weeklyUpdate: "Coding transcripts 7–12 this week.",
     weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
   },
   {
     ...USERS[3],
-    taskCounts: { todo: 1, in_progress: 1, in_review: 0, done: 0 },
+    taskCounts: { backlog: 0, todo: 1, in_progress: 1, in_review: 0, done: 0 },
     weeklyUpdate: undefined,
     weeklyUpdatedAt: undefined,
   },
   {
     ...USERS[4],
-    taskCounts: { todo: 1, in_progress: 0, in_review: 0, done: 1 },
+    taskCounts: { backlog: 0, todo: 1, in_progress: 0, in_review: 0, done: 1 },
     weeklyUpdate: "Scheduling participant interviews for Phase 2.",
     weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(),
   },

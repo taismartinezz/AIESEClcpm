@@ -25,6 +25,7 @@ function TwitterIcon() {
   );
 }
 
+import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useProject } from "@/context/ProjectContext";
@@ -33,12 +34,8 @@ import type { TaskStatus } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: "To Do", in_progress: "In Progress", in_review: "In Review", done: "Done",
-};
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  todo: "var(--status-todo-text)", in_progress: "var(--color-navy)", in_review: "var(--color-warning)", done: "var(--color-success)",
-};
+const STATUS_LABELS = TASK_STATUS_LABELS;
+const STATUS_COLORS = TASK_STATUS_COLORS;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -191,9 +188,7 @@ export default function ProfilePage() {
   const [labRoleName, setLabRoleName] = useState<string | null>(null);
 
   // ── Activity stats ────────────────────────────────────────────────────────
-  const [taskCounts, setTaskCounts] = useState<Record<TaskStatus, number>>({
-    todo: 0, in_progress: 0, in_review: 0, done: 0,
-  });
+  const [taskCounts, setTaskCounts] = useState<Record<TaskStatus, number>>(emptyTaskCounts);
   const [recentTasks, setRecentTasks] = useState<import("@/types").Task[]>([]);
   const [journalStreak, setJournalStreak] = useState(0);
 
@@ -260,7 +255,7 @@ export default function ProfilePage() {
         .eq("project_id", projectId)
         .then(({ data }) => {
           if (!data) return;
-          const counts = { todo: 0, in_progress: 0, in_review: 0, done: 0 } as Record<TaskStatus, number>;
+          const counts = emptyTaskCounts() as Record<TaskStatus, number>;
           data.forEach((t) => { counts[t.status as TaskStatus] = (counts[t.status as TaskStatus] ?? 0) + 1; });
           setTaskCounts(counts);
           const recent = [...data]

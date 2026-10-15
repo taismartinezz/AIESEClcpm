@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { CURRENT_USER_ID, TEAM_MEMBERS, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
+import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import type { TeamMember, TaskStatus, LabRole, Department, UserRole } from "@/types";
@@ -18,12 +19,8 @@ import PageHeader from "@/components/ui/PageHeader";
 
 // ── Status labels ─────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: "To Do", in_progress: "In Progress", in_review: "In Review", done: "Done",
-};
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  todo: "#64748B", in_progress: "#1B2E4B", in_review: "#A0622A", done: "#2E7D52",
-};
+const STATUS_LABELS = TASK_STATUS_LABELS;
+const STATUS_COLORS = TASK_STATUS_COLORS;
 
 // ── PI wellbeing rollup ───────────────────────────────────────────────────────
 
@@ -739,7 +736,7 @@ export default function TeamPage() {
           if (task.archived) continue;   // skip archived tasks
           const status = task.status as TaskStatus;
           const uid = row.user_id as string;
-          if (!countMap[uid]) countMap[uid] = { todo: 0, in_progress: 0, in_review: 0, done: 0 };
+          if (!countMap[uid]) countMap[uid] = emptyTaskCounts();
           if (status in countMap[uid]) countMap[uid][status]++;
         }
 
@@ -759,7 +756,7 @@ export default function TeamPage() {
             avatarInitials: profile?.avatar_initials ?? "??",
             avatarUrl: profile?.avatar_url ?? undefined,
             institution: profile?.institution,
-            taskCounts: countMap[uid] ?? { todo: 0, in_progress: 0, in_review: 0, done: 0 },
+            taskCounts: countMap[uid] ?? emptyTaskCounts(),
             weeklyUpdate: undefined,
             weeklyUpdatedAt: undefined,
             labRoleName: row.lab_role_id ? labRoleMap[row.lab_role_id as string] : undefined,
@@ -783,7 +780,7 @@ export default function TeamPage() {
               avatarInitials: myProfile.avatar_initials ?? "??",
               avatarUrl: myProfile.avatar_url ?? undefined,
               institution: myProfile.institution,
-              taskCounts: countMap[currentUserId] ?? { todo: 0, in_progress: 0, in_review: 0, done: 0 },
+              taskCounts: countMap[currentUserId] ?? emptyTaskCounts(),
               weeklyUpdate: undefined,
               weeklyUpdatedAt: undefined,
             });
@@ -847,7 +844,7 @@ export default function TeamPage() {
           avatarInitials:  prof?.avatar_initials ?? name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
           avatarUrl:       prof?.avatar_url ?? undefined,
           institution:     prof?.institution ?? undefined,
-          taskCounts:      { todo: 0, in_progress: 0, in_review: 0, done: 0 },
+          taskCounts:      emptyTaskCounts(),
         } satisfies TeamMember;
       }));
 
@@ -863,7 +860,7 @@ export default function TeamPage() {
       for (const task of (scopedTasks ?? []) as { status: string; task_assignees: { user_id: string }[] }[]) {
         const status = task.status as TaskStatus;
         for (const row of (task.task_assignees ?? [])) {
-          if (!newCounts[row.user_id]) newCounts[row.user_id] = { todo: 0, in_progress: 0, in_review: 0, done: 0 };
+          if (!newCounts[row.user_id]) newCounts[row.user_id] = emptyTaskCounts();
           if (status in newCounts[row.user_id]) newCounts[row.user_id][status]++;
         }
       }
@@ -892,7 +889,7 @@ export default function TeamPage() {
   const visibleTeam = activeScope === "project"
     ? projectTeam.map((m) => ({
         ...m,
-        taskCounts: projectScopedCounts[m.id] ?? { todo: 0, in_progress: 0, in_review: 0, done: 0 },
+        taskCounts: projectScopedCounts[m.id] ?? emptyTaskCounts(),
       }))
     : team;
 

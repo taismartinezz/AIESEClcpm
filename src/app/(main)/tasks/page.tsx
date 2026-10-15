@@ -40,9 +40,10 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [filterMember, setFilterMember] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
+  const [filterDepartment, setFilterDepartment] = useState("all");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState>(null);
-  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading } = useProject();
+  const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments } = useProject();
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("canopy_tasks_sidebar_collapsed") === "true"; } catch { return false; }
@@ -185,6 +186,7 @@ export default function TasksPage() {
           dueDate: row.due_date as string | undefined,
           scope: (row.scope as Task["scope"]) ?? "lab",
           subProjectId: (row.sub_project_id as string | null) ?? undefined,
+          departmentId: (row.department_id as string | null) ?? null,
           createdAt: row.created_at as string,
           updatedAt: row.updated_at as string,
           comments: (row.comments as Task["comments"]) ?? [],
@@ -226,6 +228,7 @@ export default function TasksPage() {
             assigneeIds: [], dueDate: row.due_date as string | undefined,
             scope: (row.scope as Task["scope"]) ?? "lab",
             subProjectId: (row.sub_project_id as string | null) ?? undefined,
+            departmentId: (row.department_id as string | null) ?? null,
             createdAt: row.created_at as string, updatedAt: row.updated_at as string,
             comments: [], files: [], links: [],
           }, ...prev];
@@ -484,7 +487,7 @@ export default function TasksPage() {
   const sidebarSections: ScopeSection[] = [
     { id: "all", label: "All", color: "#1B2E4B", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
     { id: "personal", label: "Personal", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
-    { id: "lab", label: "Lab", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
+    { id: "lab", label: "Whole LC", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
   ];
 
   const scopedTasks = tasks.filter(t => {
@@ -500,6 +503,8 @@ export default function TasksPage() {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterMember !== "all" && !t.assigneeIds.includes(filterMember)) return false;
     if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+    if (filterDepartment === "none" && t.departmentId) return false;
+    if (filterDepartment !== "all" && filterDepartment !== "none" && t.departmentId !== filterDepartment) return false;
     return true;
   });
 
@@ -581,6 +586,14 @@ export default function TasksPage() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </FilterSelect>
+
+          {departments.length > 0 && (
+            <FilterSelect value={filterDepartment} onChange={setFilterDepartment}>
+              <option value="all">All departments</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              <option value="none">No department</option>
+            </FilterSelect>
+          )}
         </div>
 
         {/* Mobile scope chips - lab-home only, hidden on md+ where sidebar shows */}

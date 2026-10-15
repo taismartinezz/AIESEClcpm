@@ -10,6 +10,7 @@ import type { Task, TaskStatus, User } from "@/types";
 import {
   PriorityBadge, AssigneeStack, STATUS_CONFIG, STATUS_ORDER,
 } from "@/components/tasks/TaskDetailPanel";
+import { useProject } from "@/context/ProjectContext";
 
 function isOverdue(dueDate?: string, status?: TaskStatus): boolean {
   if (!dueDate || status === "done") return false;
@@ -44,6 +45,8 @@ export function TaskCard({
   onToggleSubtask?: (subtaskId: string, done: boolean) => void;
   showLabBadge?: boolean;
 }) {
+  const { departments } = useProject();
+  const department = task.departmentId ? departments.find((d) => d.id === task.departmentId) : undefined;
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
@@ -134,7 +137,16 @@ export function TaskCard({
           <div className="flex items-center gap-1.5" style={{ overflow: "hidden" }}>
             {showLabBadge && task.scope === "lab" && (
               <span style={{ fontSize: 10, fontWeight: 700, backgroundColor: "rgba(27,46,75,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
-                Lab
+                LC
+              </span>
+            )}
+            {department && (
+              <span
+                title={department.name}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", border: "1px solid var(--color-border)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis" }}
+              >
+                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: department.color, flexShrink: 0 }} />
+                {department.name}
               </span>
             )}
             <PriorityBadge priority={task.priority} />
