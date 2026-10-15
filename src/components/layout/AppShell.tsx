@@ -12,7 +12,7 @@ import {
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { USERS, getStoredProject, getStoredUser } from "@/lib/mock-data";
+import { USERS, getStoredProject, getStoredUser, withDemoUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
@@ -781,7 +781,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const me = getStoredUser();
         setProfile({ ...me, avatar_initials: me.avatarInitials, avatar_color: me.avatarColor });
         setProject(getStoredProject());
-        setTeam(USERS.map((u) => (u.id === me.id ? me : u)));
+        setTeam(withDemoUser(USERS, me));
         setAuthed(true);
         return;
       }

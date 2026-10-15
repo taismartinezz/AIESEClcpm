@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CURRENT_USER_ID, TEAM_MEMBERS, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
+import { CURRENT_USER_ID, TEAM_MEMBERS, withDemoUser, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
@@ -529,7 +529,7 @@ export default function TeamPage() {
     if (!isSupabaseConfigured) {
       const su = getStoredUser();
       setDemoRole(su.role);
-      setTeam(TEAM_MEMBERS);
+      setTeam(withDemoUser(TEAM_MEMBERS, su));
       setLoading(false);
       return;
     }

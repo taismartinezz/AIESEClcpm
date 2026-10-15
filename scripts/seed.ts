@@ -183,6 +183,8 @@ async function seed() {
     { person_name: "Leo K.", stage: "applied", opportunity: "Climate education", host_entity: "AIESEC in Nairobi" },
     { person_name: "Inês P.", stage: "realized", opportunity: "Women empowerment project", host_entity: "AIESEC in Hanoi" },
     { person_name: "Tom R.", stage: "signed_up", opportunity: null, host_entity: null },
+    { person_name: "Nadia F.", stage: "accepted", opportunity: "Climate education", host_entity: "AIESEC in Nairobi",
+      applied_at: new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10), accepted_at: new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10) },
   ];
   const { error: exErr } = await supabase.from("exchanges").insert(pipeline.map((e) => ({
     ...e, project_id: lcId, product: "ogv", owner_id: ids[ogvMember.email], created_by: ids[ogvMember.email],

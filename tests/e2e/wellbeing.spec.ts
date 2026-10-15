@@ -53,7 +53,7 @@ test.describe('Wellbeing on the dashboard', () => {
     await expect(member).toBeVisible()
     await expect(member.getByText('1 department dropped noticeably this fortnight')).toBeVisible()
     await expect(member.getByText(/vs last 4/)).toBeVisible()
-    await expect(member.getByText('Not enough responses')).toBeVisible()
+    await expect(member.getByText(/other departments? (doesn't|don't) have enough responses yet/)).toBeVisible()
     await member.scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'test-results/dashboard-president.png', fullPage: true })
   })

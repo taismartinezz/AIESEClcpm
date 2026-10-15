@@ -2,7 +2,7 @@
 // Global Volunteer red-orange, Global Talent teal, Global Teacher orange.
 
 export type ProductCode = "ogv" | "ogta" | "ogte" | "igv" | "igta" | "igte";
-export type ExchangeStage = "signed_up" | "applied" | "accepted" | "approved" | "realized" | "finished";
+export type ExchangeStage = "signed_up" | "applied" | "accepted" | "approved" | "realized" | "finished" | "completed";
 
 export const PRODUCTS: { code: ProductCode; label: string; name: string; color: string }[] = [
   { code: "ogv",  label: "oGV",  name: "Outgoing Global Volunteer", color: "#F85A40" },
@@ -22,12 +22,13 @@ export const STAGES: { code: ExchangeStage; label: string }[] = [
   { code: "approved",  label: "Approved" },
   { code: "realized",  label: "Realized" },
   { code: "finished",  label: "Finished" },
+  { code: "completed", label: "Completed" },
 ];
 
 export const STAGE_LABEL = Object.fromEntries(STAGES.map((s) => [s.code, s.label])) as Record<ExchangeStage, string>;
 
 /** Column holding the date an exchange reached `stage`. */
-export const STAGE_DATE_FIELD: Record<ExchangeStage, "signedUpAt" | "appliedAt" | "acceptedAt" | "approvedAt" | "realizedAt" | "finishedAt"> = {
+export const STAGE_DATE_FIELD: Record<ExchangeStage, "signedUpAt" | "appliedAt" | "acceptedAt" | "approvedAt" | "realizedAt" | "finishedAt" | "completedAt"> = {
   signed_up: "signedUpAt", applied: "appliedAt", accepted: "acceptedAt",
-  approved: "approvedAt", realized: "realizedAt", finished: "finishedAt",
+  approved: "approvedAt", realized: "realizedAt", finished: "finishedAt", completed: "completedAt",
 };

@@ -157,7 +157,7 @@ export default function DrivePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 240, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The LC Drive needs a connected database.</p>
+          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The LC Drive needs a connected database. You are in demo mode: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (locally in .env, or in your hosting provider&apos;s environment variables) to use it.</p>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 230px) 1fr", gap: 20, alignItems: "start" }}>
             <nav aria-label="Drive folders">

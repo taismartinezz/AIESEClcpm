@@ -81,11 +81,11 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 describe("pulse cards", () => {
-  it("shows the privacy message, not numbers, when the current period is suppressed", async () => {
+  it("collapses to one line, with no numbers, while nothing has reached the threshold", async () => {
     rpc.mockResolvedValueOnce({ data: [{ period_start: periodStart(2).toISOString(), question_id: null, avg_score: null, respondent_count: null, suppressed: true }], error: null });
     const { ExecPulseCard } = await import("@/components/wellbeing/PulseCards");
     render(<ExecPulseCard projectId="lc-1" />);
-    await waitFor(() => expect(screen.getByText(/Not enough responses this fortnight to protect privacy/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/appears once enough people have checked in this fortnight/)).toBeInTheDocument());
     expect(rpc).toHaveBeenCalledWith("get_exec_pulse", { p_project_id: "lc-1" });
   });
 

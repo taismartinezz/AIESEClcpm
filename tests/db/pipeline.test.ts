@@ -101,3 +101,37 @@ describe("goals", () => {
     expect(rows).toEqual([]);
   });
 });
+
+describe("EXPA import and the Completed stage", () => {
+  type Result = { inserted: number; updated: number; failed: number; errors: string[] };
+  const importAs = (who: string, product: string, rows: object[]) => asUserCommit(db, u[who], async () =>
+    (await db.query<Result>("select * from import_exchanges($1, $2, $3)", [lc.id, product, JSON.stringify(rows)])).rows[0]);
+
+  it("inserts new applications and fills missing earlier dates from the later ones", async () => {
+    const res = await importAs("otto", "ogv", [
+      { expa_id: "A-100", person_name: "Dora", stage: "approved", approved_at: "2026-03-10" },
+      { expa_id: "A-101", person_name: "Eli", stage: "applied", applied_at: "2026-03-01" },
+    ]);
+    expect(res).toMatchObject({ inserted: 2, updated: 0, failed: 0 });
+    const { rows } = await db.query<{ signed_up_at: string; applied_at: string; accepted_at: string }>(
+      "select signed_up_at::text, applied_at::text, accepted_at::text from exchanges where expa_id = 'A-100'");
+    expect(rows[0]).toEqual({ signed_up_at: "2026-03-10", applied_at: "2026-03-10", accepted_at: "2026-03-10" });
+  });
+
+  it("re-importing the same EXPA ID updates instead of duplicating", async () => {
+    const res = await importAs("olga", "ogv", [{ expa_id: "A-100", stage: "completed", realized_at: "2026-06-01" }]);
+    expect(res).toMatchObject({ inserted: 0, updated: 1, failed: 0 });
+    const { rows } = await db.query<{ n: number; stage: string; completed_at: string | null; finished_at: string | null }>(
+      "select count(*) over ()::int as n, stage, completed_at::text, finished_at::text from exchanges where expa_id = 'A-100'");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].stage).toBe("completed");
+    expect(rows[0].completed_at && rows[0].finished_at).toBeTruthy();
+  });
+
+  it("reports rows the person may not write instead of dropping them silently", async () => {
+    const res = await importAs("mark", "igv", [{ expa_id: "B-1", person_name: "Fay", stage: "applied" }]);
+    expect(res.inserted).toBe(0);
+    expect(res.failed).toBe(1);
+    expect(res.errors[0]).toMatch(/^Fay: /);
+  });
+});

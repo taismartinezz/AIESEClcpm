@@ -401,6 +401,7 @@ export interface Exchange {
   approvedAt: string | null;
   realizedAt: string | null;
   finishedAt: string | null;
+  completedAt: string | null;
   updatedAt: string;
 }
 

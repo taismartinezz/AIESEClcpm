@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Activity, AlertTriangle, ShieldCheck, HeartPulse, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
-  CHECKIN_QUESTIONS, DEFAULT_CADENCE, periodStart, privacyMessage, summarize, thisPeriod, toSeries,
+  CHECKIN_QUESTIONS, DEFAULT_CADENCE, hasVisibleData, periodStart, privacyMessage, summarize, thisPeriod, toSeries,
   type CheckinCadence,
   type PulseRow, type PulseSeries, type PulseSummary,
 } from "@/lib/wellbeing";
@@ -62,6 +62,18 @@ function Card({ title, subtitle, icon, children }: { title: string; subtitle: st
       <footer style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderTop: "1px solid var(--color-border)", fontSize: 10, color: "var(--color-secondary)" }}>
         <ShieldCheck size={12} aria-hidden="true" /> Averages only. Individual answers are never shown.
       </footer>
+    </section>
+  );
+}
+
+/** One compact line while nothing has reached the privacy threshold yet. */
+function Waiting({ title, icon, cadence }: { title: string; icon: React.ReactNode; cadence: CheckinCadence }) {
+  return (
+    <section aria-label={title} style={{ flex: "1 1 320px", minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
+      {icon}
+      <p style={{ margin: 0, fontSize: 12, color: "var(--color-secondary)" }}>
+        <strong style={{ color: "var(--color-navy)" }}>{title}</strong> appears once enough people have checked in {thisPeriod(cadence)}. Averages only, never individual answers.
+      </p>
     </section>
   );
 }
@@ -141,9 +153,12 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
     .sort((a, b) => Number(b.summary.dropped) - Number(a.summary.dropped) || a.dept.sortOrder - b.dept.sortOrder),
   [series, departments]);
 
+  const shown = rows.filter(({ summary }) => summary.dropped || (summary.current && !summary.current.suppressed && summary.current.overall != null));
+  const hidden = rows.length - shown.length;
+
   return (
     <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {rows.map(({ dept, summary }) => {
+      {shown.map(({ dept, summary }) => {
         const current = summary.current;
         const visible = current && !current.suppressed && current.overall != null;
         return (
@@ -165,6 +180,13 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
           </li>
         );
       })}
+      {hidden > 0 && (
+        <li style={{ padding: "7px 0", borderTop: "1px solid var(--color-border)", fontSize: 11, color: "var(--color-secondary)" }}>
+          {hidden === rows.length
+            ? "No department has enough responses yet to show an average."
+            : `${hidden} other department${hidden === 1 ? " doesn't" : "s don't"} have enough responses yet to show an average.`}
+        </li>
+      )}
     </ul>
   );
 }
@@ -174,6 +196,7 @@ function DepartmentRows({ series, departments }: { series: PulseSeries[]; depart
 /** President only: the executive board's average. */
 export function ExecPulseCard({ projectId }: { projectId: string | null }) {
   const { loading, error, series, cadence } = usePulse("get_exec_pulse", projectId);
+  if (!loading && !error && !hasVisibleData(series)) return <Waiting title="Exec Pulse" cadence={cadence} icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />} />;
   return (
     <Card title="Exec Pulse" subtitle="How your VPs are doing — only you see this" icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />}>
       {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : <SeriesBody series={series[0]} label="Exec Pulse" cadence={cadence} />}
@@ -186,6 +209,7 @@ export function MemberPulseCard({ projectId, departments }: { projectId: string 
   const { loading, error, series, cadence } = usePulse("get_member_pulse", projectId);
   const total = series.find((s) => s.groupId === null);
   const flagged = departments.filter((d) => summarize(series.find((s) => s.groupId === d.id)).dropped).length;
+  if (!loading && !error && !hasVisibleData(series)) return <Waiting title="Member Pulse" cadence={cadence} icon={<HeartPulse size={15} color="var(--color-navy)" aria-hidden="true" />} />;
   return (
     <Card
       title="Member Pulse"

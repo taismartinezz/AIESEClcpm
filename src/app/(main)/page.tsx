@@ -16,6 +16,7 @@ import Toast from "@/components/ui/Toast";
 import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
+import ThisWeekCard from "@/components/dashboard/ThisWeekCard";
 import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
 import { FinanceSnapshotCard, FollowUpsCard, GoalsCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
 import { isFinanceLead } from "@/lib/permissions";
@@ -154,7 +155,7 @@ function AddReminderModal({
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments, userId: ctxUserId } = useProject();
+  const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments, ledDepartmentIds, userId: ctxUserId } = useProject();
   const financeLead = isFinanceLead(role, ctxUserId, departments);
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -306,6 +307,7 @@ export default function DashboardPage() {
     // Demo mode fallback (no Supabase)
     const sp = getStoredProject();
     setProjectName(sp.name);
+    setUserId(CURRENT_USER_ID);
     const mockUser = getUser(CURRENT_USER_ID);
     if (mockUser?.name) setCurrentUserFirstName(mockUser.name.trim().split(/\s+/)[0]);
     if (!localStorage.getItem("aiesec_project")) {
@@ -491,6 +493,10 @@ export default function DashboardPage() {
           userId={userId}
           loading={loading}
         />
+
+        {(role === "president" || role === "vp") && isSupabaseConfigured && (
+          <ThisWeekCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
+        )}
 
         {/* LC modules: finance, events and tabling — by role */}
         {role && isSupabaseConfigured && (

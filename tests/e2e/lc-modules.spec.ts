@@ -85,6 +85,19 @@ test.describe('Pipeline and goals', () => {
     await expect(page.getByRole('region', { name: 'Approved: 1' }).getByText('Marta S.')).toBeVisible()
   })
 
+  test('headline numbers, conversion and stuck exchanges for the term', async ({ page }) => {
+    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10)
+    const stuck = { ...ex, id: 'ex2', person_name: 'Leo K.', stage: 'accepted', applied_at: ago(30), accepted_at: ago(20), approved_at: null }
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [ex, stuck] }, rpc: { lc_term_start: '2026-02-01' } })
+    await page.goto('/pipeline')
+    await expect(page.getByText('Approved this term', { exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Applied → approved', { exact: true })).toBeVisible()
+    await expect(page.getByRole('status').getByText('1 stuck')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Completed: 0' })).toBeVisible()
+    await page.getByRole('button', { name: /import from expa/i }).click()
+    await expect(page.getByRole('dialog', { name: 'Import from EXPA' })).toBeVisible()
+  })
+
   test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
     await setupAuthMocks(page, 'member', { departments: [OGV] })
     await page.goto('/pipeline')
