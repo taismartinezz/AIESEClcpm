@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Download, Plus, Search } from "lucide-react";
+import { AlertTriangle, Download, Plus, Search, Upload } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -12,6 +12,7 @@ import { useLcMembers } from "@/hooks/useLcMembers";
 import type { Partner, PartnerStage } from "@/types";
 import { Button, ErrorText, Panel, inputStyle, selectStyle } from "@/components/lc/ui";
 import PartnerModal from "@/components/partners/PartnerModal";
+import ImportWizard from "@/components/import/ImportWizard";
 
 export default function PartnersPage() {
   const { projectId, userId, role, departments, departmentId, isLoading } = useProject();
@@ -28,6 +29,7 @@ export default function PartnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState<Partner | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
   const enabled = Boolean(projectId) && isSupabaseConfigured;
 
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function PartnersPage() {
         subtitle="Companies and organisations your LC works with: stage, contacts and follow-ups."
         action={<>
           <Button variant="secondary" onClick={exportCsv} disabled={shown.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
+          {allowedDepartments.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import</Button>}
           {allowedDepartments.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add partner</Button>}
         </>}
       />
@@ -158,6 +161,11 @@ export default function PartnersPage() {
         )}
       </div>
 
+      {importing && projectId && (
+        <ImportWizard target="partners" projectId={projectId} products={[]}
+          context={{ departments, roster, defaultDepartmentId: departmentId }}
+          onClose={() => setImporting(false)} onImported={() => setVersion((v) => v + 1)} />
+      )}
       {editing && projectId && userId && (
         <PartnerModal
           projectId={projectId} userId={userId} departments={departments} allowedDepartmentIds={allowedDepartments} roster={roster}

@@ -17,6 +17,7 @@ import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
 import ThisWeekCard from "@/components/dashboard/ThisWeekCard";
+import { MyOnboardingCard } from "@/components/members/OnboardingTab";
 import { CheckinNudgeCard, DepartmentPulseCard, ExecPulseCard, MemberPulseCard } from "@/components/wellbeing/PulseCards";
 import { FinanceSnapshotCard, FollowUpsCard, GoalsCard, MyNextCard, UpcomingNeedsCard } from "@/components/dashboard/LcModuleCards";
 import { isFinanceLead } from "@/lib/permissions";
@@ -482,6 +483,9 @@ export default function DashboardPage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Wellbeing — what you see depends on your role in this LC */}
+        {role && role !== "president" && isSupabaseConfigured && (
+          <MyOnboardingCard projectId={activeProjectId} userId={ctxUserId} departmentId={lcs.find((l) => l.id === activeProjectId)?.departmentId ?? null} />
+        )}
         {role !== "president" && <CheckinNudgeCard projectId={activeProjectId} userId={userId || null} />}
 
         {/* Row 1: Agenda (Overdue / Today / Upcoming) */}

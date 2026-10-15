@@ -226,6 +226,15 @@ async function seed() {
   if (hErr) throw hErr;
   console.log("  ✓ 3 Drive links and a handover note");
 
+  // 12. Recruitment intake
+  const { error: recErr } = await supabase.from("recruits").insert([
+    { project_id: lcId, name: "Lucía P.", email: "lucia@applicant.example", source: "Tabling", department_id: depId["Marketing"], stage: "interview", created_by: ids[president.email] },
+    { project_id: lcId, name: "Omar B.", email: "omar@applicant.example", source: "Instagram", department_id: depId["Outgoing Global Volunteer"], stage: "applied", created_by: ids[president.email] },
+    { project_id: lcId, name: "Hana K.", email: "hana@applicant.example", source: "Referral", stage: "offer", created_by: ids[president.email] },
+  ]);
+  if (recErr) throw recErr;
+  console.log("  ✓ 3 applicants in recruitment");
+
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }
 

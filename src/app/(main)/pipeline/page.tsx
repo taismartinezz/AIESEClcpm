@@ -12,7 +12,7 @@ import { useLcMembers } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Stat, inputStyle } from "@/components/lc/ui";
 import ExchangeModal from "@/components/pipeline/ExchangeModal";
-import ImportExpaModal from "@/components/pipeline/ImportExpaModal";
+import ImportWizard from "@/components/import/ImportWizard";
 
 export default function PipelinePage() {
   const { projectId, userId, role, departments, departmentId, ledDepartmentIds, isLoading } = useProject();
@@ -222,8 +222,9 @@ export default function PipelinePage() {
       </div>
 
       {importing && projectId && (
-        <ImportExpaModal
-          projectId={projectId} products={myProducts} defaultProduct={product}
+        <ImportWizard
+          target="exchanges" projectId={projectId} products={[product, ...myProducts.filter((p) => p !== product)]}
+          context={{ departments, roster, defaultDepartmentId: departmentId }}
           onClose={() => setImporting(false)} onImported={reload}
         />
       )}

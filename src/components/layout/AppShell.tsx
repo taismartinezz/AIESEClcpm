@@ -5,7 +5,7 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
@@ -51,6 +51,8 @@ const NAV_ITEMS = [
   { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
   { href: "/handover",    label: "Handover",   icon: ScrollText      },
   { href: "/team",        label: "Team",       icon: Users           },
+  { href: "/members",     label: "Members",    icon: UserPlus        },
+  { href: "/import",      label: "Import",     icon: FileSpreadsheet },
   { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
   { href: "/journal",     label: "Journal",    icon: BookOpen        },
 ];
@@ -935,6 +937,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       const { data: { session } } = await supabase.auth.getSession();
       const currentUserId = session?.user?.id ?? null;
+      // "Last seen" for Talent Management's activity view; best effort, never blocks loading.
+      if (currentUserId) void supabase.rpc("touch_last_seen").then(({ error }) => { if (error) console.warn("[last seen]", error.message); });
 
       const { data: members } = await supabase
         .from("team_members")

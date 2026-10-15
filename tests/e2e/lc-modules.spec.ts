@@ -95,7 +95,7 @@ test.describe('Pipeline and goals', () => {
     await expect(page.getByRole('status').getByText('1 stuck')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Completed: 0' })).toBeVisible()
     await page.getByRole('button', { name: /import from expa/i }).click()
-    await expect(page.getByRole('dialog', { name: 'Import from EXPA' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
   })
 
   test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
@@ -151,5 +151,28 @@ test.describe('LC Drive and handover', () => {
     await expect(page.getByLabel('Term')).toHaveValue('2026/27')
     await page.getByRole('button', { name: /write handover/i }).first().click()
     await expect(page.getByLabel(/Handover for LC-wide/)).toHaveValue(/What we did this term/)
+  })
+})
+
+test.describe('Members and import', () => {
+  test('the president sees recruitment, onboarding and activity', async ({ page }) => {
+    const recruit = { id: 'r1', project_id: 'project-abc', name: 'Lucía P.', email: 'lucia@x.example', phone: null, source: 'Tabling', department_id: null, stage: 'interview', interview_at: null, notes: null, owner_id: null, applied_on: '2026-10-01' }
+    await setupAuthMocks(page, 'president', { tables: { recruits: [recruit], onboarding_steps: [], member_onboarding: [] }, rpc: { member_activity: [] } })
+    await page.goto('/members')
+    await expect(page.getByText('Lucía P.')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('combobox', { name: 'Stage for Lucía P.' })).toHaveValue('interview')
+    await page.getByRole('tab', { name: 'Activity & terms' }).click()
+    await expect(page.getByText(/Check-in answers and who did the check-in are never shown/)).toBeVisible()
+  })
+
+  test('the import page offers trackers by role and explains Google Sheets sharing', async ({ page }) => {
+    await setupAuthMocks(page, 'member')
+    await page.goto('/import')
+    await expect(page.getByText('Anyone with the link can view')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Partners \(B2B/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Recruitment/ })).toHaveCount(0)
+    await page.getByRole('button', { name: /Tasks \(to-do/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+    await expect(page.getByLabel('Link to the sheet')).toBeVisible()
   })
 })
