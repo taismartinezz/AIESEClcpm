@@ -93,6 +93,11 @@ Then('I should see a {string} button', async (label: string) => {
   assert.ok(await btn.isVisible(), `Expected button "${label}" to be visible`)
 })
 
+Then('I should not see a {string} button', async (label: string) => {
+  const count = await page.getByRole('button', { name: new RegExp(label, 'i') }).count()
+  assert.equal(count, 0, `Expected no "${label}" button`)
+})
+
 Then('no user data should be logged to the console', async () => {
   const violations: string[] = []
   const sensitivePatterns = [/user_profiles row/i, /key prefix/i, /tati06mar/i]

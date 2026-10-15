@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 /**
  * Where to send a user right after they sign in: the lab dashboard if they
  * already belong to a team or have a profile, otherwise onboarding.
- * Shared by /auth/callback (redirect flow) and /login (Google ID-token flow).
+ * Shared by /auth/callback (OAuth redirect flow) and /login (email sign-in).
  */
 export async function getPostAuthDestination(userId: string): Promise<string> {
   if (!isSupabaseConfigured) return "/";

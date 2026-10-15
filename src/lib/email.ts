@@ -1,8 +1,10 @@
 // Server-side only. Never import this in client components.
 
+import { APP_NAME } from "@/lib/brand";
+
 const RESEND_KEY  = process.env.RESEND_API_KEY  ?? "";
-const FROM        = process.env.EMAIL_FROM       ?? "Canopy <noreply@canopyteams.tech>";
-const APP_URL     = (process.env.APP_URL         ?? "https://canopyteams.tech").replace(/\/$/, "");
+const FROM        = process.env.EMAIL_FROM       ?? `${APP_NAME} <notifications@example.com>`;
+const APP_URL     = (process.env.APP_URL         ?? "http://localhost:3000").replace(/\/$/, "");
 
 export interface EmailPayload {
   to: string;

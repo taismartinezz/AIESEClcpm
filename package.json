@@ -1,5 +1,5 @@
 {
-  "name": "canopy",
+  "name": "aiesec-lcpm",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@cucumber/cucumber": "^12.9.0",
+    "@electric-sql/pglite": "^0.3.6",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",

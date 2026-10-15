@@ -20,10 +20,9 @@ Feature: Authentication page
     When I enter my email and click "Send reset link"
     Then I should see a confirmation message
 
-  Scenario: Apple and Google login buttons are present
+  Scenario: Only email sign-in is shown by default
     Given I am on the login page
-    Then I should see a "Continue with Apple" button
-    And I should see a "Continue with Google" button
+    Then I should not see a "Continue with Google" button
 
   Scenario: Console is clean on page load
     Given I am on the login page

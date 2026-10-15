@@ -2,8 +2,6 @@
 
 A research lab management platform built for trauma, psychology, and sensitive-population research teams. Canopy replaces the scattered collection of Slack threads, email chains, and spreadsheets that most labs rely on — bringing tasks, scheduling, journaling, and literature into one privacy-respecting tool.
 
-Live app: [canopy-tawny-six.vercel.app](https://canopy-tawny-six.vercel.app)
-
 ## Screenshots
 
 **Dashboard** — daily overview of upcoming events, team activity, and task status

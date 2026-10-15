@@ -75,9 +75,9 @@ test.describe('Auth page — Issue #4: forgot password', () => {
 })
 
 test.describe('Auth page — Issue #6: OAuth providers', () => {
-  test('Google login button is present', async ({ page }) => {
+  test('no OAuth buttons are shown unless NEXT_PUBLIC_AUTH_PROVIDERS lists them', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
-    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /sign in with google/i })).toHaveCount(0)
   })
 })
 

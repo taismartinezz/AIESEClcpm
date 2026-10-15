@@ -6,12 +6,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import CanopyLogo from "@/components/ui/CanopyLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { loadGoogleIdentity, createNonce, renderGisButton, type GoogleCredentialResponse } from "@/lib/googleIdentity";
 import { getPostAuthDestination } from "@/lib/postAuthRedirect";
-
-// When set, Google sign-in uses Google's own button (as an invisible overlay) + an
-// ID token, so the consent screen names our domain instead of the Supabase project URL.
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -212,15 +207,13 @@ export default function LoginPage() {
   const [oAuthError, setOAuthError] = useState<string | null>(null);
   const hasFetched = useRef(false);
 
-  // GIS invisible-overlay state
-  const [gisReady, setGisReady] = useState(false);
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
   const googleWrapperRef = useRef<HTMLDivElement>(null);
-  const gisContainerRef = useRef<HTMLDivElement>(null);
 
-  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, all three show.
+  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, only
+  // email sign-in shows — providers must be configured in your own Supabase project first.
   const enabledProviders: Set<string> = new Set(
-    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "google,microsoft,github")
+    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "")
       .toLowerCase().split(",").map(s => s.trim()).filter(Boolean)
   );
 
@@ -397,78 +390,6 @@ export default function LoginPage() {
     router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
   }, [router]);
 
-  // ── Google Identity Services invisible overlay (ID-token flow) ─────────────
-  // Our AuthButton stays visible ("Continue with Google"); the GIS button iframe
-  // sits on top at near-zero opacity and intercepts clicks.
-  const useGoogleIdToken =
-    !!GOOGLE_CLIENT_ID && isSupabaseConfigured && enabledProviders.has("google");
-
-  useEffect(() => {
-    if (checking || !useGoogleIdToken) return;
-    let cancelled = false;
-    let observer: ResizeObserver | null = null;
-
-    (async () => {
-      try {
-        const [gis, [rawNonce, hashedNonce]] = await Promise.all([loadGoogleIdentity(), createNonce()]);
-        if (cancelled || !gisContainerRef.current || !googleWrapperRef.current) return;
-
-        gis.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          nonce: hashedNonce,
-          ux_mode: "popup",
-          use_fedcm_for_prompt: true,
-          auto_select: false,
-          cancel_on_tap_outside: false,
-          callback: async ({ credential }: GoogleCredentialResponse) => {
-            setOAuthLoading("google");
-            setOAuthError(null);
-            localStorage.removeItem("canopy_user");
-            localStorage.removeItem("canopy_project");
-            localStorage.removeItem("canopy_authed");
-            try {
-              const { data, error } = await supabase.auth.signInWithIdToken({
-                provider: "google",
-                token: credential,
-                nonce: rawNonce,
-              });
-              if (error || !data.user) {
-                console.error("[Auth] signInWithIdToken error:", error);
-                setOAuthError("Sign-in failed. Please try again or use email.");
-                setOAuthLoading(null);
-                return;
-              }
-              router.replace(await getPostAuthDestination(data.user.id));
-            } catch (err: unknown) {
-              console.error("[Auth] signInWithIdToken threw:", err);
-              setOAuthError("Sign-in failed. Please try again or use email.");
-              setOAuthLoading(null);
-            }
-          },
-        });
-
-        const container = gisContainerRef.current;
-        const wrapper = googleWrapperRef.current;
-        renderGisButton(gis, container, wrapper.offsetWidth || 400);
-        setGisReady(true);
-
-        // Keep the overlay sized to our button
-        observer = new ResizeObserver((entries) => {
-          const width = entries[0]?.contentRect.width;
-          if (width && !cancelled) renderGisButton(gis, container, width);
-        });
-        observer.observe(wrapper);
-      } catch (err) {
-        // Script blocked or offline: our button keeps using the redirect flow.
-        console.warn("[Auth] Google Identity Services unavailable, using redirect flow:", err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  }, [checking, useGoogleIdToken, router]);
 
 
   if (checking) return null;
@@ -610,23 +531,6 @@ export default function LoginPage() {
                 forceHovered={googleButtonHovered && oAuthLoading === null}
                 onClick={() => handleOAuth("google")}
               />
-              {/* GIS overlay -- kept mounted so the rendered iframe survives; hidden until ready */}
-              {useGoogleIdToken && (
-                <div
-                  ref={gisContainerRef}
-                  aria-hidden="true"
-                  data-testid="google-signin-button"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    overflow: "hidden",
-                    opacity: 0.01,
-                    zIndex: 1,
-                    display: gisReady ? "block" : "none",
-                    pointerEvents: oAuthLoading !== null ? "none" : "auto",
-                  }}
-                />
-              )}
             </div>
           )}
 

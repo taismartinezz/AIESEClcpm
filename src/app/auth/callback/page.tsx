@@ -2,12 +2,11 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { getPostAuthDestination } from "@/lib/postAuthRedirect";
 
-// After Google OAuth, Supabase redirects here with ?code=... (PKCE flow).
-// We exchange the code for a session, store Google tokens for Calendar/Gmail,
-// then route to dashboard or onboarding.
+// After OAuth sign-in, Supabase redirects here with ?code=... (PKCE flow).
+// We exchange the code for a session, then route to dashboard or onboarding.
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -18,7 +17,7 @@ export default function AuthCallbackPage() {
     const oauthError = url.searchParams.get("error");
     const oauthErrorDesc = url.searchParams.get("error_description") ?? "";
 
-    // Supabase / Google sends ?error=... when the provider is disabled or the user cancels.
+    // The auth provider sends ?error=... when the provider is disabled or the user cancels.
     // Forward the description so the login page can show a specific message.
     if (oauthError || !code) {
       const params = new URLSearchParams({ error: oauthError ?? "oauth_failed" });
@@ -40,20 +39,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      const { session } = data;
-      const user = session.user;
-
-      // Persist Google tokens so Calendar/Gmail API routes can use them
-      if (session.provider_token && isSupabaseConfigured) {
-        const expiresAt = session.expires_at
-          ? new Date(session.expires_at * 1000).toISOString()
-          : null;
-        await supabase.from("user_profiles").update({
-          google_access_token: session.provider_token,
-          google_refresh_token: session.provider_refresh_token ?? null,
-          google_token_expiry: expiresAt,
-        }).eq("id", user.id);
-      }
+      const user = data.session.user;
 
       // Honor `next` if provided; otherwise route by lab membership
       if (safeNext !== "/") {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, FlaskConical, Link2, Link2Off } from "lucide-react";
+import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, FlaskConical } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
@@ -117,10 +117,6 @@ export default function SettingsPage() {
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [savingLabSettings, setSavingLabSettings] = useState(false);
 
-  // Google Calendar integration
-  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
-  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
-
   // DND / quiet hours
   const [dndEnabled, setDndEnabled]               = useState(false);
   const [quietHoursStart, setQuietHoursStart]     = useState("22:00");
@@ -144,7 +140,6 @@ export default function SettingsPage() {
         const { data: prof } = await supabase
           .from("user_profiles").select("*").eq("id", user.id).maybeSingle();
         setProfile(prof ? { ...prof, email: user.email } : { email: user.email });
-        setGoogleCalendarConnected(!!(prof as any)?.google_access_token);
 
         const { data: membership } = await supabase
           .from("team_members").select("project_id").eq("user_id", user.id).maybeSingle();
@@ -404,40 +399,6 @@ export default function SettingsPage() {
     if (error) showToast("Failed to save: " + error.message);
     else showToast("Notification preferences saved.");
   }, [notifTaskAssigned, notifLabWin, notifDigest]);
-
-  const handleConnectGoogleCalendar = useCallback(async () => {
-    if (!isSupabaseConfigured) { showToast("Demo mode -- Google Calendar not available."); return; }
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: [
-          "email",
-          "profile",
-          "https://www.googleapis.com/auth/calendar",
-          "https://www.googleapis.com/auth/calendar.events",
-        ].join(" "),
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
-    });
-  }, []);
-
-  const handleDisconnectGoogleCalendar = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
-    setDisconnectingGoogle(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (userId) {
-      await supabase.from("user_profiles").update({
-        google_access_token: null,
-        google_refresh_token: null,
-        google_token_expiry: null,
-      }).eq("id", userId);
-    }
-    setGoogleCalendarConnected(false);
-    setDisconnectingGoogle(false);
-    showToast("Google Calendar disconnected.");
-  }, []);
 
   if (loading) return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "32px 20px" }} className="space-y-6">
@@ -928,56 +889,6 @@ export default function SettingsPage() {
             style={{ alignSelf: "flex-start", minHeight: 44, height: 38, padding: "0 20px", backgroundColor: savingSchedule ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingSchedule ? "default" : "pointer" }}>
             {savingSchedule ? "Saving…" : "Save schedule settings"}
           </button>
-        </div>
-      </section>
-
-      {/* Integrations section */}
-      <section style={sectionStyle} aria-labelledby="settings-integrations-heading">
-        <div style={sectionHeaderStyle}>
-          <Link2 size={16} color="var(--color-secondary)" />
-          <h2 id="settings-integrations-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-            Integrations
-          </h2>
-        </div>
-        <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 0 }}>
-          {/* Google Calendar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {/* Google Calendar icon */}
-              <div style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, backgroundColor: "var(--color-canvas)" }}>
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                  <path d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3H4.5A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm0 16.5h-15V9h15v10.5zM7.5 4.5V6H9V4.5h6V6h1.5V4.5H19.5V7.5h-15V4.5H7.5z" fill="#4285F4"/>
-                  <text x="12" y="17" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#1A73E8">CAL</text>
-                </svg>
-              </div>
-              <div>
-                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, color: "var(--color-body)", margin: 0 }}>
-                  Google Calendar
-                </p>
-                <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "2px 0 0" }}>
-                  {googleCalendarConnected ? "Connected — events sync to Scheduling" : "Sync your calendar events to Scheduling"}
-                </p>
-              </div>
-            </div>
-            {googleCalendarConnected ? (
-              <button
-                onClick={handleDisconnectGoogleCalendar}
-                disabled={disconnectingGoogle}
-                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "var(--color-secondary)", cursor: disconnectingGoogle ? "default" : "pointer" }}
-              >
-                <Link2Off size={13} />
-                {disconnectingGoogle ? "Disconnecting…" : "Disconnect"}
-              </button>
-            ) : (
-              <button
-                onClick={handleConnectGoogleCalendar}
-                style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 12, color: "#fff", cursor: "pointer" }}
-              >
-                <Link2 size={13} />
-                Connect
-              </button>
-            )}
-          </div>
         </div>
       </section>
 

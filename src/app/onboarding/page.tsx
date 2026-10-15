@@ -584,8 +584,6 @@ export default function OnboardingPage() {
 
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
-  const [showCalendarStep, setShowCalendarStep] = useState(false);
-  const [calendarConnecting, setCalendarConnecting] = useState(false);
 
   // PI step 2
   const [piProjectName, setPiProjectName] = useState("");
@@ -910,103 +908,10 @@ export default function OnboardingPage() {
       }
     }
 
-    // All data is saved — show the optional Google Calendar step before entering the app
-    if (isSupabaseConfigured) {
-      setShowCalendarStep(true);
-      setSubmitting(false);
-    } else {
-      router.push("/profile");
-    }
-  }
-
-  async function handleConnectGoogleCalendar() {
-    if (calendarConnecting) return;
-    setCalendarConnecting(true);
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: [
-          "email",
-          "profile",
-          "https://www.googleapis.com/auth/calendar",
-          "https://www.googleapis.com/auth/calendar.events",
-        ].join(" "),
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
-    });
-    // If signInWithOAuth resolves without redirect (error case), reset the button
-    setCalendarConnecting(false);
+    router.push("/profile");
   }
 
   if (!sessionReady) return null;
-
-  // ── Google Calendar step (post-completion, optional) ─────────────────────
-
-  if (showCalendarStep) {
-    return (
-      <div style={PAGE_WRAP}>
-        <div style={cardStyle(isLarge)}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-            {/* Google Calendar brand colours */}
-            <div style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: "#fff", border: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(27,46,75,0.10)" }}>
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                <rect x="4" y="6" width="24" height="22" rx="3" fill="#fff" stroke="#E0E3EB" strokeWidth="1.2"/>
-                <rect x="4" y="6" width="24" height="8" rx="3" fill="#4285F4"/>
-                <rect x="4" y="11" width="24" height="3" fill="#4285F4"/>
-                <rect x="8" y="17" width="4" height="4" rx="1" fill="#34A853"/>
-                <rect x="14" y="17" width="4" height="4" rx="1" fill="#FBBC04"/>
-                <rect x="20" y="17" width="4" height="4" rx="1" fill="#EA4335"/>
-                <rect x="8" y="23" width="4" height="2" rx="1" fill="#E0E3EB"/>
-                <rect x="14" y="23" width="4" height="2" rx="1" fill="#E0E3EB"/>
-                <circle cx="10" cy="7" r="2" fill="#fff" stroke="#E0E3EB" strokeWidth="1"/>
-                <circle cx="22" cy="7" r="2" fill="#fff" stroke="#E0E3EB" strokeWidth="1"/>
-              </svg>
-            </div>
-          </div>
-          <SectionTitle
-            large={isLarge}
-            title="Connect Google Calendar"
-            subtitle="Import your existing events so Canopy can suggest meeting times that actually work for your schedule."
-          />
-          <div style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "14px 16px", marginBottom: 24 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { icon: <Calendar size={15} color="#4285F4" />, text: "See your existing events in Scheduling" },
-                { icon: <Check size={15} color="#34A853" />, text: "Get smarter meeting suggestions" },
-                { icon: <Check size={15} color="#34A853" />, text: "Block off busy time automatically" },
-              ].map(({ icon, text }) => (
-                <div key={text} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ flexShrink: 0 }}>{icon}</span>
-                  <span style={{ fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <NavButton large={isLarge} onClick={handleConnectGoogleCalendar} disabled={calendarConnecting}>
-            {calendarConnecting ? "Redirecting to Google…" : "Connect Google Calendar"}
-          </NavButton>
-          <button
-            onClick={() => router.push("/profile")}
-            style={{
-              width: "100%",
-              marginTop: 14,
-              padding: "10px 0",
-              background: "none",
-              border: "none",
-              fontFamily: "var(--font-roboto)",
-              fontSize: 13,
-              color: "var(--color-secondary)",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-          >
-            Skip for now — I&apos;ll connect from Settings later
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // ── Step 1: Role selection ─────────────────────────────────────────────────
 

@@ -112,12 +112,21 @@ describe('Login page — Issue #4: forgot password', () => {
 })
 
 describe('Login page — Issue #6: OAuth buttons', () => {
-  it('Google OAuth button is present', async () => {
+  afterEach(() => { delete process.env.NEXT_PUBLIC_AUTH_PROVIDERS })
+
+  it('shows no OAuth buttons unless providers are configured', async () => {
+    await renderLogin()
+    expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument()
+  })
+
+  it('Google OAuth button is present when enabled', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'google'
     await renderLogin()
     expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument()
   })
 
   it('all OAuth buttons have explicit type="button"', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'google'
     await renderLogin()
     const googleBtn = screen.getByRole('button', { name: /sign in with google/i })
     // buttons default to type="submit" inside forms but here no form — check attribute
