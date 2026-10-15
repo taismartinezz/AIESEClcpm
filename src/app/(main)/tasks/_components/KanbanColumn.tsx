@@ -112,7 +112,7 @@ export function KanbanColumn({
           borderTop: "1px solid var(--color-border)", background: "none",
           cursor: "pointer", fontFamily: "var(--font-roboto)", textAlign: "left",
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(27,46,75,0.03)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-navy)"; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(2,99,196,0.03)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-navy)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-secondary)"; }}
       >
         <Plus size={13} /> Add task

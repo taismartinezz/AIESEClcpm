@@ -114,7 +114,7 @@ export function AssigneeStack({ ids, size = 22, users = [] }: { ids: string[]; s
 export function FileIcon({ type }: { type: string }) {
   if (type === "pdf") return <FileText size={14} color="#C0392B" />;
   if (type === "image") return <Image size={14} color="#2E7D52" />;
-  if (type === "spreadsheet") return <Table size={14} color="#1B2E4B" />;
+  if (type === "spreadsheet") return <Table size={14} color="#0263C4" />;
   return <File size={14} color="var(--color-secondary)" />;
 }
 
@@ -133,7 +133,7 @@ const DROPDOWN_STYLE: React.CSSProperties = {
   backgroundColor: "var(--color-surface)",
   border: "1px solid var(--color-border)",
   borderRadius: 7,
-  boxShadow: "0 4px 16px rgba(27,46,75,0.12)",
+  boxShadow: "0 4px 16px rgba(2,99,196,0.12)",
   padding: "3px 0",
 };
 
@@ -175,7 +175,7 @@ function SortableSubtaskRow({
         marginBottom: 2,
         borderRadius: "0 5px 5px 0",
       }}
-      className="group/subtask flex items-center gap-1.5 py-1.5 pl-1 pr-1 hover:bg-[rgba(27,46,75,0.03)] transition-colors"
+      className="group/subtask flex items-center gap-1.5 py-1.5 pl-1 pr-1 hover:bg-[rgba(2,99,196,0.03)] transition-colors"
       {...attributes}
     >
       {/* Drag grip */}
@@ -220,7 +220,7 @@ function SortableSubtaskRow({
                 <button
                   key={s}
                   onClick={(e) => { e.stopPropagation(); onUpdateStatus(s); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(27,46,75,0.06)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(2,99,196,0.06)]"
                   style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
                 >
                   <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: STATUS_CONFIG[s].dot, flexShrink: 0 }} />
@@ -287,7 +287,7 @@ function SortableSubtaskRow({
                   if (!u) return null;
                   return (
                     <button key={id} onClick={(e) => { e.stopPropagation(); onUpdateAssignees(sub.assigneeIds.filter(x => x !== id)); }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(27,46,75,0.06)]"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(2,99,196,0.06)]"
                       style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}
                     >
                       <Avatar user={u} size={16} />
@@ -302,7 +302,7 @@ function SortableSubtaskRow({
             {unassigned.length > 0 ? (
               unassigned.map(u => (
                 <button key={u.id} onClick={(e) => { e.stopPropagation(); onUpdateAssignees([...sub.assigneeIds, u.id]); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(27,46,75,0.06)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[rgba(2,99,196,0.06)]"
                   style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}
                 >
                   <Avatar user={u} size={16} />
@@ -328,7 +328,7 @@ function SortableSubtaskRow({
           transition: "color 0.12s, background-color 0.12s",
           whiteSpace: "nowrap",
         }}
-        className="group-hover/subtask:!text-[color:var(--color-secondary)] hover:!text-[color:var(--color-body)] hover:bg-[rgba(27,46,75,0.06)]"
+        className="group-hover/subtask:!text-[color:var(--color-secondary)] hover:!text-[color:var(--color-body)] hover:bg-[rgba(2,99,196,0.06)]"
       >
         <CalendarDays size={11} />
         {sub.dueDate && <span>{formatDateLabel(sub.dueDate)}</span>}
@@ -347,18 +347,18 @@ function SortableSubtaskRow({
         {isMoreMenuOpen && (
           <div className="absolute right-0 z-40 animate-fade-in" style={{ top: 28, width: 172, ...DROPDOWN_STYLE }}>
             <button onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)]"
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)]"
               style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}>
               Open full detail
             </button>
             <button onClick={(e) => { e.stopPropagation(); onPromote(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)]"
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)]"
               style={{ fontSize: 12, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}>
               Promote to task
             </button>
             <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "3px 0" }} />
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)]"
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)]"
               style={{ fontSize: 12, color: "var(--color-error)", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}>
               <Trash2 size={12} />
               Delete subtask
@@ -843,7 +843,7 @@ export default function TaskDetailPanel({
         style={
           isMobile
             ? { position: "fixed", inset: 0, zIndex: 40, display: "flex", flexDirection: "column", backgroundColor: "var(--color-surface)" }
-            : { position: "fixed", right: 0, top: 0, height: "100%", zIndex: 40, display: "flex", flexDirection: "column", width: 480, backgroundColor: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", boxShadow: "-4px 0 20px rgba(27,46,75,0.12)" }
+            : { position: "fixed", right: 0, top: 0, height: "100%", zIndex: 40, display: "flex", flexDirection: "column", width: 480, backgroundColor: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", boxShadow: "-4px 0 20px rgba(2,99,196,0.12)" }
         }
       >
         {/* Header */}
@@ -869,7 +869,7 @@ export default function TaskDetailPanel({
                   {cfg.label}
                 </span>
                 {parentTask && (
-                  <span style={{ fontSize: 11, color: "var(--color-secondary)", backgroundColor: "rgba(27,46,75,0.06)", padding: "2px 8px", borderRadius: 5 }}>
+                  <span style={{ fontSize: 11, color: "var(--color-secondary)", backgroundColor: "rgba(2,99,196,0.06)", padding: "2px 8px", borderRadius: 5 }}>
                     Subtask
                   </span>
                 )}
@@ -902,7 +902,7 @@ export default function TaskDetailPanel({
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen((o) => !o)}
-                  className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                  className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                   style={{ width: 44, height: 44 }}
                   aria-label="More options"
                   aria-haspopup="true"
@@ -921,7 +921,7 @@ export default function TaskDetailPanel({
                         setMenuOpen(false);
                         if (onDuplicateTask) { onDuplicateTask(task); } else { showToast("Duplicate task coming soon.", "info"); }
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                       style={{ fontSize: 13, color: "var(--color-body)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
                       role="menuitem"
                     >
@@ -933,7 +933,7 @@ export default function TaskDetailPanel({
                         <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "4px 0" }} />
                         <button
                           onClick={() => { setMenuOpen(false); onDeleteTask(task.id); onClose(); }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                           style={{ fontSize: 13, color: "var(--color-error)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
                           role="menuitem"
                         >
@@ -947,7 +947,7 @@ export default function TaskDetailPanel({
               </div>
               <button
                 onClick={onClose}
-                className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                 style={{ width: 44, height: 44 }}
                 aria-label="Close panel"
               >
@@ -1023,7 +1023,7 @@ export default function TaskDetailPanel({
               {showCal && calPos && (
                 <CalendarPicker
                   value={localDueDate || undefined}
-                  accentColor="#1B2E4B"
+                  accentColor="#0263C4"
                   pos={calPos}
                   onSelect={d => { setLocalDueDate(d); onUpdateTask?.({ dueDate: d }); setShowCal(false); }}
                   onClear={() => { setLocalDueDate(""); onUpdateTask?.({ dueDate: undefined }); setShowCal(false); }}
@@ -1061,7 +1061,7 @@ export default function TaskDetailPanel({
                   <div className="relative">
                     <button
                       onClick={() => setAddAssigneeOpen((o) => !o)}
-                      className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                      className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                       style={{ border: "1px dashed var(--color-border)" }}
                       aria-label="Add assignee"
                     >
@@ -1076,7 +1076,7 @@ export default function TaskDetailPanel({
                           <button
                             key={u.id}
                             onClick={() => addAssignee(u.id)}
-                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                             style={{ fontSize: 13, color: "var(--color-body)" }}
                           >
                             <Avatar user={u} size={20} />
@@ -1126,7 +1126,7 @@ export default function TaskDetailPanel({
               <span style={{
                 fontSize: 11, fontWeight: 600,
                 color: doneCount === totalCount && totalCount > 0 ? "#2E7D52" : "var(--color-secondary)",
-                backgroundColor: totalCount > 0 ? "rgba(27,46,75,0.06)" : "transparent",
+                backgroundColor: totalCount > 0 ? "rgba(2,99,196,0.06)" : "transparent",
                 padding: totalCount > 0 ? "1px 6px" : 0,
                 borderRadius: 10,
               }}>
@@ -1155,7 +1155,7 @@ export default function TaskDetailPanel({
           {totalCount > 0 && (
             <div className="px-6 pb-2">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1, height: 5, backgroundColor: "rgba(27,46,75,0.08)", borderRadius: 3 }}>
+                <div style={{ flex: 1, height: 5, backgroundColor: "rgba(2,99,196,0.08)", borderRadius: 3 }}>
                   <div style={{
                     height: "100%",
                     width: `${(doneCount / totalCount) * 100}%`,
@@ -1216,9 +1216,9 @@ export default function TaskDetailPanel({
                   display: "flex", alignItems: "center", gap: 8,
                   marginTop: 4,
                   paddingLeft: 6, paddingTop: 6, paddingBottom: 6, paddingRight: 6,
-                  borderLeft: "2px solid rgba(27,46,75,0.15)",
+                  borderLeft: "2px solid rgba(2,99,196,0.15)",
                   borderRadius: "0 5px 5px 0",
-                  backgroundColor: "rgba(27,46,75,0.02)",
+                  backgroundColor: "rgba(2,99,196,0.02)",
                 }}>
                   <div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid var(--color-border)", flexShrink: 0 }} />
                   <input
@@ -1244,7 +1244,7 @@ export default function TaskDetailPanel({
         {subtaskCalState && (
           <CalendarPicker
             value={subtasks.find(s => s.id === subtaskCalState.id)?.dueDate || undefined}
-            accentColor="#1B2E4B"
+            accentColor="#0263C4"
             pos={subtaskCalState.pos}
             onSelect={d => { handleUpdateSubtask(subtaskCalState.id, { dueDate: d }); setSubtaskCalState(null); }}
             onClear={() => { handleUpdateSubtask(subtaskCalState.id, { dueDate: undefined }); setSubtaskCalState(null); }}
@@ -1258,8 +1258,8 @@ export default function TaskDetailPanel({
             <p style={{ fontSize: 11, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Linked Documents</p>
             <div className="space-y-2">
               {task.links.map((link) => (
-                <a key={link.id} href={link.url} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(27,46,75,0.04)] transition-colors" style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
-                  {link.type === "google_doc" ? <FileText size={14} color="#1B2E4B" /> : <Table size={14} color="#1B2E4B" />}
+                <a key={link.id} href={link.url} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(2,99,196,0.04)] transition-colors" style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
+                  {link.type === "google_doc" ? <FileText size={14} color="#0263C4" /> : <Table size={14} color="#0263C4" />}
                   <span style={{ fontSize: 13, color: "var(--color-body)", flex: 1 }}>{link.title}</span>
                   <ExternalLink size={12} color="var(--color-secondary)" />
                 </a>
@@ -1376,7 +1376,7 @@ export default function TaskDetailPanel({
                       </div>
                       <button
                         onClick={() => file.url ? window.open(file.url, "_blank") : showToast("File not available", "error")}
-                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                         aria-label="Download"
                       >
                         <Download size={13} color="var(--color-navy)" />
@@ -1384,7 +1384,7 @@ export default function TaskDetailPanel({
                       {file.uploaderId === (currentUserId || CURRENT_USER_ID) && (
                         <button
                           onClick={() => handleDeleteFile(file.id)}
-                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                           aria-label="Delete file"
                         >
                           <Trash2 size={13} color="var(--color-error)" />
@@ -1401,7 +1401,7 @@ export default function TaskDetailPanel({
 
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-2 rounded-lg cursor-pointer transition-colors hover:bg-[rgba(27,46,75,0.03)]"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg cursor-pointer transition-colors hover:bg-[rgba(2,99,196,0.03)]"
                 style={{ border: "2px dashed var(--color-border)", borderRadius: 8, padding: "24px 16px", textAlign: "center" }}
               >
                 <Paperclip size={18} color="var(--color-secondary)" />

@@ -24,7 +24,7 @@ export function showToast(message: string, type: ToastType = "info") {
   _set((prev) => [...prev, { id, message, type }]);
   setTimeout(() => dismiss(id), 3000);
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("canopy:toast", { detail: { id, message, type } }));
+    window.dispatchEvent(new CustomEvent("app:toast", { detail: { id, message, type } }));
   }
 }
 
@@ -48,7 +48,7 @@ export function showUndoToast(message: string, onUndo: () => void) {
 const BG: Record<ToastType, string> = {
   success: "#2E7D52",
   error:   "#C0392B",
-  info:    "#1B2E4B",
+  info:    "#0263C4",
 };
 
 export default function Toast() {

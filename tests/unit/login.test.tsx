@@ -142,17 +142,17 @@ describe('Login page — Issue #16: heading structure', () => {
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
   })
 
-  it('h1 says "Sign in to Canopy" in sign-in mode', async () => {
+  it('h1 says "Sign in to <app name>" in sign-in mode', async () => {
     await renderLogin()
     const h1 = screen.getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent(/sign in to canopy/i)
+    expect(h1).toHaveTextContent(/sign in to aiesec ?lcpm/i)
   })
 
-  it('h1 changes to "Create your Canopy account" in sign-up mode', async () => {
+  it('h1 changes to "Create your <app name> account" in sign-up mode', async () => {
     await renderLogin()
     await userEvent.click(screen.getByRole('link', { name: /sign up/i }))
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/create your canopy account/i)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/create your aiesec ?lcpm account/i)
     })
   })
 })

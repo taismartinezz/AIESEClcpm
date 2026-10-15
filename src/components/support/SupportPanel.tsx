@@ -259,7 +259,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   return (
     <div
       className="fixed inset-0 z-50"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: "rgba(27,46,75,0.45)" }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: "rgba(2,99,196,0.45)" }}
       onClick={onClose}
       aria-hidden="false"
     >
@@ -277,7 +277,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          boxShadow: "0 8px 40px rgba(27,46,75,0.22)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.22)",
         }}
       >
         {screen.id === "entry" && (
@@ -382,7 +382,7 @@ function EntryScreen({ piInvitation, onHelp, onResources, onClose }: {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", backgroundColor: "var(--color-canvas)", borderRadius: 8, marginBottom: 20, border: "1px solid var(--color-border)" }}>
         <Lock size={13} color="var(--color-secondary)" style={{ flexShrink: 0, marginTop: 2 }} />
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, lineHeight: 1.6 }}>
-          What you write here is only seen by the person you message. Nothing in this flow is recorded or shared with your lab or advisor.
+          What you write here is only seen by the person you message. Nothing in this flow is recorded or shared with your LC.
         </p>
       </div>
 
@@ -884,7 +884,7 @@ function BScreen({ resources, institutionKey, loading, leaders, members, isCurre
 
       {!loading && hasNoCounselingResources(resources, institutionKey) && isCurrentUserPresident && (
         <p style={{ fontSize: 12, color: "var(--color-secondary)", marginBottom: 16 }}>
-          Canopy doesn&rsquo;t have support resources for your institution yet.{" "}
+          There are no built-in support resources for your university yet.{" "}
           <a href="/team" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Add them</a>
           {" "}so your team can find them.
         </p>

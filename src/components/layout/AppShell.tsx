@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,7 +16,7 @@ import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
 import Avatar from "@/components/ui/Avatar";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import OnboardingModal, { useOnboarding } from "@/components/ui/OnboardingModal";
 import Tooltip from "@/components/ui/Tooltip";
@@ -174,9 +175,9 @@ function SidebarBody({
     return (
       <aside className="flex flex-col h-full items-center" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)", paddingTop: 6, paddingBottom: 6, gap: 2 }}>
 
-        {/* Canopy logo - static branding anchor */}
+        {/* Product logo - static branding anchor */}
         <div style={{ ...ICON_BTN, flexShrink: 0, pointerEvents: "none" }} aria-hidden="true">
-          <CanopyLogo size={22} />
+          <BrandLogo size={22} />
         </div>
 
         {/* Expand toggle */}
@@ -215,7 +216,7 @@ function SidebarBody({
               position: "fixed", left: 52, zIndex: 50,
               backgroundColor: "var(--color-surface)",
               border: "1px solid var(--color-border)",
-              borderRadius: 10, boxShadow: "0 8px 32px rgba(27,46,75,0.18)",
+              borderRadius: 10, boxShadow: "0 8px 32px rgba(2,99,196,0.18)",
               padding: "8px 0", minWidth: 200, maxHeight: 320, overflowY: "auto",
             }}>
               <LcMenuSection onDone={() => setWsOpen(false)} />
@@ -345,7 +346,7 @@ function SidebarBody({
       {/* Wordmark row - collapse button appears on sidebar hover */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>
-          Canopy
+          {APP_NAME}
         </span>
         <div className="flex items-center gap-1">
           {onCollapse && (
@@ -399,7 +400,7 @@ function SidebarBody({
             position: "absolute", top: "calc(100% + 4px)", left: 8, right: 8, zIndex: 50,
             backgroundColor: "var(--color-surface)",
             border: "1px solid var(--color-border)",
-            borderRadius: 10, boxShadow: "0 8px 32px rgba(27,46,75,0.18)",
+            borderRadius: 10, boxShadow: "0 8px 32px rgba(2,99,196,0.18)",
             padding: "8px 0", maxHeight: 280, overflowY: "auto",
           }}>
             <LcMenuSection onDone={() => setWsOpen(false)} />
@@ -688,7 +689,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [navCollapsed, setNavCollapsed]   = useState(false);
   const [navWidth, setNavWidth]           = useState(() => {
     try {
-      const s = localStorage.getItem("canopy_nav_width");
+      const s = localStorage.getItem("aiesec_nav_width");
       if (s) { const w = parseInt(s, 10); if (!isNaN(w)) return Math.max(160, Math.min(300, w)); }
     } catch { /* ignore */ }
     return 210;
@@ -736,12 +737,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     async function init() {
       // ── Prototype (no Supabase) path ──────────────────────────────────────
       if (!isSupabaseConfigured) {
-        if (localStorage.getItem("canopy_authed") !== "true") {
+        if (localStorage.getItem("aiesec_authed") !== "true") {
           router.replace("/login");
           return;
         }
         try {
-          const stored = localStorage.getItem("canopy_user");
+          const stored = localStorage.getItem("aiesec_user");
           if (stored) {
             const u = JSON.parse(stored);
             setProfile(u);
@@ -851,7 +852,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         // Count unread chat messages (messages since last visit to /chat)
         try {
-          const lastRead = localStorage.getItem("canopy_chat_last_read") ?? "1970-01-01";
+          const lastRead = localStorage.getItem("aiesec_chat_last_read") ?? "1970-01-01";
           const labChannel = `lab:${projectId}`;
           const { count: chatCount } = await supabase
             .from("chat_messages")
@@ -883,13 +884,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       const detail = (e as CustomEvent).detail;
       if (detail) setProfile(detail);
     }
-    window.addEventListener("canopy:profile-updated", onProfileUpdated);
+    window.addEventListener("app:profile-updated", onProfileUpdated);
 
     return () => {
       subscription.unsubscribe();
       notifChannel?.unsubscribe();
       remindersChannel?.unsubscribe();
-      window.removeEventListener("canopy:profile-updated", onProfileUpdated);
+      window.removeEventListener("app:profile-updated", onProfileUpdated);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -960,7 +961,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [projectId]);
 
   useEffect(() => {
-    const collapsed = localStorage.getItem("canopy_nav_collapsed") === "true";
+    const collapsed = localStorage.getItem("aiesec_nav_collapsed") === "true";
     setNavCollapsed(collapsed);
     // Sync ref with the state value already read in useState init
     navWidthRef.current = navWidth;
@@ -971,7 +972,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setMobileNavOpen(false); setNotifOpen(false); setProfileOpen(false);
     if (pathname.startsWith("/chat")) {
       setChatUnread(0);
-      try { localStorage.setItem("canopy_chat_last_read", new Date().toISOString()); } catch { /* ignore */ }
+      try { localStorage.setItem("aiesec_chat_last_read", new Date().toISOString()); } catch { /* ignore */ }
     }
   }, [pathname]);
 
@@ -1003,10 +1004,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
     function onShowShortcutsEvent() { setShowShortcuts(true); }
     document.addEventListener("keydown", onKey);
-    window.addEventListener("canopy:show-shortcuts", onShowShortcutsEvent);
+    window.addEventListener("app:show-shortcuts", onShowShortcutsEvent);
     return () => {
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("canopy:show-shortcuts", onShowShortcutsEvent);
+      window.removeEventListener("app:show-shortcuts", onShowShortcutsEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1023,8 +1024,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   async function handleSignOut() {
     await supabase.auth.signOut();
     // Remove auth/session keys; preserve user preferences (theme, sidebar widths)
-    ["canopy_authed", "canopy_project", "canopy_user", "pendingInviteCode", "pendingProjectInviteToken",
-     "canopy_chat_last_read"].forEach(k => {
+    ["aiesec_authed", "aiesec_project", "aiesec_user", "pendingInviteCode", "pendingProjectInviteToken",
+     "aiesec_chat_last_read"].forEach(k => {
       try { localStorage.removeItem(k); } catch { /* ignore */ }
     });
     // Clear all per-channel read-position keys
@@ -1087,8 +1088,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           team={team}
           currentUserId={profile?.id ?? ""}
           collapsed={navCollapsed}
-          onCollapse={() => { setNavCollapsed(true); localStorage.setItem("canopy_nav_collapsed", "true"); }}
-          onExpand={() => { setNavCollapsed(false); localStorage.setItem("canopy_nav_collapsed", "false"); }}
+          onCollapse={() => { setNavCollapsed(true); localStorage.setItem("aiesec_nav_collapsed", "true"); }}
+          onExpand={() => { setNavCollapsed(false); localStorage.setItem("aiesec_nav_collapsed", "false"); }}
           pastDueCount={pastDueCount}
           chatUnread={chatUnread}
           subProjects={subProjects}
@@ -1125,15 +1126,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 e.preventDefault();
                 const next = Math.min(300, navWidthRef.current + 10);
                 navWidthRef.current = next; setNavWidth(next);
-                localStorage.setItem("canopy_nav_width", String(next));
+                localStorage.setItem("aiesec_nav_width", String(next));
               }
               if (e.key === "ArrowLeft") {
                 e.preventDefault();
                 const next = navWidthRef.current - 10;
-                if (next < 120) { setNavCollapsed(true); localStorage.setItem("canopy_nav_collapsed", "true"); return; }
+                if (next < 120) { setNavCollapsed(true); localStorage.setItem("aiesec_nav_collapsed", "true"); return; }
                 const clamped = Math.max(160, next);
                 navWidthRef.current = clamped; setNavWidth(clamped);
-                localStorage.setItem("canopy_nav_width", String(clamped));
+                localStorage.setItem("aiesec_nav_width", String(clamped));
               }
             }}
             onMouseDown={(e) => {
@@ -1148,7 +1149,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 if (next < 120) {
                   cleanup();
                   setNavCollapsed(true);
-                  localStorage.setItem("canopy_nav_collapsed", "true");
+                  localStorage.setItem("aiesec_nav_collapsed", "true");
                   return;
                 }
                 live = Math.max(160, Math.min(300, next));
@@ -1156,7 +1157,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               }
               function onUp() {
                 cleanup();
-                localStorage.setItem("canopy_nav_width", String(live));
+                localStorage.setItem("aiesec_nav_width", String(live));
               }
               function cleanup() {
                 document.removeEventListener("mousemove", onMove);
@@ -1228,13 +1229,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Mobile wordmark + logo */}
           <div className="md:hidden flex items-center gap-2">
-            <CanopyLogo size={24} />
+            <BrandLogo size={24} />
             <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>
-              Canopy
+              {APP_NAME}
             </span>
           </div>
 
-          {/* Desktop: breadcrumb - "Lab" or "Lab / Project" */}
+          {/* Desktop: breadcrumb - "LC" or "LC / Group" */}
           <div className="hidden md:flex items-center gap-1.5 min-w-0">
             {project?.name && activeScope !== "personal" && (
               <Link href="/" style={{ fontSize: 12, color: "var(--color-secondary)", whiteSpace: "nowrap", textDecoration: "none" }}
@@ -1273,7 +1274,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Institution badge - navigates to team page */}
             {project?.institution && (
-              <Tooltip label="View lab team" placement="bottom">
+              <Tooltip label="View LC team" placement="bottom">
                 <Link href="/team" aria-label={`View ${project.institution} team`}
                   className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 shrink-0 transition-opacity hover:opacity-80"
                   style={{ backgroundColor: "var(--color-btn-primary)", color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none" }}>

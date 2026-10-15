@@ -46,7 +46,7 @@ export default function TasksPage() {
   const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments } = useProject();
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("canopy_tasks_sidebar_collapsed") === "true"; } catch { return false; }
+    try { return localStorage.getItem("aiesec_tasks_sidebar_collapsed") === "true"; } catch { return false; }
   });
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -71,7 +71,7 @@ export default function TasksPage() {
       setTeamMembers(USERS);
       let allTasks: Task[];
       try {
-        const saved = sessionStorage.getItem("canopy_demo_tasks");
+        const saved = sessionStorage.getItem("aiesec_demo_tasks");
         allTasks = saved ? (JSON.parse(saved) as Task[]) : MOCK_TASKS;
       } catch {
         allTasks = MOCK_TASKS;
@@ -249,7 +249,7 @@ export default function TasksPage() {
   // Persist task mutations (e.g. file uploads) across page navigations in demo mode
   useEffect(() => {
     if (!isSupabaseConfigured && !loading) {
-      try { sessionStorage.setItem("canopy_demo_tasks", JSON.stringify(tasks)); } catch {}
+      try { sessionStorage.setItem("aiesec_demo_tasks", JSON.stringify(tasks)); } catch {}
     }
   }, [tasks, loading]);
 
@@ -485,7 +485,7 @@ export default function TasksPage() {
   const isSubProjectScope = taskScope !== "all" && taskScope !== "personal" && taskScope !== "lab";
 
   const sidebarSections: ScopeSection[] = [
-    { id: "all", label: "All", color: "#1B2E4B", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
+    { id: "all", label: "All", color: "#0263C4", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
     { id: "personal", label: "Personal", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
     { id: "lab", label: "Whole LC", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
   ];
@@ -531,7 +531,7 @@ export default function TasksPage() {
       <PageHeader
         title="Tasks"
         badge={tasksBadgeSp ? (
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(27,46,75,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "rgba(2,99,196,0.10)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
             {tasksBadgeSp.name}
           </span>
         ) : undefined}
@@ -607,7 +607,7 @@ export default function TasksPage() {
             ))}
             {subProjects.map((sp) => (
               <button key={sp.id} onClick={() => setTaskScope(sp.id)}
-                style={{ flexShrink: 0, fontSize: 12, fontWeight: taskScope === sp.id ? 700 : 500, padding: "5px 12px", borderRadius: 20, border: `1px solid ${taskScope === sp.id ? (sp.color ?? "#1B2E4B") : "var(--color-border)"}`, backgroundColor: taskScope === sp.id ? `${sp.color ?? "#1B2E4B"}18` : "transparent", color: taskScope === sp.id ? (sp.color ?? "#1B2E4B") : "var(--color-secondary)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font-roboto)" }}>
+                style={{ flexShrink: 0, fontSize: 12, fontWeight: taskScope === sp.id ? 700 : 500, padding: "5px 12px", borderRadius: 20, border: `1px solid ${taskScope === sp.id ? (sp.color ?? "#0263C4") : "var(--color-border)"}`, backgroundColor: taskScope === sp.id ? `${sp.color ?? "#0263C4"}18` : "transparent", color: taskScope === sp.id ? (sp.color ?? "#0263C4") : "var(--color-secondary)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font-roboto)" }}>
                 {sp.name}
               </button>
             ))}
@@ -628,10 +628,10 @@ export default function TasksPage() {
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(c => {
                 const next = !c;
-                try { localStorage.setItem("canopy_tasks_sidebar_collapsed", String(next)); } catch {}
+                try { localStorage.setItem("aiesec_tasks_sidebar_collapsed", String(next)); } catch {}
                 return next;
               })}
-              storageKey="canopy_tasks_sidebar"
+              storageKey="aiesec_tasks_sidebar"
               headerLabel="Filters"
             />
           </div>

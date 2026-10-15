@@ -27,7 +27,7 @@ const STATUS_COLORS = TASK_STATUS_COLORS;
 type RollupRow = { week_start: string; question_id: string; avg_score: number; respondent_count: number };
 
 const ROLLUP_COLORS: Record<string, string> = {
-  cq1: "#1B2E4B", cq2: "#D97706", cq3: "#10B981", cq4: "#8B5CF6", cq5: "#EC4899",
+  cq1: "#0263C4", cq2: "#D97706", cq3: "#10B981", cq4: "#8B5CF6", cq5: "#EC4899",
 };
 const ROLLUP_LABELS: Record<string, string> = {
   cq1: "Support", cq2: "Workload", cq3: "Meaningful", cq4: "Boundaries", cq5: "Help",
@@ -158,8 +158,8 @@ function MeetingModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(27,46,75,0.35)" }} onClick={onClose}>
-      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 360, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(27,46,75,0.18)" }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.35)" }} onClick={onClose}>
+      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 360, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(2,99,196,0.18)" }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 17, color: "var(--color-navy)", margin: "0 0 8px" }}>Starting a Zoom meeting…</h2>
         <p style={{ fontSize: 13, color: "var(--color-secondary)", lineHeight: 1.5, marginBottom: 24 }}>
           Share the meeting link with your team in Chat once it opens.
@@ -232,13 +232,13 @@ function MemberPanel({
   return (
     <>
       {!isMobile && (
-        <div className="fixed inset-0 z-30" style={{ backgroundColor: "rgba(27,46,75,0.15)" }} onClick={onClose} />
+        <div className="fixed inset-0 z-30" style={{ backgroundColor: "rgba(2,99,196,0.15)" }} onClick={onClose} />
       )}
       <div
         className={isMobile ? "animate-slide-in-bottom" : "animate-slide-in"}
         style={isMobile
           ? { position: "fixed", inset: 0, zIndex: 40, display: "flex", flexDirection: "column", backgroundColor: "var(--color-surface)" }
-          : { position: "fixed", top: 0, right: 0, height: "100%", zIndex: 40, display: "flex", flexDirection: "column", width: 340, backgroundColor: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", boxShadow: "-4px 0 20px rgba(27,46,75,0.1)" }
+          : { position: "fixed", top: 0, right: 0, height: "100%", zIndex: 40, display: "flex", flexDirection: "column", width: 340, backgroundColor: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", boxShadow: "-4px 0 20px rgba(2,99,196,0.1)" }
         }
       >
         <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -296,7 +296,7 @@ function MemberPanel({
                 {saveError && <p role="alert" style={{ fontSize: 11, color: "var(--color-error)", margin: "6px 0 0" }}>{saveError}</p>}
               </div>
             </div>
-            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close">
+            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close">
               <X size={18} color="var(--color-secondary)" />
             </button>
           </div>
@@ -413,7 +413,7 @@ function WeeklyUpdateBar({ current, onSave }: { current?: string; onSave: (v: st
         <p style={{ fontSize: 13, color: current ? "var(--color-body)" : "var(--color-secondary)", flex: 1 }}>
           {current ? `This week: ${current}` : "What are you working on this week? (optional, visible to your team)"}
         </p>
-        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[rgba(27,46,75,0.06)]"
+        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[rgba(2,99,196,0.06)]"
           style={{ fontSize: 12, color: "var(--color-navy)", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: 7, cursor: "pointer", minHeight: 36 }}>
           <Edit3 size={12} />{current ? "Edit" : "Add Update"}
         </button>
@@ -512,7 +512,7 @@ function SupportResourcesAdmin({
 
       {showNoCounselingBanner && (
         <p style={{ fontSize: 12, color: "var(--color-secondary)", padding: "8px 12px", backgroundColor: "var(--color-dimmed-bg)", borderRadius: 7, marginBottom: 12 }}>
-          Canopy doesn&rsquo;t have support resources for your institution yet. Add them so your team can find them.
+          There are no built-in support resources for your university yet. Add them so your team can find them.
         </p>
       )}
 

@@ -1,67 +1,79 @@
-# Canopy
+# AIESEClcpm
 
-A research lab management platform built for trauma, psychology, and sensitive-population research teams. Canopy replaces the scattered collection of Slack threads, email chains, and spreadsheets that most labs rely on — bringing tasks, scheduling, journaling, and literature into one privacy-respecting tool.
+Project management and wellbeing for **AIESEC Local Committees (LCs)**. One place for an LC's tasks, reminders, chat and shared links, plus a private weekly check-in that shows the LCP and VPs how their teams are doing without ever exposing anyone's individual answers.
 
-## Screenshots
+> The product name lives in one constant, `APP_NAME` in `src/lib/brand.ts`. Change it there to rebrand.
 
-**Dashboard** — daily overview of upcoming events, team activity, and task status
-![Dashboard](screenshots/dashboard.png)
+## Roles
 
-**Tasks** — Kanban board across the research lifecycle
-![Tasks board](screenshots/tasks-board.png)
+Everyone can belong to several LCs and has a role **in each one**:
 
-**Scheduling** — team availability heat map showing overlap across members
-![Team availability](screenshots/team-availability.png)
+| Role | Who | Can |
+| --- | --- | --- |
+| **President** | the LCP | manage the LC: invites, roles, departments, groups, settings and privacy thresholds |
+| **VP** | executive board | lead one or more departments and see their departments' wellbeing averages |
+| **Member** | team member | belongs to one department and reports to its VP |
 
-**Journal** — private, encrypted weekly check-ins and reflective prompts
-![Journal](screenshots/journal.png)
+**Departments.** Each LC starts with the eight AIESEC departments (oGV, oGTa, iGV, iGTa, Marketing, Talent Management, Finance & Legality, Business Development). The president can rename, recolour, add or delete them and choose which VP leads each one.
 
-## Product context
-
-Research teams working with vulnerable populations (trauma survivors and other sensitive-population studies) were coordinating tasks, scheduling, and emotional check-ins across tools that were never built to protect participant or researcher privacy. Before writing any code, I ran 2 contextual inquiries and a competitive analysis to understand how these teams actually worked day to day, then designed the product privacy-first from the start rather than bolting privacy on later.
-
-I built and shipped an MVP, then iterated based on usability testing with real users. Canopy is now live and continuously deployed (154+ deployments), and I'm currently leading an IRB submission for a 20+ participant study to formally evaluate it with research teams.
+**Groups.** Inside an LC you can create groups (a project team, an organising committee, …) with their own tasks, reminders, chat channel and bookmarks.
 
 ## Modules
 
-**Tasks** — Kanban board for managing lab work across the full research lifecycle: protocol development, data collection, analysis, and publication. Supports drag-and-drop, priorities, assignees, due dates, file attachments, and real-time activity feeds.
+- **Dashboard**: today's agenda, LC wins and opportunities, and role-aware wellbeing cards.
+- **Tasks**: a board running Backlog → To do → In progress → Review → Done, with assignees, due dates, subtasks, files, comments and an optional department tag and filter.
+- **Journal**: the weekly check-in, then a private, end-to-end encrypted journal.
+- **Chat**: LC-wide, group and direct messages.
+- **Reminders**: personal, LC-wide and group reminders, including an automatic weekly check-in reminder.
+- **Bookmarks**: shared links for the LC or a group.
+- **Team**: the directory, grouped into Executive Board and one section per department.
 
-**Scheduling** — Team availability coordination without the email back-and-forth. Members set their weekly availability on a simple grid (when2meet-style). The PI and team can see a live heat map of when everyone overlaps. Any member can propose a meeting time and invite others; invitees accept or decline in-app. Optionally sync with Google Calendar for automatic free/busy — event titles and details are never shared with anyone.
+## Wellbeing and privacy
 
-**Journal** — Private weekly check-ins and reflective prompts designed to help researchers process the emotional weight of sensitive fieldwork. The PI can suggest prompts but never sees individual responses.
-
-**Literature** — A shared lab library for papers, books, and preprints. Tag, rate, annotate, and organize by collection. Supports both lab-wide and personal-scope items.
-
-**Bookmarks** — Save and share links, resources, and references relevant to the lab's work.
-
-**Team** — Member directory with weekly status updates and a real-time activity feed showing who moved what.
+- Journal text is encrypted in the browser and readable only by its author.
+- Check-in scores (1–5) are only ever shown as **averages**: per question, per week and as an 8-week trend.
+- **Member Pulse**: members' averages per department. Each VP sees their own departments; the LCP sees every department and the LC total.
+- **Exec Pulse**: VPs' averages, seen only by the LCP. The LCP's own answers are never counted anywhere.
+- A week is hidden ("Not enough responses this week to protect privacy") when fewer people than the LC's threshold responded (default 3 for the executive board and for each department; the president can change both).
+- These rules are enforced in Postgres (SECURITY DEFINER functions that check the caller's role, plus RLS), not just in the interface. Anyone can opt out of being counted from the Journal page.
 
 ## Tech stack
 
-- Framework: Next.js 15 (App Router)
-- Database & Auth: Supabase (Postgres + Row-Level Security)
-- Styling: CSS custom properties — no CSS framework, consistent design tokens throughout
-- Drag & drop: @dnd-kit/core
-- Icons: Lucide React
-- Fonts: Lora (headings) + Roboto (UI)
+- Next.js 16 (App Router), React 19, TypeScript
+- Supabase: Postgres, Auth and Row-Level Security
+- CSS custom properties for design tokens (AIESEC blue accent), Lucide icons, @dnd-kit
+- Vitest + Testing Library, PGlite for database tests, Playwright + Cucumber for end-to-end tests
 
-## Design principles
+## Development
 
-- **Privacy first.** Researchers work with vulnerable populations. Personal calendar events are never visible to teammates. The PI sees only free/busy status — never what someone is doing, why they're blocked, or how they're feeling in their journal.
-- **Internal-only scheduling.** There are no public booking links. Meeting proposals are between lab members only.
-- **No noise.** The interface stays out of the way. One navy accent color, no gradients, no animations beyond what aids comprehension.
-- **Prototype-ready.** Pages fall back to empty states (not mock data) when no database is connected, so UX can be validated in user studies before infrastructure is finalized.
+```bash
+npm install
+cp .env.example .env.local   # fill in your own project's values
+npm run dev
+```
+
+Without Supabase env vars the app runs in **demo mode** with a fictional LC (`src/lib/mock-data`).
+
+| Command | What it does |
+| --- | --- |
+| `npm run lint` | ESLint |
+| `npx tsc --noEmit` | type-check |
+| `npm run test:unit` | unit tests + database tests (migrations and RLS in PGlite) |
+| `npm run test:e2e` | Playwright |
+| `npm run db:bundle` | regenerate `supabase/full_schema.sql` from the migrations |
+| `SEED_PASSWORD=… npm run db:seed` | create a demo LC with fictional `@example.com` accounts in your **development** project |
+| `npm run db:seed:reset` | delete those demo accounts again |
 
 ## Setting up a fresh Supabase project
 
-This app must run on its **own** Supabase project — never point it at another app's database.
+This app must run on its **own** Supabase project. Never point it at another app's database.
 
 1. **Create a new Supabase project** at [supabase.com](https://supabase.com).
-2. **Run the migrations in order.** Apply every file in `supabase/migrations/` in filename order (they sort chronologically, starting with `20260701000_baseline.sql`), either with the Supabase CLI (`supabase link` then `supabase db push`) or by pasting each file into the SQL editor. Do not run `supabase/schema.sql`; it's a historical reference only.
-3. **Set the env vars.** Copy `.env.example` to `.env.local` (and to your hosting provider) and fill in your project's URL, anon key, service-role key, and the other secrets listed there.
+2. **Run the migrations in order.** Either apply every file in `supabase/migrations/` in filename order (they sort chronologically, starting with `20260701000_baseline.sql`) using the Supabase CLI (`supabase link`, then `supabase db push`) or the SQL editor, **or** paste the single generated file `supabase/full_schema.sql` into the SQL editor of the empty project. Both produce the same database. Don't run `supabase/schema.sql`, which is kept only as a historical reference.
+3. **Set the env vars.** Copy `.env.example` to `.env.local` (and to your hosting provider) and fill in your project's URL, anon key, service-role key and the other secrets listed there.
 4. Set the auth **Site URL** and **Redirect URLs** as described in `docs/AUTH_SETUP.md`.
 
-`npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain still applies cleanly.
+`npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain and the bundle still apply cleanly.
 
 ## Removed modules
 

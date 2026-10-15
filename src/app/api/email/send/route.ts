@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { APP_NAME } from "@/lib/brand";
 import { sendEmail, buildTaskAssignedEmail, buildLabWinEmail } from "@/lib/email";
 import { getMemberships } from "@/lib/membership";
 
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
 
     const taskProjectId = task.project_id as string;
     const proj = Array.isArray(task.projects) ? task.projects[0] : task.projects;
-    const projectName = (proj as { name?: string } | null)?.name ?? "your lab";
+    const projectName = (proj as { name?: string } | null)?.name ?? "your LC";
 
     // Verify: recipient must be assigned to this task
     const { data: assignment } = await db
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
 
     // Load assigner name
     const { data: callerProf } = await db.from("user_profiles").select("name").eq("id", callerId === "internal" ? body.recipientId : callerId).maybeSingle();
-    const assignerName = callerId !== "internal" ? ((callerProf?.name as string) ?? "A teammate") : "Canopy";
+    const assignerName = callerId !== "internal" ? ((callerProf?.name as string) ?? "A teammate") : APP_NAME;
 
     emailPayload = buildTaskAssignedEmail({
       to: recipientEmail,
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
     }
 
     const winProj = Array.isArray(win.projects) ? win.projects[0] : win.projects;
-    const projectName = (winProj as { name?: string } | null)?.name ?? "your lab";
+    const projectName = (winProj as { name?: string } | null)?.name ?? "your LC";
 
     // Load poster name
     const { data: posterProf } = await db.from("user_profiles").select("name").eq("id", win.author_id as string).maybeSingle();

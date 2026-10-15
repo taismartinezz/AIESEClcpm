@@ -81,7 +81,7 @@ function nextCheckinDay(lastDate: string) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-const DRAFT_KEY = "canopy_journal_draft";
+const DRAFT_KEY = "aiesec_journal_draft";
 
 // ── Prompt card ───────────────────────────────────────────────────────────────
 
@@ -336,7 +336,7 @@ function CheckinCard({ question, response, onScore }: {
           return (
             <button key={score} onClick={() => onScore(score)}
               className="flex flex-col items-center gap-1.5 flex-1 py-2 rounded-lg transition-all"
-              style={{ border: `1px solid ${isSelected ? SCORE_COLOR : "var(--color-border)"}`, backgroundColor: isSelected ? "rgba(27,46,75,0.08)" : "transparent", cursor: "pointer", minHeight: 52 }}
+              style={{ border: `1px solid ${isSelected ? SCORE_COLOR : "var(--color-border)"}`, backgroundColor: isSelected ? "rgba(2,99,196,0.08)" : "transparent", cursor: "pointer", minHeight: 52 }}
               aria-label={`${score}: ${SCORE_LABELS[score]}`} aria-pressed={isSelected}
             >
               <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: isSelected ? SCORE_COLOR : "var(--color-border)", backgroundColor: isSelected ? SCORE_COLOR : "transparent" }} />
@@ -379,14 +379,14 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(27,46,75,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-md" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "28px 24px", boxShadow: "0 8px 40px rgba(27,46,75,0.18)" }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.4)" }} onClick={onClose}>
+      <div className="w-full max-w-md" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "28px 24px", boxShadow: "0 8px 40px rgba(2,99,196,0.18)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-5">
           <div>
             <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 20, color: "var(--color-navy)", margin: 0 }}>Support is available.</h2>
             <p style={{ fontSize: 13, color: "var(--color-secondary)", marginTop: 6, lineHeight: 1.5 }}>You don't have to navigate this alone.</p>
           </div>
-          <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close"><X size={16} color="var(--color-secondary)" /></button>
+          <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close"><X size={16} color="var(--color-secondary)" /></button>
         </div>
         <div className="space-y-3">
           <button onClick={requestCheckin} disabled={checkinState === 'loading' || checkinState === 'sent'} className="w-full text-left px-4 py-3.5 rounded-lg" style={{ backgroundColor: checkinState === 'sent' ? "rgba(34,197,94,0.08)" : "var(--color-canvas)", border: `1px solid ${checkinState === 'sent' ? "#22c55e" : checkinState === 'error' ? "var(--color-error)" : "var(--color-border)"}`, borderRadius: 10, cursor: checkinState === 'sent' ? "default" : "pointer" }}>
@@ -397,7 +397,7 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
                   {checkinState === 'sent' ? 'Check-in request sent' : checkinState === 'error' ? 'Failed to send. Tap to retry.' : 'Request a check-in with your supervisor'}
                 </p>
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3, lineHeight: 1.4 }}>
-                  {checkinState === 'sent' ? 'Your supervisor will be notified anonymously.' : 'Sends an anonymous notification to your PI. Your identity is never shared.'}
+                  {checkinState === 'sent' ? 'Your LCP will be notified anonymously.' : 'Sends an anonymous notification to your LCP. Your identity is never shared.'}
                 </p>
               </div>
             </div>
@@ -423,7 +423,7 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
         </div>
         <div className="flex items-center gap-2 mt-5 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
           <Lock size={13} color="var(--color-secondary)" />
-          <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.4 }}>Your journal and check-in responses are completely private. Your PI and team cannot see them under any circumstances.</p>
+          <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.4 }}>Your journal and individual check-in answers are completely private. Your VP, LCP and team cannot see them under any circumstances.</p>
         </div>
       </div>
     </div>
@@ -434,8 +434,8 @@ function SupportModal({ onClose, userId, projectId }: { onClose: () => void; use
 
 function DiscardDraftModal({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(27,46,75,0.35)" }}>
-      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 380, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(27,46,75,0.16)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.35)" }}>
+      <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 380, width: "100%", borderRadius: 10, padding: 28, boxShadow: "0 8px 32px rgba(2,99,196,0.16)" }}>
         <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: "0 0 10px" }}>
           You have an unsaved draft.
         </h2>
@@ -480,7 +480,7 @@ function PromptPicker({ usedTexts, onSelect, onClose, availablePrompts }: {
         <button
           key={text}
           onClick={() => { onSelect(text); onClose(); }}
-          className="w-full text-left px-4 py-2.5 hover:bg-[rgba(27,46,75,0.05)] transition-colors"
+          className="w-full text-left px-4 py-2.5 hover:bg-[rgba(2,99,196,0.05)] transition-colors"
           style={{ fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-lora)", lineHeight: 1.4, background: "none", border: "none", cursor: "pointer" }}
         >
           {text}
@@ -510,7 +510,7 @@ function JournalSidebarContent({
           {onCollapse && (
             <button
               onClick={onCollapse}
-              className="opacity-0 group-hover/litpanel:opacity-100 transition-opacity flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]"
+              className="opacity-0 group-hover/litpanel:opacity-100 transition-opacity flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]"
               style={{ width: 32, height: 32 }}
               title="Collapse entry list"
               aria-label="Collapse entry list"
@@ -519,7 +519,7 @@ function JournalSidebarContent({
             </button>
           )}
           {showClose && (
-            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close entries">
+            <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close entries">
               <X size={16} color="var(--color-secondary)" />
             </button>
           )}
@@ -597,7 +597,7 @@ function JournalSidebarContent({
 function EntryListItem({ entry, selected, onClick }: { entry: JournalEntry; selected: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full text-left px-4 py-2.5 transition-colors"
-      style={{ backgroundColor: selected ? "rgba(27,46,75,0.06)" : "transparent", cursor: "pointer", border: "none", borderLeft: selected ? "2px solid var(--color-navy)" : "2px solid transparent", minHeight: 44 }}>
+      style={{ backgroundColor: selected ? "rgba(2,99,196,0.06)" : "transparent", cursor: "pointer", border: "none", borderLeft: selected ? "2px solid var(--color-navy)" : "2px solid transparent", minHeight: 44 }}>
       <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-body)", marginBottom: 2 }}>{formatEntryDate(entry.date)}</p>
       <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.35 }}>
         {entry.prompts[0]?.response ? entry.prompts[0].response.slice(0, 42) + "…" : "No response"}
@@ -1107,7 +1107,7 @@ export default function JournalPage() {
         <div className="flex-1 overflow-y-auto flex flex-col">
         <div className="flex-1" style={{ maxWidth: 700, margin: "0 auto", padding: "28px 16px 80px", width: "100%" }}>
 
-          <button onClick={() => setEntryListOpen(true)} className="md:hidden flex items-center gap-1.5 mb-5 px-3 py-2 rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors" style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: 7, backgroundColor: "var(--color-surface)", minHeight: 44 }}>
+          <button onClick={() => setEntryListOpen(true)} className="md:hidden flex items-center gap-1.5 mb-5 px-3 py-2 rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors" style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: 7, backgroundColor: "var(--color-surface)", minHeight: 44 }}>
             <ChevronLeft size={15} /> Entries
           </button>
 
@@ -1172,7 +1172,7 @@ export default function JournalPage() {
                       />
                       <button
                         onClick={() => removePrompt(p.id)}
-                        className="absolute top-3 right-14 flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)]"
+                        className="absolute top-3 right-14 flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)]"
                         style={{ width: 28, height: 28 }}
                         aria-label="Remove prompt"
                       >
@@ -1185,7 +1185,7 @@ export default function JournalPage() {
                     <div className="relative" style={{ display: "inline-block" }}>
                       <button
                         onClick={() => setPromptPickerOpen((o) => !o)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(27,46,75,0.06)]"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:bg-[rgba(2,99,196,0.06)]"
                         style={{ fontSize: 13, color: "var(--color-navy)", fontWeight: 600, border: "1px dashed var(--color-navy)", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", fontFamily: "var(--font-roboto)" }}
                       >
                         <Plus size={14} /> Add a prompt
@@ -1273,7 +1273,7 @@ export default function JournalPage() {
                 // Pill/banner when check-in is not yet due
                 <button
                   onClick={() => setCheckinExpanded(true)}
-                  className="w-full flex items-center gap-3 text-left transition-colors hover:bg-[rgba(27,46,75,0.03)]"
+                  className="w-full flex items-center gap-3 text-left transition-colors hover:bg-[rgba(2,99,196,0.03)]"
                   style={{ padding: "10px 14px", borderRadius: 8, border: "1px dashed var(--color-border)", backgroundColor: "var(--color-canvas)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
                 >
                   <CalendarDays size={14} color="var(--color-secondary)" style={{ flexShrink: 0 }} />

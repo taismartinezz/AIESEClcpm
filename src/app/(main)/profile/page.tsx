@@ -357,7 +357,7 @@ export default function ProfilePage() {
           .maybeSingle();
         if (updated) {
           setProfile(updated);
-          window.dispatchEvent(new CustomEvent("canopy:profile-updated", { detail: updated }));
+          window.dispatchEvent(new CustomEvent("app:profile-updated", { detail: updated }));
         }
       }
     }
@@ -817,7 +817,7 @@ export default function ProfilePage() {
                     <FieldInput
                       value={draftBio}
                       onChange={setDraftBio}
-                      placeholder="Tell your team a bit about your research background and what brought you to this work."
+                      placeholder="Tell your LC a bit about yourself and what you do in AIESEC."
                       multiline
                     />
                   ) : (
@@ -832,7 +832,7 @@ export default function ProfilePage() {
 
                 {/* Research Interests */}
                 <div>
-                  <SectionLabel>Research Interests</SectionLabel>
+                  <SectionLabel>Interests</SectionLabel>
                   {editMode ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -850,7 +850,7 @@ export default function ProfilePage() {
                           value={interestInput}
                           onChange={(e) => setInterestInput(e.target.value)}
                           onKeyDown={handleAddInterest}
-                          placeholder="Add a research interest and press Enter"
+                          placeholder="Add an interest and press Enter"
                           style={{
                             height: 36, border: "1px solid var(--color-border)", borderRadius: 8,
                             padding: "0 14px", fontFamily: "var(--font-roboto)",

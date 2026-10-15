@@ -94,7 +94,7 @@ export function TaskCard({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={rowMode ? {
-          backgroundColor: hovered && !isDragging ? "rgba(27,46,75,0.025)" : "transparent",
+          backgroundColor: hovered && !isDragging ? "rgba(2,99,196,0.025)" : "transparent",
           borderBottom: "1px solid var(--color-border)",
           padding: "10px 14px",
           transition: "background-color 0.12s",
@@ -106,9 +106,9 @@ export function TaskCard({
           overflow: "hidden",
           transition: "border-color 0.15s, box-shadow 0.15s",
           boxShadow: hovered && !isDragging
-            ? "0 4px 12px rgba(27,46,75,0.10), 0 1px 4px rgba(27,46,75,0.06)"
-            : "0 1px 2px rgba(27,46,75,0.04)",
-          borderColor: hovered && !isDragging ? "rgba(27,46,75,0.20)" : undefined,
+            ? "0 4px 12px rgba(2,99,196,0.10), 0 1px 4px rgba(2,99,196,0.06)"
+            : "0 1px 2px rgba(2,99,196,0.04)",
+          borderColor: hovered && !isDragging ? "rgba(2,99,196,0.20)" : undefined,
         }}
       >
         {/* Title */}
@@ -136,7 +136,7 @@ export function TaskCard({
           </div>
           <div className="flex items-center gap-1.5" style={{ overflow: "hidden" }}>
             {showLabBadge && task.scope === "lab" && (
-              <span style={{ fontSize: 10, fontWeight: 700, backgroundColor: "rgba(27,46,75,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, backgroundColor: "rgba(2,99,196,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
                 LC
               </span>
             )}
@@ -156,7 +156,7 @@ export function TaskCard({
 
         {/* Subtask section */}
         {hasSubtasks && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(27,46,75,0.07)" }}>
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(2,99,196,0.07)" }}>
             {/* Header row: chevron + label + count */}
             <button
               onClick={(e) => { e.stopPropagation(); setSubtaskExpanded((x) => !x); }}
@@ -178,7 +178,7 @@ export function TaskCard({
             </button>
 
             {/* Progress bar */}
-            <div style={{ height: 3, backgroundColor: "rgba(27,46,75,0.08)", borderRadius: 2 }}>
+            <div style={{ height: 3, backgroundColor: "rgba(2,99,196,0.08)", borderRadius: 2 }}>
               <div style={{
                 height: "100%",
                 width: `${(subtaskProgress!.done / subtaskProgress!.total) * 100}%`,
@@ -255,7 +255,7 @@ export function TaskCard({
             backgroundColor: "var(--color-surface)",
             border: "1px solid var(--color-border)",
             borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(27,46,75,0.12)",
+            boxShadow: "0 4px 16px rgba(2,99,196,0.12)",
             ...(deleteConfirm ? { padding: "12px 12px 10px" } : {}),
           }}
           onClick={(e) => e.stopPropagation()}
@@ -267,7 +267,7 @@ export function TaskCard({
                   <button
                     key={s}
                     onClick={() => { onMoveStatus(s); setMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                    className="w-full text-left px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                     style={{ fontSize: 12, color: "var(--color-body)", minHeight: 36, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                   >
                     <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: STATUS_CONFIG[s].dot, flexShrink: 0 }} />
@@ -277,14 +277,14 @@ export function TaskCard({
               </div>
               <button
                 onClick={() => { setMenuOpen(false); onEdit(); }}
-                className="w-full text-left px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                className="w-full text-left px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                 style={{ fontSize: 12, color: "var(--color-body)", minHeight: 36, border: "none", background: "none", cursor: "pointer", display: "block", width: "100%", textAlign: "left" }}
               >
                 Edit task
               </button>
               <button
                 onClick={() => setDeleteConfirm(true)}
-                className="w-full text-left px-3 py-2 hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                className="w-full text-left px-3 py-2 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                 style={{ fontSize: 12, color: "var(--color-error)", minHeight: 36, border: "none", background: "none", cursor: "pointer", display: "block", width: "100%", textAlign: "left" }}
               >
                 Delete task

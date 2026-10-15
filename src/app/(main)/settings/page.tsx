@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, Globe2 } from "lucide-react";
@@ -17,7 +18,7 @@ import type { UserRole } from "@/types";
 
 const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
   emotional_processing: "Emotional Processing",
-  research_reflection: "Research Reflection",
+  purpose_growth: "Purpose & Growth",
   team_support: "Team & Support",
   boundaries_workload: "Boundaries & Workload",
   looking_forward: "Looking Forward",
@@ -727,12 +728,12 @@ export default function SettingsPage() {
                         <div key={ic.id} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 8 }}>
                           <input
                             readOnly
-                            value={isRevealed ? fullLink : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "canopyteams.tech")}/login?invite=••••••••`}
+                            value={isRevealed ? fullLink : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/login?invite=••••••••`}
                             style={{ ...readonlyInputStyle, flex: 1, fontFamily: "monospace", fontSize: 12 }}
                             aria-label={`Generic invite link ${ic.code}`}
                           />
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 84, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", borderRadius: 5, padding: "2px 8px", backgroundColor: roleName ? "rgba(27,46,75,0.08)" : "transparent", color: roleName ? "var(--color-navy)" : "var(--color-secondary)" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 84, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", borderRadius: 5, padding: "2px 8px", backgroundColor: roleName ? "rgba(2,99,196,0.08)" : "transparent", color: roleName ? "var(--color-navy)" : "var(--color-secondary)" }}>
                               {roleName ?? "No role"}
                             </span>
                             <button onClick={() => setRevealedCode(isRevealed ? null : ic.id)}
@@ -998,10 +999,10 @@ export default function SettingsPage() {
         <div style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: "0 0 3px" }}>View all shortcuts</p>
-            <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>See every keyboard shortcut available in Canopy. You can also press <kbd style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 4, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)" }}>?</kbd> anywhere.</p>
+            <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>See every keyboard shortcut available in {APP_NAME}. You can also press <kbd style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 4, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)" }}>?</kbd> anywhere.</p>
           </div>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("canopy:show-shortcuts"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("app:show-shortcuts"))}
             style={{ fontSize: 12, fontWeight: 700, padding: "8px 18px", borderRadius: 8, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer", minHeight: 40, flexShrink: 0 }}
           >
             View shortcuts
@@ -1023,7 +1024,7 @@ export default function SettingsPage() {
             <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Re-open the onboarding tour from the beginning.</p>
           </div>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("canopy:show-onboarding"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("app:show-onboarding"))}
             style={{ fontSize: 12, fontWeight: 700, padding: "8px 18px", borderRadius: 8, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer", minHeight: 40, flexShrink: 0 }}
           >
             Start tour
@@ -1034,9 +1035,9 @@ export default function SettingsPage() {
 
     {promptModalOpen && createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-        style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+        style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
         onClick={() => setPromptModalOpen(false)}>
-        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(27,46,75,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(2,99,196,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
           onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
           <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
             <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: 0 }}>Manage Journal Prompts</h2>
@@ -1054,7 +1055,7 @@ export default function SettingsPage() {
                     return (
                       <button key={prompt.id}
                         onClick={() => setActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
-                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(27,46,75,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
+                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(2,99,196,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
                         {prompt.text}
                       </button>
                     );
@@ -1071,7 +1072,7 @@ export default function SettingsPage() {
               {customPrompts.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
                   {customPrompts.map((cp) => (
-                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(27,46,75,0.04)", border: "1px solid var(--color-navy)" }}>
+                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(2,99,196,0.04)", border: "1px solid var(--color-navy)" }}>
                       <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
                       <button
                         onClick={() => setCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}

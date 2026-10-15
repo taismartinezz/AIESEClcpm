@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { X, ArrowRight, ArrowLeft } from "lucide-react";
 
-const LS_KEY = "canopy_tour_v2";
+const LS_KEY = "aiesec_tour_v2";
 
 // ── Tour steps ─────────────────────────────────────────────────────────────────
 
@@ -18,23 +19,23 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
-    title: "Welcome to Canopy",
-    body: "Your research lab's all-in-one workspace. This tour highlights the main areas. Use arrow keys to move between steps.",
+    title: `Welcome to ${APP_NAME}`,
+    body: "Your Local Committee's workspace. This tour highlights the main areas. Use arrow keys to move between steps.",
   },
   {
     selector: 'a[href="/"]',
     title: "Dashboard",
-    body: "Your home base. See open tasks, team activity, lab wins, and opportunities at a glance.",
+    body: "Your home base. See open tasks, your LC's wins and opportunities, and how the team is doing.",
   },
   {
     selector: 'a[href="/tasks"]',
     title: "Tasks",
-    body: "Track research work on a Kanban board. Drag cards between stages, assign teammates, and set due dates.",
+    body: "Track LC work on a board from Backlog to Done. Assign teammates, tag a department and set due dates.",
   },
   {
     selector: 'a[href="/journal"]',
     title: "Journal",
-    body: "Your private research space. Notes and reflections here are visible only to you, not to PIs or teammates.",
+    body: "Your weekly check-in and private journal. Your journal is visible only to you; your check-in only ever counts towards averages.",
   },
   {
     selector: 'a[href="/reminders"]',
@@ -44,7 +45,7 @@ const STEPS: TourStep[] = [
   {
     selector: 'a[href="/team"]',
     title: "Team",
-    body: "See what everyone is working on, share your weekly update, and check availability for meetings.",
+    body: "Meet your executive board and departments, and share your weekly update.",
   },
 ];
 
@@ -310,8 +311,8 @@ export function useOnboarding() {
       localStorage.removeItem(LS_KEY);
       setShow(true);
     }
-    window.addEventListener("canopy:show-onboarding", handleRetrigger);
-    return () => window.removeEventListener("canopy:show-onboarding", handleRetrigger);
+    window.addEventListener("app:show-onboarding", handleRetrigger);
+    return () => window.removeEventListener("app:show-onboarding", handleRetrigger);
   }, []);
 
   return { show, open: () => setShow(true), close: () => setShow(false) };

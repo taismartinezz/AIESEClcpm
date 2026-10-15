@@ -289,7 +289,7 @@ export default function DashboardPage() {
     setProjectName(sp.name);
     const mockUser = getUser(CURRENT_USER_ID);
     if (mockUser?.name) setCurrentUserFirstName(mockUser.name.trim().split(/\s+/)[0]);
-    if (!localStorage.getItem("canopy_project")) {
+    if (!localStorage.getItem("aiesec_project")) {
       setTasks(TASKS);
       setDashPosts(DASHBOARD_POSTS);
     }

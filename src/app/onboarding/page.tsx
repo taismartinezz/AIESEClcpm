@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import { Users, BookOpen, Check, X, Search, ChevronDown } from "lucide-react";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
@@ -19,7 +20,7 @@ type Role = "president" | "member";
 
 const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
   emotional_processing: "Emotional Processing",
-  research_reflection: "Research Reflection",
+  purpose_growth: "Purpose & Growth",
   team_support: "Team & Support",
   boundaries_workload: "Boundaries & Workload",
   looking_forward: "Looking Forward",
@@ -71,7 +72,7 @@ function cardStyle(large: boolean): React.CSSProperties {
     maxWidth: large ? 720 : 580,
     width: "100%",
     padding: large ? "56px 56px 60px" : "40px 40px 44px",
-    boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+    boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
   };
 }
 
@@ -286,9 +287,9 @@ function SectionTitle({ title, subtitle, large }: { title: string; subtitle?: st
 // ── Wellbeing preview (shared) ────────────────────────────────────────────────
 
 const SAMPLE_QUESTIONS = [
-  "How supported do you feel by your team this week?",
-  "How manageable is your workload right now?",
-  "How connected do you feel to the purpose of your research?",
+  "I have had enough energy for my AIESEC responsibilities this week.",
+  "My AIESEC workload has felt manageable this week.",
+  "I have felt supported by my VP or team leader this week.",
 ];
 
 function WellbeingPreview({ role }: { role: "president" | "member" }) {
@@ -297,12 +298,14 @@ function WellbeingPreview({ role }: { role: "president" | "member" }) {
     <div>
       {role === "president" ? (
         <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Your team completes a brief weekly check-in. You'll see aggregated scores, never individual responses.
-          Canopy only surfaces results when enough team members have responded, so every voice stays protected.
+          Your VPs and members answer a one-minute weekly check-in. You&apos;ll see averages for the
+          executive board and for each department, never anyone&apos;s individual answers, and only
+          for weeks when enough people responded to keep everyone anonymous.
         </p>
       ) : (
         <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Each week, Canopy sends a short 3-question check-in. Your responses are private. Only aggregated team insights are visible to your PI.
+          Each week you&apos;ll get a one-minute check-in. Your VP and LCP see the average for your
+          department, never your individual answers, and only when enough people have responded.
         </p>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -541,15 +544,15 @@ export default function OnboardingPage() {
 
     async function init() {
       if (!isSupabaseConfigured) {
-        if (!localStorage.getItem("canopy_authed")) { router.replace("/login"); return; }
+        if (!localStorage.getItem("aiesec_authed")) { router.replace("/login"); return; }
         const pendingInvite = localStorage.getItem("pendingInviteCode");
         if (pendingInvite) setInviteCode(pendingInvite);
-        if (localStorage.getItem("canopy_project")) { router.replace("/"); return; }
-        const signupName = localStorage.getItem("canopy_signup_name") ?? "";
+        if (localStorage.getItem("aiesec_project")) { router.replace("/"); return; }
+        const signupName = localStorage.getItem("aiesec_signup_name") ?? "";
         if (signupName) {
           setPiUserName(signupName);
           setResUserName(signupName);
-          localStorage.removeItem("canopy_signup_name");
+          localStorage.removeItem("aiesec_signup_name");
         }
         setSessionReady(true);
         return;
@@ -571,11 +574,11 @@ export default function OnboardingPage() {
       // existing user is creating/joining another LC (/onboarding?add=1).
       const { data: existingProfile } = await supabase
         .from("user_profiles").select("name").eq("id", session.user.id).maybeSingle();
-      const signupName = localStorage.getItem("canopy_signup_name") ?? (existingProfile?.name as string | undefined) ?? "";
+      const signupName = localStorage.getItem("aiesec_signup_name") ?? (existingProfile?.name as string | undefined) ?? "";
       if (signupName) {
         setPiUserName(signupName);
         setResUserName(signupName);
-        localStorage.removeItem("canopy_signup_name");
+        localStorage.removeItem("aiesec_signup_name");
       }
 
       setSessionReady(true);
@@ -669,7 +672,7 @@ export default function OnboardingPage() {
     }
 
     localStorage.setItem(
-      "canopy_project",
+      "aiesec_project",
       JSON.stringify({
         id: crypto.randomUUID(),
         name: projectName,
@@ -687,7 +690,7 @@ export default function OnboardingPage() {
           : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 
     localStorage.setItem(
-      "canopy_user",
+      "aiesec_user",
       JSON.stringify({
         id: crypto.randomUUID(),
         name: userName,
@@ -699,12 +702,12 @@ export default function OnboardingPage() {
     );
 
     if (role === "president" && generatedCode) {
-      localStorage.setItem("canopy_invite_code", generatedCode);
+      localStorage.setItem("aiesec_invite_code", generatedCode);
     }
 
     if (role === "president" && inviteEmails.length > 0) {
       localStorage.setItem(
-        "canopy_email_invites",
+        "aiesec_email_invites",
         JSON.stringify(inviteEmails.map((email) => ({ email, code: emailCodes[email] }))),
       );
     }
@@ -779,8 +782,8 @@ export default function OnboardingPage() {
             await supabase.from("sub_project_invite_codes").update({
               status: "accepted", used_by: user.id, used_at: new Date().toISOString(),
             }).eq("id", invite.id as string);
-            localStorage.setItem("canopy_active_sub_project", invite.sub_project_id as string);
-            localStorage.setItem("canopy_scope_mode", "project");
+            localStorage.setItem("aiesec_active_group", invite.sub_project_id as string);
+            localStorage.setItem("aiesec_scope_mode", "project");
           }
           localStorage.removeItem("pendingProjectInviteToken");
         }
@@ -801,7 +804,7 @@ export default function OnboardingPage() {
           <StepDots current={1} total={role === "president" ? CREATE_STEPS : JOIN_STEPS} />
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <CanopyLogo size={32} />
+            <BrandLogo size={32} />
           </div>
 
           <h1
@@ -814,7 +817,7 @@ export default function OnboardingPage() {
               margin: "16px 0 8px",
             }}
           >
-            Welcome to Canopy
+            Welcome to {APP_NAME}
           </h1>
           <p
             style={{
@@ -826,7 +829,7 @@ export default function OnboardingPage() {
               margin: "0 0 32px",
             }}
           >
-            How are you using Canopy?
+            How would you like to start?
           </p>
 
           {/* Role cards */}
@@ -949,7 +952,7 @@ export default function OnboardingPage() {
                 <div style={{
                   position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
                   backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8,
-                  boxShadow: "0 4px 16px rgba(27,46,75,0.1)", maxHeight: 200, overflowY: "auto",
+                  boxShadow: "0 4px 16px rgba(2,99,196,0.1)", maxHeight: 200, overflowY: "auto",
                 }}>
                   {institutionResults.map((r) => (
                     <button
@@ -1001,7 +1004,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your schedule"
-            subtitle="Canopy uses this for meeting suggestions and your weekly digest."
+            subtitle="Used for quiet hours and your weekly digest."
           />
           <WorkingHoursEditor
             timezone={piTimezone}
@@ -1028,7 +1031,7 @@ export default function OnboardingPage() {
       return (
         <div style={PAGE_WRAP}>
           <div style={{ ...cardStyle(isLarge), textAlign: "center", padding: isLarge ? "72px 56px" : "56px 40px" }}>
-            <CanopyLogo size={28} />
+            <BrandLogo size={28} />
             <p style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 18, color: "var(--color-navy)", marginTop: 20, marginBottom: 0 }}>
               Joined! Setting up your workspace...
             </p>
@@ -1236,7 +1239,7 @@ export default function OnboardingPage() {
                   <p style={{ fontFamily: "var(--font-roboto)", fontSize: 11, color: "var(--color-secondary)", margin: 0, letterSpacing: revealLink ? 0 : "0.05em" }}>
                     {revealLink
                       ? (typeof window !== "undefined" ? `${window.location.origin}/login?invite=${generatedCode}` : `/login?invite=${generatedCode}`)
-                      : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "canopyteams.tech")}/login?invite=••••••••`}
+                      : `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/login?invite=••••••••`}
                   </p>
                   <button type="button" onClick={() => setRevealLink(v => !v)}
                     style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 11, color: "var(--color-navy)", textDecoration: "underline", padding: 0 }}>
@@ -1291,7 +1294,7 @@ export default function OnboardingPage() {
                     return (
                       <button key={prompt.id}
                         onClick={() => setPiActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
-                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(27,46,75,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
+                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(2,99,196,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
                         {prompt.text}
                       </button>
                     );
@@ -1307,7 +1310,7 @@ export default function OnboardingPage() {
               {piCustomPrompts.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
                   {piCustomPrompts.map(cp => (
-                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(27,46,75,0.04)", border: "1px solid var(--color-navy)" }}>
+                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(2,99,196,0.04)", border: "1px solid var(--color-navy)" }}>
                       <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
                       <button onClick={() => setPiCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}
                         style={{ flexShrink: 0, height: 24, width: 24, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "none", cursor: "pointer" }}
@@ -1443,7 +1446,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your schedule"
-            subtitle="Canopy uses this for meeting suggestions and your weekly digest."
+            subtitle="Used for quiet hours and your weekly digest."
           />
           <WorkingHoursEditor
             timezone={resTimezone}

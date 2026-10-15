@@ -24,7 +24,7 @@ type AgendaItem = {
 // ── Kind chip config ───────────────────────────────────────────────────────────
 
 const KIND_CFG = {
-  task:     { label: "Task",     color: "var(--color-navy)",     bg: "rgba(27,46,75,0.09)" },
+  task:     { label: "Task",     color: "var(--color-navy)",     bg: "rgba(2,99,196,0.09)" },
   reminder: { label: "Reminder", color: "var(--color-body)",     bg: "rgba(0,0,0,0.06)"   },
   event:    { label: "Event",    color: "var(--color-secondary)", bg: "rgba(0,0,0,0.05)"  },
 };

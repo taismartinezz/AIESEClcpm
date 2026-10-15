@@ -1,426 +1,132 @@
 import type {
   User, Project, Task, JournalEntry, JournalPrompt, CheckinQuestion,
-  TeamMember, ActivityEvent,
+  TeamMember, ActivityEvent, Department,
   CalendarEvent, DashboardPost, Notification, Reminder,
 } from "@/types";
 
+// Demo data shown when no Supabase project is configured (prototype mode).
+// It models one AIESEC Local Committee; every name here is fictional.
+
 // ── Users ─────────────────────────────────────────────────────────────────────
 
-export const CURRENT_USER_ID = "u1"; // The logged-in researcher (Tais)
+export const CURRENT_USER_ID = "u1"; // The signed-in demo user (a Marketing member)
 
 export const USERS: User[] = [
-  {
-    id: "u0",
-    name: "Dr. Yara Osei",
-    email: "yara.osei@univ.edu",
-    role: "president",
-    avatarColor: "#C5B4E3",
-    avatarInitials: "YO",
-  },
-  {
-    id: "u1",
-    name: "Tais Martinez",
-    email: "tais.martinez@univ.edu",
-    role: "member",
-    avatarColor: "#B4D4E3",
-    avatarInitials: "TM",
-  },
-  {
-    id: "u2",
-    name: "Achi Mensah",
-    email: "achi.mensah@univ.edu",
-    role: "member",
-    avatarColor: "#B4E3C8",
-    avatarInitials: "AM",
-  },
-  {
-    id: "u3",
-    name: "Jordan Lee",
-    email: "jordan.lee@univ.edu",
-    role: "member",
-    avatarColor: "#E3D4B4",
-    avatarInitials: "JL",
-  },
-  {
-    id: "u4",
-    name: "Priya Nair",
-    email: "priya.nair@univ.edu",
-    role: "member",
-    avatarColor: "#E3B4B4",
-    avatarInitials: "PN",
-  },
+  { id: "u0", name: "Sofia Almeida", email: "sofia.almeida@example.com", role: "president", avatarColor: "#B4D4F7", avatarInitials: "SA" },
+  { id: "u1", name: "Tais Martinez", email: "tais.martinez@example.com", role: "member",    avatarColor: "#B4E3E5", avatarInitials: "TM" },
+  { id: "u2", name: "Kwame Mensah",  email: "kwame.mensah@example.com",  role: "vp",        avatarColor: "#FBD3CB", avatarInitials: "KM" },
+  { id: "u3", name: "Lena Fischer",  email: "lena.fischer@example.com",  role: "vp",        avatarColor: "#FFEBB5", avatarInitials: "LF" },
+  { id: "u4", name: "Priya Nair",    email: "priya.nair@example.com",    role: "member",    avatarColor: "#B5ECD3", avatarInitials: "PN" },
+  { id: "u5", name: "Diego Rojas",   email: "diego.rojas@example.com",   role: "member",    avatarColor: "#D9CCF2", avatarInitials: "DR" },
 ];
 
 export function getUser(id: string) {
   return USERS.find((u) => u.id === id);
 }
 
-// ── Project ───────────────────────────────────────────────────────────────────
+// ── Local Committee ───────────────────────────────────────────────────────────
 
 export const PROJECT: Project = {
   id: "p1",
-  name: "Moral Injury & Resilience Study",
-  institution: "",
-  researchType: "trauma",
-  researchParticipation: "private",
-  createdAt: "2025-09-01T00:00:00Z",
-  members: ["u0", "u1", "u2", "u3", "u4"],
+  name: "AIESEC in Lisbon",
+  institution: "University of Lisbon",
+  createdAt: "2026-02-01T00:00:00Z",
+  members: USERS.map((u) => u.id),
+};
+
+export const DEPARTMENTS: Department[] = [
+  { id: "d-ogv",  projectId: "p1", name: "Outgoing Global Volunteer",      color: "#F85A40", vpUserId: "u2", isFinance: false, sortOrder: 1 },
+  { id: "d-ogta", projectId: "p1", name: "Outgoing Global Talent/Teacher", color: "#0CB9C1", vpUserId: "u2", isFinance: false, sortOrder: 2 },
+  { id: "d-igv",  projectId: "p1", name: "Incoming Global Volunteer",      color: "#D9442B", vpUserId: null, isFinance: false, sortOrder: 3 },
+  { id: "d-igta", projectId: "p1", name: "Incoming Global Talent/Teacher", color: "#0A8F96", vpUserId: null, isFinance: false, sortOrder: 4 },
+  { id: "d-mkt",  projectId: "p1", name: "Marketing",                      color: "#FFC845", vpUserId: "u3", isFinance: false, sortOrder: 5 },
+  { id: "d-tm",   projectId: "p1", name: "Talent Management",              color: "#00C16E", vpUserId: null, isFinance: false, sortOrder: 6 },
+  { id: "d-fl",   projectId: "p1", name: "Finance & Legality",             color: "#037EF3", vpUserId: null, isFinance: true,  sortOrder: 7 },
+  { id: "d-bd",   projectId: "p1", name: "Business Development",           color: "#7552CC", vpUserId: null, isFinance: false, sortOrder: 8 },
+];
+
+/** Which department each demo member belongs to. */
+export const MEMBER_DEPARTMENTS: Record<string, string | null> = {
+  u0: null, u1: "d-mkt", u2: null, u3: null, u4: "d-ogv", u5: "d-mkt",
 };
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
+const daysFromNow = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().split("T")[0];
+const hoursAgo = (n: number) => new Date(Date.now() - n * 3_600_000).toISOString();
+
+function task(t: Partial<Task> & Pick<Task, "id" | "title" | "status">): Task {
+  return {
+    projectId: "p1", priority: "medium", assigneeIds: [], scope: "lab",
+    createdAt: hoursAgo(240), updatedAt: hoursAgo(24),
+    comments: [], files: [], links: [], ...t,
+  };
+}
+
 export const TASKS: Task[] = [
-  {
-    id: "t1",
-    projectId: "p1",
-    title: "Finalize consent form language",
-    description:
-      "Review the draft consent form against IRB protocol 2025-0341. Pay particular attention to the section on audio recording and data retention.",
-    status: "in_review",
-    priority: "high",
-    assigneeIds: ["u1", "u0"],
-    dueDate: "2026-06-06",
-    createdAt: "2026-05-20T10:00:00Z",
-    updatedAt: "2026-06-01T14:30:00Z",
-    comments: [
-      {
-        id: "c1",
-        authorId: "u0",
-        content:
-          "Please double-check that the withdrawal language matches what we submitted to IRB. The version from last March had a slightly different phrasing.",
-        createdAt: "2026-05-28T09:15:00Z",
-      },
-      {
-        id: "c2",
-        authorId: "u1",
-        content:
-          "Updated the withdrawal section. Matches the IRB submission exactly now. @u0 can you take a final look before we send to legal?",
-        createdAt: "2026-05-29T11:30:00Z",
-        mentions: ["u0"],
-      },
-    ],
-    files: [
-      {
-        id: "f1",
-        name: "consent_form_v4.docx",
-        size: 48200,
-        uploaderId: "u1",
-        uploadedAt: "2026-05-29T11:28:00Z",
-        url: "#",
-        type: "docx",
-      },
-    ],
-    links: [
-      {
-        id: "l1",
-        title: "IRB Protocol 2025-0341 (Google Doc)",
-        url: "#",
-        type: "google_doc",
-      },
-    ],
-  },
-  {
-    id: "t2",
-    projectId: "p1",
-    title: "Code interview transcripts: Phase 1",
-    description:
-      "Apply the moral injury codebook to the first 12 interview transcripts. Flag any passages that don't fit existing codes for team discussion.",
-    status: "in_progress",
-    priority: "high",
-    assigneeIds: ["u2", "u3"],
-    dueDate: "2026-06-14",
-    createdAt: "2026-05-15T09:00:00Z",
-    updatedAt: "2026-06-01T10:00:00Z",
-    comments: [
-      {
-        id: "c3",
-        authorId: "u2",
-        content:
-          "Finished transcripts 1–6. Three passages in transcript 4 don't map cleanly to existing codes. Will flag in the shared doc.",
-        createdAt: "2026-05-31T16:00:00Z",
-      },
-    ],
-    files: [],
-    links: [
-      {
-        id: "l2",
-        title: "Codebook v2 (Google Sheet)",
-        url: "#",
-        type: "google_sheet",
-      },
-    ],
-  },
-  {
-    id: "t3",
-    projectId: "p1",
-    title: "Literature review: resilience frameworks",
-    description:
-      "Synthesize literature on post-traumatic resilience frameworks published 2018–2026. Focus on longitudinal study designs.",
-    status: "in_progress",
-    priority: "medium",
-    assigneeIds: ["u1"],
-    dueDate: "2026-06-20",
-    createdAt: "2026-05-10T08:00:00Z",
-    updatedAt: "2026-05-30T12:00:00Z",
-    comments: [],
-    files: [],
-    links: [
-      {
-        id: "l3",
-        title: "Literature Review Notes (Google Doc)",
-        url: "#",
-        type: "google_doc",
-      },
-    ],
-  },
-  {
-    id: "t4",
-    projectId: "p1",
-    title: "Schedule Phase 2 participant interviews",
-    description:
-      "Coordinate with 18 participants for 60-minute interviews. Use the Zoom link and send calendar invites. Ensure the trauma-informed protocol script is ready.",
-    status: "todo",
-    priority: "medium",
-    assigneeIds: ["u4"],
-    dueDate: "2026-06-10",
-    createdAt: "2026-05-25T14:00:00Z",
-    updatedAt: "2026-05-25T14:00:00Z",
-    comments: [],
-    files: [],
-    links: [],
-  },
-  {
-    id: "t5",
-    projectId: "p1",
-    title: "Prepare team debrief protocol",
-    description:
-      "Draft structured debrief questions for the post-interview team check-in. Reference the vicarious trauma mitigation guide from Dr. Osei's previous study.",
-    status: "todo",
-    priority: "medium",
-    assigneeIds: ["u0", "u1"],
-    dueDate: "2026-06-08",
-    createdAt: "2026-05-26T10:00:00Z",
-    updatedAt: "2026-05-26T10:00:00Z",
-    comments: [],
-    files: [],
-    links: [],
-  },
-  {
-    id: "t6",
-    projectId: "p1",
-    title: "Statistical analysis: pilot data",
-    description:
-      "Run descriptive statistics on the 24-person pilot dataset. Check for floor/ceiling effects on the MI-Measure subscales.",
-    status: "todo",
-    priority: "low",
-    assigneeIds: ["u3"],
-    dueDate: "2026-06-28",
-    createdAt: "2026-05-28T09:00:00Z",
-    updatedAt: "2026-05-28T09:00:00Z",
-    comments: [],
-    files: [],
-    links: [
-      {
-        id: "l4",
-        title: "Pilot Data Analysis Sheet (Google Sheet)",
-        url: "#",
-        type: "google_sheet",
-      },
-    ],
-  },
-  {
-    id: "t7",
-    projectId: "p1",
-    title: "Submit ethics amendment",
-    description:
-      "File the amendment to extend data collection by 6 months and add the digital consent procedure.",
-    status: "done",
-    priority: "high",
-    assigneeIds: ["u0", "u1"],
-    dueDate: "2026-05-15",
-    createdAt: "2026-04-20T09:00:00Z",
-    updatedAt: "2026-05-14T17:00:00Z",
-    comments: [
-      {
-        id: "c4",
-        authorId: "u0",
-        content: "Amendment approved. IRB confirmation email is in the project folder.",
-        createdAt: "2026-05-20T10:00:00Z",
-      },
-    ],
-    files: [
-      {
-        id: "f2",
-        name: "ethics_amendment_approved.pdf",
-        size: 124800,
-        uploaderId: "u0",
-        uploadedAt: "2026-05-20T10:05:00Z",
-        url: "#",
-        type: "pdf",
-      },
-    ],
-    links: [],
-  },
-  {
-    id: "t8",
-    projectId: "p1",
-    title: "Develop trauma-informed interview guide",
-    description:
-      "Iterative development of the semi-structured interview protocol. Three rounds of peer review completed.",
-    status: "done",
-    priority: "high",
-    assigneeIds: ["u0", "u2", "u4"],
-    dueDate: "2026-04-30",
-    createdAt: "2026-03-15T08:00:00Z",
-    updatedAt: "2026-04-28T15:00:00Z",
-    comments: [],
-    files: [
-      {
-        id: "f3",
-        name: "interview_guide_final.docx",
-        size: 89600,
-        uploaderId: "u0",
-        uploadedAt: "2026-04-28T15:00:00Z",
-        url: "#",
-        type: "docx",
-      },
-    ],
-    links: [],
-  },
+  task({ id: "t1", title: "Design recruitment posters for the oGV info session", status: "in_progress", priority: "high",
+    assigneeIds: ["u1", "u5"], departmentId: "d-mkt", dueDate: daysFromNow(3),
+    description: "Two formats: A3 print and Instagram story. Use the new brand templates.",
+    links: [{ id: "l1", title: "Poster brief (Google Doc)", url: "https://docs.google.com/", type: "google_doc" }] }),
+  task({ id: "t2", title: "Book the auditorium for the info session", status: "todo", priority: "high",
+    assigneeIds: ["u4"], departmentId: "d-ogv", dueDate: daysFromNow(5) }),
+  task({ id: "t3", title: "Prepare onboarding pack for new members", status: "in_review", priority: "medium",
+    assigneeIds: ["u0"], departmentId: "d-tm", dueDate: daysFromNow(7) }),
+  task({ id: "t4", title: "Reach out to 10 partner companies for summer internships", status: "backlog", priority: "medium",
+    departmentId: "d-bd" }),
+  task({ id: "t5", title: "Post weekly exchange story on Instagram", status: "done", priority: "low",
+    assigneeIds: ["u1"], departmentId: "d-mkt", dueDate: daysFromNow(-2) }),
+  task({ id: "t6", title: "Collect reimbursement receipts from the national conference", status: "todo", priority: "medium",
+    assigneeIds: ["u2"], departmentId: "d-fl", dueDate: daysFromNow(-1) }),
+  task({ id: "t7", title: "Match 3 applicants with Global Volunteer projects", status: "in_progress", priority: "high",
+    assigneeIds: ["u4", "u2"], departmentId: "d-ogv", dueDate: daysFromNow(10) }),
 ];
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
 export const ACTIVITY: ActivityEvent[] = [
-  {
-    id: "a1",
-    actorId: "u2",
-    action: "moved",
-    objectType: "task",
-    objectLabel: "Code interview transcripts: Phase 1",
-    destination: "In Progress",
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-  },
-  {
-    id: "a2",
-    actorId: "u1",
-    action: "uploaded",
-    objectType: "file",
-    objectLabel: "consent_form_v4.docx",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-  },
-  {
-    id: "a3",
-    actorId: "u4",
-    action: "assigned themselves to",
-    objectType: "task",
-    objectLabel: "Schedule Phase 2 participant interviews",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-  },
-  {
-    id: "a4",
-    actorId: "u0",
-    action: "commented on",
-    objectType: "comment",
-    objectLabel: "Finalize consent form language",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
-  },
-  {
-    id: "a5",
-    actorId: "u3",
-    action: "created",
-    objectType: "task",
-    objectLabel: "Statistical analysis: pilot data",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-  },
+  { id: "a1", actorId: "u4", action: "moved", objectType: "task", objectLabel: "Match 3 applicants with Global Volunteer projects", destination: "In progress", createdAt: hoursAgo(1) },
+  { id: "a2", actorId: "u1", action: "uploaded", objectType: "file", objectLabel: "poster_v2.png", createdAt: hoursAgo(2) },
+  { id: "a3", actorId: "u0", action: "commented on", objectType: "comment", objectLabel: "Prepare onboarding pack for new members", createdAt: hoursAgo(22) },
+  { id: "a4", actorId: "u3", action: "created", objectType: "task", objectLabel: "Post weekly exchange story on Instagram", createdAt: hoursAgo(48) },
 ];
 
 // ── Calendar Events ───────────────────────────────────────────────────────────
 
 export const EVENTS: CalendarEvent[] = [
-  {
-    id: "e1",
-    title: "Team debrief: post interview",
-    date: "2026-06-04",
-    time: "14:00",
-    projectId: "p1",
-  },
-  {
-    id: "e2",
-    title: "IRB amendment follow-up call",
-    date: "2026-06-06",
-    time: "11:00",
-    projectId: "p1",
-  },
-  {
-    id: "e3",
-    title: "Phase 2 participant interviews begin",
-    date: "2026-06-10",
-    projectId: "p1",
-  },
-  {
-    id: "e4",
-    title: "Lab meeting: codebook review",
-    date: "2026-06-12",
-    time: "13:00",
-    projectId: "p1",
-  },
-  {
-    id: "e5",
-    title: "Conference abstract deadline",
-    date: "2026-06-20",
-    projectId: "p1",
-  },
+  { id: "e1", title: "oGV info session", date: daysFromNow(6), time: "18:00", projectId: "p1" },
+  { id: "e2", title: "LC meeting", date: daysFromNow(2), time: "19:00", projectId: "p1" },
+  { id: "e3", title: "National conference registration closes", date: daysFromNow(14), projectId: "p1" },
 ];
 
 // ── Dashboard Posts ───────────────────────────────────────────────────────────
 
 export const DASHBOARD_POSTS: DashboardPost[] = [
-  {
-    id: "dp1",
-    authorId: "u2",
-    content:
-      "NSF supplement funding opportunity. Due Aug 1. Could support a summer RA. Sharing link in Slack.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(),
-    type: "opportunity",
-  },
-  {
-    id: "dp2",
-    authorId: "u4",
-    content:
-      "Priya just got accepted to the APA Trauma Division early-career workshop!",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-    type: "lab_win",
-  },
-  {
-    id: "dp3",
-    authorId: "u0",
-    content: "The ethics amendment was approved faster than expected: 3 weeks! Great team effort on that submission.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString(),
-    type: "lab_win",
-  },
+  { id: "dp1", authorId: "u3", content: "Applications are open for the national conference organising committee. Great for anyone who wants event experience.", createdAt: hoursAgo(36), type: "opportunity" },
+  { id: "dp2", authorId: "u2", content: "Two applicants approved for Global Volunteer projects in Brazil this week!", createdAt: hoursAgo(72), type: "lab_win" },
+  { id: "dp3", authorId: "u0", content: "Our info-session sign-ups doubled compared to last term. Great work, Marketing!", createdAt: hoursAgo(120), type: "lab_win" },
 ];
 
 // ── Journal Prompts ───────────────────────────────────────────────────────────
 
 export const JOURNAL_PROMPTS: JournalPrompt[] = [
-  // Emotional Processing
-  { id: "jp1", text: "What emotions came up for you in your research work this week?", category: "emotional_processing" },
-  { id: "jp2", text: "Was there a moment this week when you felt particularly affected by the content of your work? What happened?", category: "emotional_processing" },
+  // Emotional processing
+  { id: "jp1", text: "What emotions came up for you in your AIESEC work this week?", category: "emotional_processing" },
+  { id: "jp2", text: "Was there a moment this week that really stuck with you, good or hard? What happened?", category: "emotional_processing" },
   { id: "jp3", text: "What have you done to take care of yourself this week?", category: "emotional_processing" },
-  // Research Reflection
-  { id: "jp4", text: "What felt meaningful in your research work this week?", category: "research_reflection" },
-  { id: "jp5", text: "What's one thing you're uncertain about in your current research, and how are you sitting with that uncertainty?", category: "research_reflection" },
-  { id: "jp6", text: "How does the work you're doing connect to the reason you started this research in the first place?", category: "research_reflection" },
-  // Boundaries & Workload
-  { id: "jp7", text: "Were you able to step away from your research this week? What helped or made that difficult?", category: "boundaries_workload" },
-  { id: "jp8", text: "What's one thing you wish your team knew about your workload this week?", category: "boundaries_workload" },
-  // Team & Support
+  // Purpose & growth
+  { id: "jp4", text: "What felt meaningful in your AIESEC experience this week?", category: "purpose_growth" },
+  { id: "jp5", text: "What's one skill you're building through your role right now, and how is it going?", category: "purpose_growth" },
+  { id: "jp6", text: "How does what you did this week connect to why you joined AIESEC?", category: "purpose_growth" },
+  // Boundaries & workload
+  { id: "jp7", text: "How did you balance AIESEC with your studies, work and personal life this week? What helped or made it hard?", category: "boundaries_workload" },
+  { id: "jp8", text: "What's one thing you wish your VP or team knew about your workload this week?", category: "boundaries_workload" },
+  // Team & support
   { id: "jp9", text: "Is there something you'd like more support with right now? What would that support look like?", category: "team_support" },
-  { id: "jp10", text: "How connected did you feel to your team this week?", category: "team_support" },
-  // Looking Forward
-  { id: "jp11", text: "What's one thing you're looking forward to next week, in or outside of your research?", category: "looking_forward" },
-  { id: "jp12", text: "If you could change one thing about how your research work is going right now, what would it be?", category: "looking_forward" },
+  { id: "jp10", text: "How connected did you feel to your team and LC this week?", category: "team_support" },
+  // Looking forward
+  { id: "jp11", text: "What's one thing you're looking forward to next week, in or outside of AIESEC?", category: "looking_forward" },
+  { id: "jp12", text: "If you could change one thing about how your term is going, what would it be?", category: "looking_forward" },
 ];
 
 export const ACTIVE_PROMPT_IDS = ["jp2", "jp7", "jp11"];
@@ -457,173 +163,51 @@ export const JOURNAL_ENTRIES: JournalEntry[] = [
   {
     id: "je1",
     userId: "u1",
-    date: "2026-05-26",
+    date: daysFromNow(-7),
     prompts: [
-      {
-        promptId: "jp2",
-        promptText: "Was there a moment this week when you felt particularly affected by the content of your work? What happened?",
-        response:
-          "Transcript 3 from the pilot was hard to sit with. The participant described losing a colleague to suicide after they both witnessed the same incident. I noticed myself slowing way down while coding it, which I think is good, actually. Gave myself the afternoon to step away from the coding and go for a walk.",
-      },
-      {
-        promptId: "jp7",
-        promptText: "Were you able to step away from your research this week? What helped or made that difficult?",
-        response:
-          "Better than last week. I set a hard stop at 6pm on Wednesday and kept it. The hardest day was Friday when I wanted to finish coding transcript 6; I ended up stopping at a natural break instead of pushing through. It helped.",
-      },
-      {
-        promptId: "jp11",
-        promptText: "What's one thing you're looking forward to next week, in or outside of your research?",
-        response: "The team meeting Thursday. I actually enjoy when we all get together to work through codebook disagreements. Also: hiking Sunday.",
-      },
+      { promptId: "jp2", promptText: "Was there a moment this week that really stuck with you, good or hard? What happened?",
+        response: "Seeing the first poster go up on campus. I was nervous it looked amateur but people actually stopped to read it." },
+      { promptId: "jp7", promptText: "How did you balance AIESEC with your studies, work and personal life this week? What helped or made it hard?",
+        response: "Harder than usual: two exams plus the poster deadline. Told my VP early and we moved one task, which helped a lot." },
     ],
-    checkin: [
-      { questionId: "cq1", score: 4 },
-      { questionId: "cq2", score: 3 },
-      { questionId: "cq3", score: 5 },
-      { questionId: "cq4", score: 3 },
-      { questionId: "cq5", score: 4 },
-    ],
+    checkin: [],
     isDraft: false,
-    createdAt: "2026-05-26T19:00:00Z",
-    updatedAt: "2026-05-26T19:45:00Z",
-  },
-  {
-    id: "je2",
-    userId: "u1",
-    date: "2026-05-19",
-    prompts: [
-      {
-        promptId: "jp2",
-        promptText: "Was there a moment this week when you felt particularly affected by the content of your work? What happened?",
-        response: "Not as much as other weeks. The administrative work (IRB amendment) is tedious but less emotionally activating. I think I needed a week like this.",
-      },
-      {
-        promptId: "jp7",
-        promptText: "Were you able to step away from your research this week? What helped or made that difficult?",
-        response: "Harder this week. Kept thinking about the amendment deadlines. Worked a couple of evenings I hadn't planned to.",
-      },
-      {
-        promptId: "jp11",
-        promptText: "What's one thing you're looking forward to next week, in or outside of your research?",
-        response: "Getting back to the actual interview data.",
-      },
-    ],
-    checkin: [
-      { questionId: "cq1", score: 4 },
-      { questionId: "cq2", score: 2 },
-      { questionId: "cq3", score: 3 },
-      { questionId: "cq4", score: 2 },
-      { questionId: "cq5", score: 4 },
-    ],
-    isDraft: false,
-    createdAt: "2026-05-19T20:00:00Z",
-    updatedAt: "2026-05-19T20:30:00Z",
+    createdAt: hoursAgo(24 * 7),
+    updatedAt: hoursAgo(24 * 7),
   },
 ];
 
 // ── Team Members ──────────────────────────────────────────────────────────────
 
-export const TEAM_MEMBERS: TeamMember[] = [
-  {
-    ...USERS[0],
-    taskCounts: { backlog: 0, todo: 2, in_progress: 1, in_review: 1, done: 2 },
-    weeklyUpdate: "Reviewing Phase 1 coding and preparing debrief protocol.",
-    weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-  },
-  {
-    ...USERS[1],
-    taskCounts: { backlog: 0, todo: 1, in_progress: 1, in_review: 1, done: 1 },
-    weeklyUpdate: "Literature review + consent form final review.",
-    weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
-  },
-  {
-    ...USERS[2],
-    taskCounts: { backlog: 0, todo: 0, in_progress: 1, in_review: 0, done: 1 },
-    weeklyUpdate: "Coding transcripts 7–12 this week.",
-    weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
-  },
-  {
-    ...USERS[3],
-    taskCounts: { backlog: 0, todo: 1, in_progress: 1, in_review: 0, done: 0 },
-    weeklyUpdate: undefined,
-    weeklyUpdatedAt: undefined,
-  },
-  {
-    ...USERS[4],
-    taskCounts: { backlog: 0, todo: 1, in_progress: 0, in_review: 0, done: 1 },
-    weeklyUpdate: "Scheduling participant interviews for Phase 2.",
-    weeklyUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(),
-  },
-];
+const WEEKLY_UPDATES: Record<string, string | undefined> = {
+  u0: "Preparing the LC meeting agenda and the new-member onboarding pack.",
+  u1: "Finishing the info-session posters.",
+  u2: "Matching applicants and chasing conference receipts.",
+  u3: "Planning next month's content calendar.",
+  u4: "Booking rooms for the oGV info session.",
+};
+
+export const TEAM_MEMBERS: TeamMember[] = USERS.map((u, i) => ({
+  ...u,
+  departmentId: MEMBER_DEPARTMENTS[u.id] ?? null,
+  taskCounts: { backlog: i % 2, todo: 1, in_progress: (i + 1) % 2, in_review: i === 0 ? 1 : 0, done: 1 },
+  weeklyUpdate: WEEKLY_UPDATES[u.id],
+  weeklyUpdatedAt: WEEKLY_UPDATES[u.id] ? hoursAgo(8 + i * 4) : undefined,
+}));
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export const NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "task_comment",
-    recipientId: "u1",
-    message: "Dr. Yara Osei commented on Finalize consent form language",
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    linkTo: "/tasks",
-  },
-  {
-    id: "n2",
-    type: "task_mention",
-    recipientId: "u1",
-    message: "You were mentioned in a comment on Finalize consent form language",
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    linkTo: "/tasks",
-  },
-  {
-    id: "n3",
-    type: "journal_reminder",
-    recipientId: "u1",
-    message: "Your journal is here when you're ready.",
-    read: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(),
-    linkTo: "/journal",
-  },
-  {
-    id: "n4",
-    type: "meeting_proposed",
-    recipientId: "u1",
-    message: "Dr. Yara Osei proposed a meeting: Consent Form Review on Jul 8 at 10:00 AM",
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    linkTo: "/reminders",
-  },
+  { id: "n1", type: "task_comment", recipientId: "u1", message: "Lena Fischer commented on Design recruitment posters for the oGV info session", read: false, createdAt: hoursAgo(1), linkTo: "/tasks" },
+  { id: "n2", type: "task_assigned", recipientId: "u1", message: "You were assigned Post weekly exchange story on Instagram", read: true, createdAt: hoursAgo(30), linkTo: "/tasks" },
+  { id: "n3", type: "journal_reminder", recipientId: "u1", message: "This week's check-in is ready when you are.", read: false, createdAt: hoursAgo(36), linkTo: "/journal" },
 ];
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
 export const REMINDERS: Reminder[] = [
-  {
-    id: "rem1",
-    userId: "u1",
-    scope: "personal" as const,
-    title: "Submit IRB amendment",
-    dueAt: "2026-07-10T09:00:00Z",
-    emailEnabled: true,
-    sent: false,
-    completed: false,
-    createdAt: "2026-07-01T08:00:00Z",
-  },
-  {
-    id: "rem2",
-    userId: "u1",
-    scope: "personal" as const,
-    title: "Review consent form draft",
-    dueAt: "2026-07-07T08:00:00Z",
-    linkedTaskId: "t1",
-    emailEnabled: false,
-    sent: false,
-    completed: false,
-    createdAt: "2026-06-30T12:00:00Z",
-  },
+  { id: "rem1", userId: "u1", scope: "personal", title: "Send poster files to the print shop", dueAt: new Date(Date.now() + 86_400_000).toISOString(), linkedTaskId: "t1", emailEnabled: false, sent: false, completed: false, createdAt: hoursAgo(20) },
+  { id: "rem2", userId: "u1", projectId: "p1", scope: "lab", title: "LC meeting: bring your department update", dueAt: new Date(Date.now() + 2 * 86_400_000).toISOString(), emailEnabled: false, sent: false, completed: false, createdAt: hoursAgo(48) },
 ];
 
 // ── Stored data helpers ───────────────────────────────────────────────────────
@@ -637,7 +221,7 @@ function nameToInitials(name: string): string {
 export function getStoredProject(): Project {
   if (typeof window === "undefined") return PROJECT;
   try {
-    const stored = localStorage.getItem("canopy_project");
+    const stored = localStorage.getItem("aiesec_project");
     return stored ? ({ ...PROJECT, ...JSON.parse(stored) } as Project) : PROJECT;
   } catch {
     return PROJECT;
@@ -648,7 +232,7 @@ export function getStoredUser(): User {
   const fallback = USERS.find((u) => u.id === CURRENT_USER_ID)!;
   if (typeof window === "undefined") return fallback;
   try {
-    const stored = localStorage.getItem("canopy_user");
+    const stored = localStorage.getItem("aiesec_user");
     if (!stored) return fallback;
     const data = JSON.parse(stored);
     const name: string = data.name || fallback.name;

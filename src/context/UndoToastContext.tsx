@@ -92,7 +92,7 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
   const toastEl = toast && mounted ? createPortal(
     <>
       <style>{`
-        @keyframes canopyToastIn {
+        @keyframes appToastIn {
           from { opacity:0; transform:translateX(-50%) translateY(12px); }
           to   { opacity:1; transform:translateX(-50%) translateY(0); }
         }
@@ -104,11 +104,11 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
         style={{
           position: "fixed", bottom: 28, left: "50%",
           transform: "translateX(-50%)",
-          backgroundColor: "#1B2E4B", color: "#fff",
+          backgroundColor: "#0263C4", color: "#fff",
           borderRadius: 10, overflow: "hidden",
           boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
           zIndex: 9999,
-          animation: "canopyToastIn 0.18s ease",
+          animation: "appToastIn 0.18s ease",
           minWidth: 260, maxWidth: "min(480px, 92vw)",
           fontFamily: "var(--font-roboto)",
         }}

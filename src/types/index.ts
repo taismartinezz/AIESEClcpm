@@ -57,25 +57,11 @@ export interface SubProject {
   color?: string;        // Material palette hex, auto-assigned on creation
 }
 
-export type ResearchType =
-  | "trauma"
-  | "oncology"
-  | "conflict_zone"
-  | "forensic"
-  | "crisis_response"
-  | "other";
-
-export type ResearchParticipation =
-  | "both_publications"
-  | "wellbeing_only"
-  | "private";
-
+/** A Local Committee. Stored in the `projects` table. */
 export interface Project {
   id: string;
   name: string;
-  institution: string;
-  researchType: ResearchType;
-  researchParticipation: ResearchParticipation;
+  institution: string;    // university or city
   createdAt: string;
   members: string[];      // User IDs
 }
@@ -135,7 +121,7 @@ export interface Task {
 
 export type PromptCategory =
   | "emotional_processing"
-  | "research_reflection"
+  | "purpose_growth"
   | "team_support"
   | "boundaries_workload"
   | "looking_forward";

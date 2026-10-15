@@ -28,7 +28,7 @@ const TYPE_LABEL: Record<SearchResult["type"], string> = {
 };
 
 const TYPE_COLOR: Record<SearchResult["type"], string> = {
-  task: "#1B2E4B", reminder: "#A0622A", bookmark: "#7C3AED", journal: "#1E6FA5", chat: "#2563EB", event: "#0F766E",
+  task: "#0263C4", reminder: "#A0622A", bookmark: "#7C3AED", journal: "#1E6FA5", chat: "#2563EB", event: "#0F766E",
 };
 
 const TASK_STATUS_LABEL: Record<string, string> = { ...TASK_STATUS_LABELS, archived: "Archived" };

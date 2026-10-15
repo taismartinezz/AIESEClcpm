@@ -186,7 +186,7 @@ export default function ChatDock() {
 
   const conversations: ConvItem[] = [
     ...(!isProjectView ? [{
-      id: "lab", label: "Lab", isDm: false,
+      id: "lab", label: "Whole LC", isDm: false,
       unread: unreadCounts[resolveChannelKey(projectId ?? "", currentUserId, "lab")] ?? 0,
     }] : visibleSubProjects.map(sp => ({
       id: sp.id, label: sp.name, isDm: false,

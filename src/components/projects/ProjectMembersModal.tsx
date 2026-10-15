@@ -194,7 +194,7 @@ export default function ProjectMembersModal({
 
     if (labUserId) {
       if (members.some((m) => m.userId === labUserId)) {
-        setAddError("This person is already a project member.");
+        setAddError("This person is already in this group.");
         setAdding(false);
         return;
       }
@@ -219,7 +219,7 @@ export default function ProjectMembersModal({
         return;
       }
       if (members.some((m) => m.name.toLowerCase() === email)) {
-        setAddError("This person is already a project member.");
+        setAddError("This person is already in this group.");
         setAdding(false);
         return;
       }
@@ -295,14 +295,14 @@ export default function ProjectMembersModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+      style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
       onClick={onClose}
     >
       <div
         style={{
           backgroundColor: "var(--color-surface)", maxWidth: 520, width: "100%",
           borderRadius: 10, padding: 28,
-          boxShadow: "0 8px 40px rgba(27,46,75,0.18)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.18)",
           maxHeight: "85dvh", overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -311,7 +311,7 @@ export default function ProjectMembersModal({
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: 0 }}>
-              Project members
+              Group members
             </h2>
             <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "2px 0 0" }}>
               {subProjectName}
@@ -319,7 +319,7 @@ export default function ProjectMembersModal({
           </div>
           <button
             onClick={onClose}
-            className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+            className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
             style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer" }}
             aria-label="Close"
           >
@@ -335,7 +335,7 @@ export default function ProjectMembersModal({
             {/* Lab members not yet in this project - PI/creator only */}
             {canManage && labMembersToAdd.length > 0 && (
               <div>
-                <label style={labelStyle}>Lab members ({labMembersToAdd.length} available to add)</label>
+                <label style={labelStyle}>LC members ({labMembersToAdd.length} available to add)</label>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {labMembersToAdd.map((m) => (
                     <div
@@ -370,7 +370,7 @@ export default function ProjectMembersModal({
             {/* Add-by-email - PI/creator only (for external / non-lab collaborators) */}
             {canManage && (
               <div>
-                <label style={labelStyle}>Add external collaborator by email</label>
+                <label style={labelStyle}>Add someone from outside the LC by email</label>
                 <div className="flex gap-2">
                   <input
                     value={emailInput}
@@ -407,7 +407,7 @@ export default function ProjectMembersModal({
                   <p style={{ fontSize: 12, color: "var(--color-error)", marginTop: 4 }}>Enter a valid email address.</p>
                 )}
                 <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 5 }}>
-                  Lab members are added immediately. External collaborators receive an invite link.
+                  LC members are added immediately. People outside the LC receive an invite link.
                 </p>
               </div>
             )}
@@ -440,7 +440,7 @@ export default function ProjectMembersModal({
                             style={{
                               fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
                               color: m.isLabMember ? "var(--color-navy)" : "#2E7D52",
-                              backgroundColor: m.isLabMember ? "rgba(27,46,75,0.08)" : "rgba(46,125,82,0.1)",
+                              backgroundColor: m.isLabMember ? "rgba(2,99,196,0.08)" : "rgba(46,125,82,0.1)",
                               padding: "1px 6px", borderRadius: 4,
                             }}
                           >
@@ -451,7 +451,7 @@ export default function ProjectMembersModal({
                       {canManage && m.userId !== currentUserId && (
                         <button
                           onClick={() => handleRemove(m.userId)}
-                          className="flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                          className="flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                           style={{ width: 30, height: 30, border: "none", background: "none", cursor: "pointer" }}
                           aria-label={`Remove ${m.name}`}
                           title="Remove member"
@@ -507,7 +507,7 @@ export default function ProjectMembersModal({
                           </button>
                           <button
                             onClick={() => handleCancelInvite(inv.id)}
-                            className="flex items-center justify-center rounded hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+                            className="flex items-center justify-center rounded hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                             style={{ width: 30, height: 30, border: "none", background: "none", cursor: "pointer" }}
                             aria-label="Cancel invite"
                             title="Cancel invite"

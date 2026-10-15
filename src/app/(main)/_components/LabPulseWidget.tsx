@@ -180,7 +180,7 @@ function PostColumn({
               autoFocus
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder={type === "opportunity" ? "Share an opportunity..." : "Share a lab win..."}
+              placeholder={type === "opportunity" ? "Share an opportunity..." : "Share a win..."}
               rows={2}
               style={{
                 flex: 1, fontSize: 12, color: "var(--color-body)",

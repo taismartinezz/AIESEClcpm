@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { getPostAuthDestination } from "@/lib/postAuthRedirect";
 
@@ -95,7 +96,7 @@ function AuthButton({
         fontSize: 14,
         color: isDisabled ? "var(--color-secondary)" : muted ? "var(--color-secondary)" : "var(--color-body)",
         opacity: disabled && !loading ? 0.5 : 1,
-        boxShadow: showHover ? "0 2px 8px rgba(27,46,75,0.08)" : "none",
+        boxShadow: showHover ? "0 2px 8px rgba(2,99,196,0.08)" : "none",
         transition: "border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease",
         position: "relative",
         padding: 0,
@@ -171,8 +172,8 @@ async function resolveProjectInvite(userId: string, userEmail: string) {
   }).eq("id", invite.id as string);
 
   // Land user in this project's scope on next load
-  localStorage.setItem("canopy_active_sub_project", invite.sub_project_id as string);
-  localStorage.setItem("canopy_scope_mode", "project");
+  localStorage.setItem("aiesec_active_group", invite.sub_project_id as string);
+  localStorage.setItem("aiesec_scope_mode", "project");
   localStorage.removeItem("pendingProjectInviteToken");
 }
 
@@ -251,7 +252,7 @@ export default function LoginPage() {
     if (projectInviteParam) localStorage.setItem("pendingProjectInviteToken", projectInviteParam);
 
     if (!isSupabaseConfigured) {
-      if (localStorage.getItem("canopy_authed") === "true") router.replace("/");
+      if (localStorage.getItem("aiesec_authed") === "true") router.replace("/");
       else setChecking(false);
       return;
     }
@@ -295,9 +296,9 @@ export default function LoginPage() {
 
     if (!isSupabaseConfigured) {
       setLoading(false);
-      localStorage.setItem("canopy_authed", "true");
-      if (mode === "signup" && name.trim()) localStorage.setItem("canopy_signup_name", name.trim());
-      router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
+      localStorage.setItem("aiesec_authed", "true");
+      if (mode === "signup" && name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
+      router.push(localStorage.getItem("aiesec_project") ? "/" : "/onboarding");
       return;
     }
 
@@ -312,7 +313,7 @@ export default function LoginPage() {
       if (!user) { setFormError("Sign-in succeeded but session has no user."); setLoading(false); return; }
 
       if (mode === "signup") {
-        if (name.trim()) localStorage.setItem("canopy_signup_name", name.trim());
+        if (name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
         router.push("/onboarding");
         return;
       }
@@ -357,9 +358,9 @@ export default function LoginPage() {
     setOAuthLoading(provider);
     setOAuthError(null);
     if (isSupabaseConfigured) {
-      localStorage.removeItem("canopy_user");
-      localStorage.removeItem("canopy_project");
-      localStorage.removeItem("canopy_authed");
+      localStorage.removeItem("aiesec_user");
+      localStorage.removeItem("aiesec_project");
+      localStorage.removeItem("aiesec_authed");
       const redirectTo = `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
       if (error) {
@@ -386,8 +387,8 @@ export default function LoginPage() {
       }, 5000);
       return;
     }
-    localStorage.setItem("canopy_authed", "true");
-    router.push(localStorage.getItem("canopy_project") ? "/" : "/onboarding");
+    localStorage.setItem("aiesec_authed", "true");
+    router.push(localStorage.getItem("aiesec_project") ? "/" : "/onboarding");
   }, [router]);
 
 
@@ -408,7 +409,7 @@ export default function LoginPage() {
       }}
     >
       <h1 style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
-        {mode === "signin" ? "Sign in to Canopy" : "Create your Canopy account"}
+        {mode === "signin" ? `Sign in to ${APP_NAME}` : `Create your ${APP_NAME} account`}
       </h1>
 
       {/* ── Card ── */}
@@ -423,7 +424,7 @@ export default function LoginPage() {
           paddingBottom: 48,
           paddingLeft: 40,
           paddingRight: 40,
-          boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
+          boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
         }}
       >
         {/* Logo + wordmark */}
@@ -435,7 +436,7 @@ export default function LoginPage() {
             gap: 12,
           }}
         >
-          <CanopyLogo size={40} />
+          <BrandLogo size={40} />
           <span
             aria-hidden="true"
             style={{
@@ -447,7 +448,7 @@ export default function LoginPage() {
               textTransform: "uppercase",
             }}
           >
-            Canopy
+            {APP_NAME}
           </span>
         </div>
 
@@ -463,7 +464,7 @@ export default function LoginPage() {
             margin: "16px auto 0",
           }}
         >
-          Only for researchers.
+          For AIESEC Local Committees.
         </p>
 
         {/* Divider */}
@@ -697,7 +698,7 @@ export default function LoginPage() {
         )}
         {!passwordError && mode === "signup" && (
           <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
-            Use a unique password. Your account protects sensitive research data.
+            Use a unique password. Your account protects your LC's data and your private journal.
           </p>
         )}
 
@@ -838,7 +839,7 @@ export default function LoginPage() {
           marginTop: 20,
         }}
       >
-        By signing in, you agree to Canopy&apos;s{" "}
+        By signing in, you agree to the{" "}
         <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-navy)", textDecoration: "underline" }}>
           privacy-first principles
         </a>

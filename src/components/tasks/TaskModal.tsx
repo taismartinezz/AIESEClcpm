@@ -304,7 +304,7 @@ export default function TaskModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: "rgba(27,46,75,0.35)" }}
+      style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
       onClick={onClose}
     >
       <div
@@ -314,7 +314,7 @@ export default function TaskModal({
           width: "100%",
           borderRadius: 10,
           padding: 28,
-          boxShadow: "0 8px 40px rgba(27,46,75,0.18)",
+          boxShadow: "0 8px 40px rgba(2,99,196,0.18)",
           maxHeight: "90dvh",
           overflowY: "auto",
         }}
@@ -335,7 +335,7 @@ export default function TaskModal({
           </h2>
           <button
             onClick={onClose}
-            className="flex items-center justify-center rounded-lg hover:bg-[rgba(27,46,75,0.06)] transition-colors"
+            className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)] transition-colors"
             style={{ width: 36, height: 36 }}
             aria-label="Close"
           >
@@ -469,7 +469,7 @@ export default function TaskModal({
             {showCal && calPos && (
               <CalendarPicker
                 value={dueDate || undefined}
-                accentColor="#1B2E4B"
+                accentColor="#0263C4"
                 pos={calPos}
                 onSelect={(d) => { setDueDate(d); setShowCal(false); }}
                 onClear={() => { setDueDate(""); setShowCal(false); }}
@@ -491,7 +491,7 @@ export default function TaskModal({
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all"
                     style={{
                       border: `1px solid ${selected ? "var(--color-navy)" : "var(--color-border)"}`,
-                      backgroundColor: selected ? "rgba(27,46,75,0.07)" : "transparent",
+                      backgroundColor: selected ? "rgba(2,99,196,0.07)" : "transparent",
                       fontSize: 12,
                       color: selected ? "var(--color-navy)" : "var(--color-secondary)",
                       cursor: "pointer",

@@ -1,139 +1,79 @@
 "use client";
 
 import Link from "next/link";
-import CanopyLogo from "@/components/ui/CanopyLogo";
+import BrandLogo from "@/components/ui/BrandLogo";
+import { APP_NAME } from "@/lib/brand";
+
+// TEMPLATE: this page describes how the app handles data. Whoever operates a
+// deployment must review it, add their contact address (NEXT_PUBLIC_PRIVACY_CONTACT)
+// and adapt it to their local law before going live.
+const CONTACT = process.env.NEXT_PUBLIC_PRIVACY_CONTACT ?? "";
+
+const h2: React.CSSProperties = { fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: "0 0 12px" };
+const para: React.CSSProperties = { fontSize: 14, color: "var(--color-body)", lineHeight: 1.75, margin: 0 };
+const list: React.CSSProperties = { fontSize: 14, color: "var(--color-body)", lineHeight: 1.75, margin: 0, paddingLeft: 20 };
 
 export default function PrivacyPage() {
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        backgroundColor: "#F6F8FC",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "48px 16px",
-        fontFamily: "var(--font-roboto)",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "#ffffff",
-          border: "1px solid #DDE1E7",
-          borderRadius: 10,
-          maxWidth: 680,
-          width: "100%",
-          padding: "48px 40px",
-          boxShadow: "0 4px 24px rgba(27,46,75,0.08)",
-        }}
-      >
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--color-canvas)", display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 16px", fontFamily: "var(--font-roboto)" }}>
+      <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, maxWidth: 680, width: "100%", padding: "48px clamp(20px, 5vw, 40px)", boxShadow: "var(--shadow-card)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-          <CanopyLogo size={28} />
-          <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "#1B2E4B" }}>
-            Canopy
-          </span>
+          <BrandLogo size={28} />
+          <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>{APP_NAME}</span>
         </div>
 
-        <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 24, color: "#1B2E4B", margin: "0 0 8px" }}>
-          Privacy Policy
+        <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 24, color: "var(--color-navy)", margin: "0 0 32px" }}>
+          Privacy
         </h1>
-        <p style={{ fontSize: 13, color: "#6B6B6B", margin: "0 0 36px" }}>
-          Last updated: June 2026 · Effective immediately upon account creation
-        </p>
 
         <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            Our commitment
-          </h2>
-          <p style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.75, margin: 0 }}>
-            Canopy is built specifically for researchers who work with sensitive topics: trauma, grief,
-            conflict, and human vulnerability. We take that responsibility seriously. This policy explains
-            exactly what data we collect, how we use it, and what we will never do with it.
+          <h2 style={h2}>What this app is</h2>
+          <p style={para}>
+            {APP_NAME} is a workspace for AIESEC Local Committees (LCs): tasks, reminders, chat,
+            bookmarks and a private wellbeing journal. Each LC&rsquo;s data is visible only to that
+            LC&rsquo;s members, enforced by the database, not only by the interface.
           </p>
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            What we collect
-          </h2>
-          <ul style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
-            <li><strong>Account information:</strong> your name, email address, and role (PI or Researcher), provided at sign-up.</li>
-            <li><strong>Workspace data:</strong> tasks, reminders, bookmarks, and team information you add to your lab workspace.</li>
-            <li><strong>Journal entries:</strong> text you write in the private journal feature. These are encrypted and stored under your user ID only.</li>
-            <li><strong>Usage metadata:</strong> timestamps of activity (e.g., when a task was created or completed) used to generate aggregate trends.</li>
-          </ul>
-          <p style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.75, margin: "12px 0 0" }}>
-            We do not collect audio, video, biometric data, or any data from your device beyond what is
-            necessary to provide the service.
-          </p>
-        </section>
-
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            How we use your data
-          </h2>
-          <ul style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
-            <li>To provide and improve the Canopy platform.</li>
-            <li>To generate <strong>anonymized, aggregate well-being trends</strong> visible to PIs (never individual-level data). A trend is only surfaced when it includes responses from 3 or more lab members.</li>
-            <li>To send platform notifications you have opted into (task assignments, lab updates).</li>
-            <li>To conduct our own research on researcher well-being, where you have explicitly opted in under your Lab Settings.</li>
+          <h2 style={h2}>What we store</h2>
+          <ul style={list}>
+            <li><strong>Account:</strong> your name, email address, and your role and department in each LC you join.</li>
+            <li><strong>LC workspace:</strong> tasks, reminders, bookmarks, chat messages and posts you add.</li>
+            <li><strong>Journal:</strong> your free-text entries are encrypted and readable only by you.</li>
+            <li><strong>Weekly check-in:</strong> your 1–5 scores, stored separately from your journal text so they can be averaged.</li>
           </ul>
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            What we will never do
-          </h2>
-          <ul style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
-            <li>Sell, rent, or share your personal data with third parties for commercial purposes.</li>
-            <li>Share your individual journal entries or check-in responses with your PI, institution, or any other lab member.</li>
-            <li>Use your data for advertising.</li>
-            <li>Transfer your data to a government or law enforcement agency except as required by applicable law, and only after exhausting available legal remedies to protect your privacy.</li>
+          <h2 style={h2}>Who sees your check-in</h2>
+          <ul style={list}>
+            <li>Nobody ever sees your individual answers or your journal text.</li>
+            <li>Members&rsquo; scores are averaged per department. Your VP sees your department&rsquo;s average; your LCP sees every department&rsquo;s average.</li>
+            <li>VPs&rsquo; scores are averaged into an executive-board average that only the LCP sees.</li>
+            <li>An average is hidden for any week with fewer respondents than the LC&rsquo;s privacy threshold (3 by default).</li>
+            <li>You can stop your scores being counted at any time from the Journal page.</li>
           </ul>
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            Data storage and security
-          </h2>
-          <p style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.75, margin: 0 }}>
-            Your data is stored on Supabase infrastructure hosted in the United States. We use industry-standard
-            encryption in transit (TLS) and at rest. Journal entries are stored with row-level security policies
-            that prevent any other user, including PIs, from querying them directly. We perform regular security
-            reviews and will notify you promptly in the event of a breach affecting your data.
-          </p>
-        </section>
-
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            Your rights
-          </h2>
-          <ul style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
-            <li><strong>Access:</strong> you can view your profile and all workspace data at any time from within Canopy.</li>
-            <li><strong>Correction:</strong> you can update your name, institution, bio, and other profile fields directly in the app.</li>
-            <li><strong>Deletion:</strong> you can request full deletion of your account and all associated data by emailing us. We will process requests within 30 days.</li>
-            <li><strong>Portability:</strong> on request, we will provide an export of your personal data in a machine-readable format.</li>
-            <li><strong>Opt-out of research:</strong> you can change your research participation preference at any time in Lab Settings.</li>
+          <h2 style={h2}>What we never do</h2>
+          <ul style={list}>
+            <li>Sell or share your data for advertising or commercial purposes.</li>
+            <li>Show your journal entries or individual check-in answers to anyone, including your VP or LCP.</li>
           </ul>
         </section>
 
         <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "#1B2E4B", margin: "0 0 12px" }}>
-            Contact us
-          </h2>
-          <p style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.75, margin: 0 }}>
-            Questions about this policy or requests to exercise your rights can be sent to{" "}
-            <a href="mailto:privacy@canopy.app" style={{ color: "#1B2E4B", textDecoration: "underline" }}>
-              privacy@canopy.app
-            </a>
-            . We aim to respond within 5 business days.
+          <h2 style={h2}>Your choices</h2>
+          <p style={para}>
+            You can edit your profile at any time. To leave an LC, ask its LCP to remove you. To have
+            your account and data deleted, contact the person who runs this deployment
+            {CONTACT ? <> at <a href={`mailto:${CONTACT}`} style={{ color: "var(--color-navy)", textDecoration: "underline" }}>{CONTACT}</a></> : null}.
           </p>
         </section>
 
-        <Link
-          href="/login"
-          style={{ fontSize: 13, color: "#1B2E4B", textDecoration: "underline" }}
-        >
+        <Link href="/login" style={{ fontSize: 13, color: "var(--color-navy)", textDecoration: "underline" }}>
           ← Back to sign in
         </Link>
       </div>

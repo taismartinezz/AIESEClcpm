@@ -28,7 +28,7 @@ test.describe('Auth page — Issue #16: accessible heading', () => {
     await mockSupabaseAndVisitLogin(page)
     const h1 = page.locator('h1').first()
     await expect(h1).toBeAttached()
-    await expect(h1).toContainText(/sign in to canopy/i)
+    await expect(h1).toContainText(/sign in to aiesec ?lcpm/i)
   })
 })
 
