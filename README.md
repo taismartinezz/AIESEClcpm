@@ -27,6 +27,11 @@ Everyone can belong to several LCs and has a role **in each one**:
 - **Reminders**: personal, LC-wide and group reminders, including an automatic weekly check-in reminder.
 - **Bookmarks**: shared links for the LC or a group.
 - **Team**: the directory, grouped into Executive Board and one section per department.
+- **Finance**: income and expense ledger with running balance, month and year-to-date totals, spend by category and department, filters and CSV export. Any member can submit an **expense claim** with a receipt photo or PDF; the person in charge of finance approves or rejects it (a rejection needs a reason), and an approved claim creates the matching ledger entry. Members see only their own claims; other VPs see their departments' claims and spend.
+- **Attendance**: LC events and conferences. VPs and the LCP log who attended (searchable, or a whole department at once); views by event, by member (with totals per event type this term) and a sortable, exportable table. Members see only their own history; VPs see their departments.
+- **Tabling**: shift slots (one-off or weekly) that members sign up for until the slot starts. Capacity is enforced in the database, so two people can't both take the last place. After the slot, its creator or the LCP marks attended / no-show and adds walk-ins; only attended time counts as hours. Signing up creates a reminder the day before.
+
+**In charge of finance** means the LCP, or the VP of the department marked as the finance department (Finance & Legality by default; change it in Settings → Departments). The rule lives in `is_finance_lead()` in SQL and `isFinanceLead()` in `src/lib/permissions.ts`.
 
 ## Wellbeing and privacy
 
@@ -61,7 +66,7 @@ Without Supabase env vars the app runs in **demo mode** with a fictional LC (`sr
 | `npm run test:unit` | unit tests + database tests (migrations and RLS in PGlite) |
 | `npm run test:e2e` | Playwright |
 | `npm run db:bundle` | regenerate `supabase/full_schema.sql` from the migrations |
-| `SEED_PASSWORD=… npm run db:seed` | create a demo LC with fictional `@example.com` accounts in your **development** project |
+| `SEED_PASSWORD=… npm run db:seed` | create a demo LC (members, departments, check-ins, finance, events, tabling) with fictional `@example.com` accounts in your **development** project |
 | `npm run db:seed:reset` | delete those demo accounts again |
 
 ## Setting up a fresh Supabase project
@@ -72,6 +77,7 @@ This app must run on its **own** Supabase project. Never point it at another app
 2. **Run the migrations in order.** Either apply every file in `supabase/migrations/` in filename order (they sort chronologically, starting with `20260701000_baseline.sql`) using the Supabase CLI (`supabase link`, then `supabase db push`) or the SQL editor, **or** paste the single generated file `supabase/full_schema.sql` into the SQL editor of the empty project. Both produce the same database. Don't run `supabase/schema.sql`, which is kept only as a historical reference.
 3. **Set the env vars.** Copy `.env.example` to `.env.local` (and to your hosting provider) and fill in your project's URL, anon key, service-role key and the other secrets listed there.
 4. Set the auth **Site URL** and **Redirect URLs** as described in `docs/AUTH_SETUP.md`.
+5. **Storage.** The finance migration creates a private `receipts` bucket (10 MB, images and PDF) with its access policies. Nothing else to configure: receipts are only ever opened through short-lived signed URLs.
 
 `npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain and the bundle still apply cleanly.
 
