@@ -12,6 +12,7 @@ import {
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { USERS, getStoredProject, getStoredUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
@@ -744,22 +745,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           router.replace("/login");
           return;
         }
-        try {
-          const stored = localStorage.getItem("aiesec_user");
-          if (stored) {
-            const u = JSON.parse(stored);
-            setProfile(u);
-            // Show the current user as their own team member in demo mode
-            setTeam([{
-              id: u.id ?? "demo",
-              name: u.name ?? "You",
-              email: u.email ?? "",
-              role: toUserRole(u.role),
-              avatarColor: u.avatarColor ?? "#B4D4E3",
-              avatarInitials: computeInitials(u.name ?? "") || (u.avatarInitials ?? "??"),
-            }]);
-          }
-        } catch { /* use null profile */ }
+        // Demo mode: the fictional LC from src/lib/mock-data, so the sidebar,
+        // Team and Tasks all show the same people.
+        const me = getStoredUser();
+        setProfile({ ...me, avatar_initials: me.avatarInitials, avatar_color: me.avatarColor });
+        setProject(getStoredProject());
+        setTeam(USERS.map((u) => (u.id === me.id ? me : u)));
         setAuthed(true);
         return;
       }
@@ -900,7 +891,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // ── Project data + team - driven by projectId from context ────────────────
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !isSupabaseConfigured) return;
     let canceled = false;
 
     async function loadProjectData() {

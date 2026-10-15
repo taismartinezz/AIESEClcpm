@@ -192,7 +192,7 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
             <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: 0 }}>Search across</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-                {(["Tasks", "Papers", "Reminders", "Bookmarks"] as const).map((l) => (
+                {(["Tasks", "Reminders", "Bookmarks", "Chat"] as const).map((l) => (
                   <span key={l} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", color: "var(--color-secondary)" }}>{l}</span>
                 ))}
               </div>

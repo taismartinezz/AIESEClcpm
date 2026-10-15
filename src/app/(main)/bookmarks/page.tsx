@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { APP_NAME } from "@/lib/brand";
 import {
   Plus, ExternalLink, Trash2, Bookmark, X, Check, Pencil,
-  FileText, BookOpen, FlaskConical, ClipboardList, Link2, Code2, Play, Table,
+  FileText, ClipboardList, Link2, Play, Table, Presentation, Folder, Globe,
   Users, User as UserIcon, Home,
 } from "lucide-react";
 import ScopeSidebar, { type ScopeSection } from "@/components/ui/ScopeSidebar";
@@ -17,7 +17,7 @@ import { useUndoToast } from "@/context/UndoToastContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type BookmarkType = "doc" | "paper" | "protocol" | "supplies" | "code" | "video" | "sheet" | "link";
+type BookmarkType = "doc" | "sheet" | "slides" | "form" | "folder" | "aiesec" | "video" | "link";
 type FilterCategory = "all" | BookmarkType;
 
 interface BookmarkRow {
@@ -41,14 +41,14 @@ const TYPE_CONFIG: Record<BookmarkType, {
   color: string;
   bg: string;
 }> = {
-  doc:      { label: "Docs",      badge: "doc",      icon: FileText,     color: "#2563EB", bg: "rgba(37,99,235,0.10)" },
-  paper:    { label: "Papers",    badge: "paper",    icon: BookOpen,     color: "#B45309", bg: "rgba(180,83,9,0.10)" },
-  protocol: { label: "Protocols", badge: "protocol", icon: ClipboardList, color: "#6D28D9", bg: "rgba(109,40,217,0.10)" },
-  supplies: { label: "Supplies",  badge: "supplier", icon: FlaskConical, color: "#0D7A5F", bg: "rgba(13,122,95,0.10)" },
-  code:     { label: "Code",      badge: "code",     icon: Code2,        color: "#334155", bg: "rgba(51,65,85,0.10)" },
-  video:    { label: "Videos",    badge: "video",    icon: Play,         color: "#B91C1C", bg: "rgba(185,28,28,0.10)" },
-  sheet:    { label: "Sheets",    badge: "sheet",    icon: Table,        color: "#15803D", bg: "rgba(21,128,61,0.10)" },
-  link:     { label: "Links",     badge: "link",     icon: Link2,        color: "#475569", bg: "rgba(71,85,105,0.10)" },
+  doc:      { label: "Docs",             badge: "doc",    icon: FileText,      color: "#0263C4", bg: "rgba(3,126,243,0.10)" },
+  sheet:    { label: "Sheets",           badge: "sheet",  icon: Table,         color: "#15803D", bg: "rgba(21,128,61,0.10)" },
+  slides:   { label: "Slides & design",  badge: "slides", icon: Presentation,  color: "#B45309", bg: "rgba(244,137,36,0.12)" },
+  form:     { label: "Forms",            badge: "form",   icon: ClipboardList, color: "#6D28D9", bg: "rgba(117,82,204,0.10)" },
+  folder:   { label: "Folders",          badge: "folder", icon: Folder,        color: "#475569", bg: "rgba(71,85,105,0.10)" },
+  aiesec:   { label: "AIESEC & EXPA",    badge: "aiesec", icon: Globe,         color: "#0263C4", bg: "rgba(3,126,243,0.10)" },
+  video:    { label: "Videos",           badge: "video",  icon: Play,          color: "#B91C1C", bg: "rgba(185,28,28,0.10)" },
+  link:     { label: "Links",            badge: "link",   icon: Link2,         color: "#475569", bg: "rgba(71,85,105,0.10)" },
 };
 
 type BmScope = "all" | "personal" | "lab" | "project";
@@ -67,29 +67,17 @@ function inferType(url: string): BookmarkType {
     const host = h.replace(/^www\./, "");
     if (host === "docs.google.com") {
       if (p.startsWith("/spreadsheets/")) return "sheet";
+      if (p.startsWith("/presentation/")) return "slides";
+      if (p.startsWith("/forms/")) return "form";
       return "doc";
     }
     if (host === "sheets.google.com") return "sheet";
+    if (host === "slides.google.com" || host.includes("canva.com") || host.includes("figma.com")) return "slides";
+    if (host === "forms.gle" || host.includes("typeform.com") || host.includes("forms.office.com")) return "form";
+    if (host === "drive.google.com" || host.includes("dropbox.com") || host.includes("onedrive.live.com")) return "folder";
     if (host.includes("notion.so") || host.includes("confluence") || host.includes("sharepoint.com")) return "doc";
-    if (host.includes("protocols.io") || p.toLowerCase().includes("protocol")) return "protocol";
-    if (
-      host.includes("ncbi.nlm") || host.includes("pubmed") ||
-      host.includes("psycnet.apa.org") || host.includes("scholar.google") ||
-      host.includes("biorxiv.org") || host.includes("medrxiv.org") ||
-      host.includes("semanticscholar.org") || host.includes("nature.com") ||
-      host.includes("nejm.org") || host.includes("cell.com") ||
-      host.includes("apa.org") || host.includes("tandfonline.com") ||
-      host.includes("wiley.com") || host.includes("jstor.org")
-    ) return "paper";
-    if (host === "github.com" || host.includes("gitlab.com")) return "code";
+    if (host === "aiesec.org" || host.endsWith(".aiesec.org") || host.includes("expa.aiesec") || host.includes("aiesec.")) return "aiesec";
     if (host === "youtube.com" || host === "youtu.be" || host.includes("vimeo.com")) return "video";
-    if (
-      host.includes("thermofisher") || host.includes("sigmaaldrich") ||
-      host.includes("fishersci") || host.includes("grainger") ||
-      host.includes("vwr.com") || host.includes("biolegend") ||
-      host.includes("addgene.org") || host.includes("millipore") ||
-      host.includes("qiagen.com") || host.includes("abcam.com")
-    ) return "supplies";
     return "link";
   } catch { return "link"; }
 }
@@ -132,15 +120,16 @@ async function fetchPageTitle(url: string): Promise<string | null> {
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
 const DEMO_BOOKMARKS: BookmarkRow[] = [
-  { id: "d1", project_id: "demo", url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7523697/", title: "Moral Injury in Healthcare Workers (PMC)", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), adder_name: "Dr. Yara Osei" },
-  { id: "d2", project_id: "demo", url: "https://psycnet.apa.org/record/2009-05485-004", title: "Moral Injury and Moral Repair in War Veterans", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 28).toISOString(), adder_name: "Tais Martinez" },
-  { id: "d3", project_id: "demo", url: "https://docs.google.com/document/d/1/edit", title: "Interview Protocol: Wave 2", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), adder_name: "Dana Kim" },
-  { id: "d4", project_id: "demo", url: "https://docs.google.com/document/d/2/edit", title: "Consent Form Template v3", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), adder_name: "Dr. Yara Osei" },
-  { id: "d5", project_id: "demo", url: "https://www.sigmaaldrich.com/US/en/product/sigma/m3148", title: "Morphine Sulfate Salt (Sigma-Aldrich)", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), adder_name: "Dr. Yara Osei" },
-  { id: "d6", project_id: "demo", url: "https://www.protocols.io/view/interview-guide-bwcjhau", title: "Structured Interview Guide for Moral Injury", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), adder_name: "Tais Martinez" },
-  { id: "d7", project_id: "demo", url: "https://sheets.google.com/spreadsheets/d/1/edit", title: "Participant Tracking: Spring 2025", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), adder_name: "Dana Kim" },
-  { id: "d8", project_id: "demo", url: "https://github.com/osei-lab/interview-analysis", title: "interview-analysis (GitHub)", added_by: null, added_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), adder_name: "Tais Martinez" },
+  { id: "d1", project_id: "demo", url: "https://aiesec.org/", title: "AIESEC (opportunities portal)", added_by: null, added_at: hoursAgo(3), adder_name: "Sofia Almeida", scope: "lab" },
+  { id: "d2", project_id: "demo", url: "https://docs.google.com/document/d/1/edit", title: "LC handbook 2026/27", added_by: null, added_at: hoursAgo(28), adder_name: "Sofia Almeida", scope: "lab" },
+  { id: "d3", project_id: "demo", url: "https://docs.google.com/presentation/d/1/edit", title: "Info-session deck (oGV)", added_by: null, added_at: hoursAgo(1), adder_name: "Kwame Mensah", scope: "lab" },
+  { id: "d4", project_id: "demo", url: "https://www.canva.com/design/1/edit", title: "Brand kit: poster templates", added_by: null, added_at: hoursAgo(6), adder_name: "Lena Fischer", scope: "lab" },
+  { id: "d5", project_id: "demo", url: "https://docs.google.com/spreadsheets/d/1/edit", title: "Recruitment tracker, autumn intake", added_by: null, added_at: hoursAgo(5), adder_name: "Lena Fischer", scope: "lab" },
+  { id: "d6", project_id: "demo", url: "https://docs.google.com/forms/d/1/viewform", title: "New member sign-up form", added_by: null, added_at: hoursAgo(2), adder_name: "Tais Martinez", scope: "lab" },
+  { id: "d7", project_id: "demo", url: "https://drive.google.com/drive/folders/1", title: "Job descriptions (all departments)", added_by: null, added_at: hoursAgo(12), adder_name: "Sofia Almeida", scope: "lab" },
+  { id: "d8", project_id: "demo", url: "https://www.youtube.com/watch?v=1", title: "How Global Volunteer works (explainer)", added_by: null, added_at: hoursAgo(48), adder_name: "Kwame Mensah", scope: "lab" },
 ];
 
 

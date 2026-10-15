@@ -493,7 +493,7 @@ export default function DashboardPage() {
         />
 
         {/* LC modules: finance, events and tabling — by role */}
-        {role && (
+        {role && isSupabaseConfigured && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
             {financeLead && <FinanceSnapshotCard projectId={activeProjectId} />}
             {(role === "president" || role === "vp") && <UpcomingNeedsCard projectId={activeProjectId} />}

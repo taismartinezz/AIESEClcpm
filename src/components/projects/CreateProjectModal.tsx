@@ -217,7 +217,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
               autoFocus
               value={name}
               onChange={(e) => { setName(e.target.value); setError(""); }}
-              placeholder="e.g. Phase 2 Interviews"
+              placeholder="e.g. Summer peak project team"
               style={inputStyle}
               onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
               onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}

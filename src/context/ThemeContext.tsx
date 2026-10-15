@@ -10,14 +10,16 @@ interface ThemeContextValue {
   resolvedTheme: "light" | "dark";
 }
 
+// AIESEC's brand is bright and white, so the app defaults to the light theme;
+// dark (or following the system) is an explicit choice in Settings.
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "system",
+  theme: "light",
   setTheme: () => {},
   resolvedTheme: "light",
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>("light");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
   // Read stored preference on mount
