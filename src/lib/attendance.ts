@@ -24,7 +24,25 @@ export function mapEvent(row: Record<string, unknown>): LcEvent {
     location: (row.location as string | null) ?? null,
     departmentId: (row.department_id as string | null) ?? null,
     createdBy: (row.created_by as string | null) ?? null,
+    startsAt: (row.starts_at as string | null) ?? null,
+    endsAt: (row.ends_at as string | null) ?? null,
+    meetingUrl: (row.meeting_url as string | null) ?? null,
+    description: (row.description as string | null) ?? null,
+    audience: ((row.audience as LcEvent["audience"]) ?? "lc"),
+    audienceRole: (row.audience_role as LcEvent["audienceRole"]) ?? null,
+    invitesSentAt: (row.invites_sent_at as string | null) ?? null,
   };
+}
+
+export const AUDIENCE_ROLE_LABELS: Record<NonNullable<LcEvent["audienceRole"]>, string> = {
+  exec: "Exec board (LCP + VPs)", vp: "VPs", member: "Members", president: "LCP",
+};
+
+/** "18:00–20:00" in the viewer's time zone, or "" for all-day events. */
+export function formatEventTime(e: Pick<LcEvent, "startsAt" | "endsAt">): string {
+  if (!e.startsAt) return "";
+  const t = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return e.endsAt ? `${t(e.startsAt)}–${t(e.endsAt)}` : t(e.startsAt);
 }
 
 export function mapAttendance(row: Record<string, unknown>): AttendanceRecord {

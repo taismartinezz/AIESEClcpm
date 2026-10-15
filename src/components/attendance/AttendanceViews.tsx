@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, Download, MapPin, Pencil, Plus, Trash2, UserCheck, ArrowUpDown } from "lucide-react";
+import { CalendarDays, Download, Mail, MapPin, Pencil, Plus, Trash2, UserCheck, ArrowUpDown, Video } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { EVENT_TYPES, EVENT_TYPE_LABELS, attendanceByMember, formatEventDates } from "@/lib/attendance";
+import { EVENT_TYPES, EVENT_TYPE_LABELS, attendanceByMember, formatEventDates, formatEventTime } from "@/lib/attendance";
+import { authedPost, describeSend, type SendResult } from "@/lib/api-client";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import type { LcMember } from "@/hooks/useLcMembers";
 import type { AttendanceRecord, Department, LcEvent, LcEventType } from "@/types";
@@ -11,8 +12,79 @@ import { Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/compo
 
 // ── By event ──────────────────────────────────────────────────────────────────
 
-export function EventsView({ events, records, roster, departments, canManage, onNew, onEdit, onLog, onChanged }: {
-  events: LcEvent[]; records: AttendanceRecord[]; roster: LcMember[]; departments: Department[];
+export interface Rsvp { eventId: string; userId: string; response: "going" | "not_going" }
+
+/** Going / Not going for the viewer; counts, names and "email invites" for the exec board. */
+function RsvpBox({ event, rsvps, roster, userId, canManage, onChanged }: {
+  event: LcEvent; rsvps: Rsvp[]; roster: LcMember[]; userId: string; canManage: boolean; onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mine = rsvps.find((r) => r.eventId === event.id && r.userId === userId)?.response ?? null;
+  const going = rsvps.filter((r) => r.eventId === event.id && r.response === "going");
+  const notGoing = rsvps.filter((r) => r.eventId === event.id && r.response === "not_going");
+  const upcoming = event.endsOn >= new Date().toISOString().slice(0, 10);
+  const nameOf = (id: string) => roster.find((m) => m.id === id)?.name ?? "LC member";
+
+  async function answer(response: "going" | "not_going") {
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.from("event_rsvps").upsert({ event_id: event.id, user_id: userId, response, responded_at: new Date().toISOString() }, { onConflict: "event_id,user_id" });
+      if (err) throw new Error(err.message);
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't save your answer: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function emailInvites() {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      setNote(describeSend(await authedPost<SendResult>("/api/events/invite", { eventId: event.id })));
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't send the invites: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!upcoming && !canManage) return null;
+  return (
+    <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-border)", display: "flex", flexDirection: "column", gap: 8 }}>
+      {upcoming && (
+        <div role="group" aria-label="Are you going?" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Are you going?</span>
+          <Button variant={mine === "going" ? "primary" : "secondary"} aria-pressed={mine === "going"} disabled={busy} onClick={() => answer("going")}>Going</Button>
+          <Button variant={mine === "not_going" ? "primary" : "secondary"} aria-pressed={mine === "not_going"} disabled={busy} onClick={() => answer("not_going")}>Not going</Button>
+        </div>
+      )}
+      {canManage && (
+        <div style={{ fontSize: 12, color: "var(--color-body)" }}>
+          <strong>{going.length}</strong> going · <strong>{notGoing.length}</strong> not going
+          {going.length > 0 && <span style={{ color: "var(--color-secondary)" }}> · {going.slice(0, 8).map((r) => nameOf(r.userId)).join(", ")}{going.length > 8 ? "…" : ""}</span>}
+          {upcoming && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+              <Button variant="secondary" disabled={busy} onClick={emailInvites}><Mail size={13} aria-hidden="true" /> {event.invitesSentAt ? "Email people who haven't had the invite" : "Email the invite"}</Button>
+              {event.invitesSentAt && <span style={{ color: "var(--color-secondary)" }}>Invites sent {new Date(event.invitesSentAt).toLocaleDateString()}</span>}
+            </div>
+          )}
+        </div>
+      )}
+      {note && <p role="status" style={{ fontSize: 12, color: "var(--color-body)", margin: 0 }}>{note}</p>}
+      <ErrorText>{error}</ErrorText>
+    </div>
+  );
+}
+
+export function EventsView({ events, records, rsvps, userId, roster, departments, canManage, onNew, onEdit, onLog, onChanged }: {
+  events: LcEvent[]; records: AttendanceRecord[]; rsvps: Rsvp[]; userId: string; roster: LcMember[]; departments: Department[];
   canManage: boolean;
   onNew: () => void; onEdit: (e: LcEvent) => void; onLog: (e: LcEvent) => void; onChanged: () => void;
 }) {
@@ -93,10 +165,14 @@ export function EventsView({ events, records, roster, departments, canManage, on
             <p style={{ fontSize: 15, fontWeight: 700, color: "var(--color-navy)", margin: 0 }}>{selected.name}</p>
             <p style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "var(--color-secondary)", margin: "4px 0 0" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><CalendarDays size={12} aria-hidden="true" />{formatEventDates(selected)}</span>
+              {formatEventTime(selected) && <span>{formatEventTime(selected)}</span>}
               {selected.location && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={12} aria-hidden="true" />{selected.location}</span>}
+              {selected.meetingUrl && <a href={selected.meetingUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-navy)" }}><Video size={12} aria-hidden="true" />Join online</a>}
               {dept(selected.departmentId) && <span>{dept(selected.departmentId)!.name}</span>}
             </p>
+            {selected.description && <p style={{ fontSize: 12, color: "var(--color-body)", margin: "6px 0 0", whiteSpace: "pre-wrap" }}>{selected.description}</p>}
           </div>
+          <RsvpBox event={selected} rsvps={rsvps} roster={roster} userId={userId} canManage={canManage} onChanged={onChanged} />
           <ErrorText>{error}</ErrorText>
           {attendees.length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--color-secondary)", padding: 14, margin: 0 }}>

@@ -86,3 +86,41 @@ This app must run on its **own** Supabase project. Never point it at another app
 ## Removed modules
 
 The original app's **Scheduling** (availability grid, meeting proposals, Google Calendar sync) and **Literature** (shared paper library, Zotero import, PDF annotation, browser extension) modules were removed from the UI, API and types. Their database tables (`schedule_events`, `user_availability`, `meeting_proposals`, `literature_items`, `lit_*`, `project_libraries`, `user_zotero_credentials`) are **not dropped**, so existing data is preserved. Nothing reads or writes them any more; drop them by hand if you don't need the data.
+
+## Emails to members
+
+Event invites (with Going / Not going buttons and a calendar file), reminders,
+the Monday digest and announcements are sent through [Resend](https://resend.com).
+
+1. Verify your domain in Resend, then set `RESEND_API_KEY` and `EMAIL_FROM`
+   (e.g. `AIESEClcpm <notifications@your-domain.org>`). Without a key, emails
+   are only logged to the server console.
+2. Set `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` and `RSVP_SECRET`.
+3. Each LC president can set the sender name (Settings → LC settings), e.g.
+   "AIESEC at Northwestern". Replies go to the person who sent the email.
+4. Members choose how much email they get (Settings → Notifications):
+   everything, the Monday digest only, or only important emails. Event
+   invites and reminders, overdue tasks and announcements always go out.
+
+### The reminder job
+
+`GET /api/cron/notify` (with `Authorization: Bearer <CRON_SECRET>`) sends
+whatever is due: event reminders 24 h and 1 h before, tasks due tomorrow and
+overdue (the department's VP is copied after 3 days), check-in open and
+"closes in 2 days" nudges, and the Monday digest. Every email is logged, so the
+job can run as often as you like without sending anything twice.
+
+`vercel.json` runs it once a day (07:30 UTC), which works on Vercel's free plan
+but is too rare for the 1-hour reminders. To run it every 15 minutes, either
+use Vercel Pro and change the schedule to `*/15 * * * *`, or schedule it from
+Supabase (Database → Extensions: enable `pg_cron` and `pg_net`, then in the SQL
+editor):
+
+```sql
+select cron.schedule('aiesec-notify', '*/15 * * * *', $$
+  select net.http_get(
+    url := 'https://YOUR-DEPLOYMENT/api/cron/notify',
+    headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
+  );
+$$);
+```

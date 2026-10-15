@@ -49,7 +49,7 @@ const NAV_ITEMS = [
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
   { href: "/finance",     label: "Finance",    icon: Wallet          },
-  { href: "/attendance",  label: "Attendance", icon: UserCheck       },
+  { href: "/attendance",  label: "Events",     icon: UserCheck       },
   { href: "/tabling",     label: "Tabling",    icon: Store           },
   { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
   { href: "/handover",    label: "Handover",   icon: ScrollText      },

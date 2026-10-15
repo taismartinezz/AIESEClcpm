@@ -211,3 +211,28 @@ test.describe('Learning the app', () => {
     await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
   })
 })
+
+test.describe('Events, RSVPs and announcements', () => {
+  const ev = { id: 'ev1', project_id: 'project-abc', name: 'General Assembly', type: 'local_event', starts_on: '2099-01-10', ends_on: '2099-01-10', starts_at: '2099-01-10T17:00:00Z', ends_at: null, location: 'Room 2.1', meeting_url: 'https://zoom.example/j/1', description: null, department_id: null, audience: 'lc', audience_role: null, invites_sent_at: null, created_by: 'someone-else' }
+
+  test('a member answers Going on an upcoming event', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { lc_events: [ev], event_attendance: [], event_rsvps: [] } })
+    await page.goto('/attendance')
+    await page.getByRole('tab', { name: 'Events' }).click()
+    await expect(page.getByRole('group', { name: 'Are you going?' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('link', { name: 'Join online' })).toBeVisible()
+  })
+
+  test('the exec board sees RSVP counts, can email invites and send announcements', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { tables: { lc_events: [ev], event_attendance: [], event_rsvps: [{ event_id: 'ev1', user_id: 'x', response: 'going' }], announcements: [] } })
+    await page.goto('/attendance')
+    await expect(page.getByText('1', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Email the invite' })).toBeVisible()
+    await page.getByRole('button', { name: /Announcement/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Send an announcement' })).toBeVisible()
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await page.getByRole('button', { name: /^Event$/ }).click()
+    await page.getByLabel('Who is it for?').selectOption('people')
+    await expect(page.getByRole('group', { name: /People/ })).toBeVisible()
+  })
+})

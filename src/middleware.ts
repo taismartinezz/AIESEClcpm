@@ -4,6 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 // or are intentionally public.
 const BYPASS_PREFIXES = [
   "/api/cron/",
+  "/api/rsvp",          // signed per event + person (lib/rsvp-token)
+  "/api/unsubscribe",   // signed per contact (lib/outreach-token)
 ];
 
 /**

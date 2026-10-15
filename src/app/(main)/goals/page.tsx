@@ -60,7 +60,7 @@ export default function GoalsPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !isSupabaseConfigured || !projectId ? (
-          <NeedsDatabase what="Term goals">Your LC's and departments' targets for the term. Exchange goals count themselves from the pipeline.</NeedsDatabase>
+          <NeedsDatabase what="Term goals">Your LC&apos;s and departments&apos; targets for the term. Exchange goals count themselves from the pipeline.</NeedsDatabase>
         ) : sections.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
             No goals yet.{president || manageable.length ? " Add your term targets, e.g. \"30 oGV approvals\" or \"15 new members\"." : " Your VPs and LCP set them."}

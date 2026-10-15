@@ -335,6 +335,14 @@ export interface LcEvent {
   location: string | null;
   departmentId: string | null;
   createdBy: string | null;
+  /** Timed events; null for all-day. */
+  startsAt: string | null;
+  endsAt: string | null;
+  meetingUrl: string | null;
+  description: string | null;
+  audience: "lc" | "department" | "role" | "people";
+  audienceRole: "president" | "vp" | "member" | "exec" | null;
+  invitesSentAt: string | null;
 }
 
 export interface AttendanceRecord {

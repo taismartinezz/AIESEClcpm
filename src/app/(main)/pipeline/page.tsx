@@ -137,7 +137,7 @@ export default function PipelinePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 260, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <NeedsDatabase what="Exchange pipeline">Every exchange per product, from sign-up to completed, with this term's approvals, realizations and conversion rates.</NeedsDatabase>
+          <NeedsDatabase what="Exchange pipeline">Every exchange per product, from sign-up to completed, with this term&apos;s approvals, realizations and conversion rates.</NeedsDatabase>
         ) : myProducts.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
             Your department doesn&apos;t run an exchange product. The pipeline is for the oGV, oGT/Te, iGV and iGT/Te departments.

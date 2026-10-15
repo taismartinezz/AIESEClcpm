@@ -108,7 +108,7 @@ export default function HandoverPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <NeedsDatabase what="Handover">One note per department per term, so the next exec board doesn't start from zero.</NeedsDatabase>
+          <NeedsDatabase what="Handover">One note per department per term, so the next exec board doesn&apos;t start from zero.</NeedsDatabase>
         ) : sections.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Join a department to read its handover.</p>
         ) : (

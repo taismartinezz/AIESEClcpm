@@ -92,7 +92,7 @@ export default function FinancePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !isSupabaseConfigured || !projectId || !userId ? (
-          <NeedsDatabase what="Finance">The LC's income and expenses, expense claims with receipts, and who approves them.</NeedsDatabase>
+          <NeedsDatabase what="Finance">The LC&apos;s income and expenses, expense claims with receipts, and who approves them.</NeedsDatabase>
         ) : tab === "ledger" && canSeeLedger ? (
           <LedgerView
             projectId={projectId} userId={userId} currency={currency}
