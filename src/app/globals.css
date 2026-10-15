@@ -256,14 +256,6 @@ body {
   --color-warning-bg:   #FDEFD4;
   --color-success-bg:   #D4EDE0;
 
-  /* ── Literature reading-status badge tokens ── */
-  --lit-read-color:     #2E7D52;
-  --lit-read-bg:        #D4EDE0;
-  --lit-reading-color:  #A0622A;
-  --lit-reading-bg:     #FDEFD4;
-  --lit-unread-color:   #64748B;
-  --lit-unread-bg:      #F1F5F9;
-
   /* ── Task / priority status tokens (dark-mode-overrideable) ── */
   --status-todo-dot:        #94A3B8;
   --status-todo-text:       #64748B;
@@ -312,12 +304,6 @@ body {
     --color-error-bg:     rgba(255,69,58,0.18);
     --color-warning-bg:   rgba(255,159,10,0.15);
     --color-success-bg:   rgba(48,209,88,0.15);
-    --lit-read-color:     #30D158;
-    --lit-read-bg:        rgba(48,209,88,0.16);
-    --lit-reading-color:  #FF9F0A;
-    --lit-reading-bg:     rgba(255,159,10,0.15);
-    --lit-unread-color:   #8E8E93;
-    --lit-unread-bg:      rgba(142,142,147,0.14);
     --status-todo-dot:        #636366;
     --status-todo-text:       #8E8E93;
     --status-todo-bg:         rgba(142,142,147,0.14);
@@ -365,12 +351,6 @@ body {
   --color-error-bg:     rgba(255,69,58,0.18);
   --color-warning-bg:   rgba(255,159,10,0.15);
   --color-success-bg:   rgba(48,209,88,0.15);
-  --lit-read-color:     #30D158;
-  --lit-read-bg:        rgba(48,209,88,0.16);
-  --lit-reading-color:  #FF9F0A;
-  --lit-reading-bg:     rgba(255,159,10,0.15);
-  --lit-unread-color:   #8E8E93;
-  --lit-unread-bg:      rgba(142,142,147,0.14);
   --status-todo-dot:        #636366;
   --status-todo-text:       #8E8E93;
   --status-todo-bg:         rgba(142,142,147,0.14);

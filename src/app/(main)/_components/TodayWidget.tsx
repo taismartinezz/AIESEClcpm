@@ -88,7 +88,7 @@ function categorize(
   for (const ev of events) {
     const evDate = new Date(ev.date + "T00:00:00");
     if (evDate < todayStart) continue;
-    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: ev.date, href: "/scheduling", assigneeIds: [], canComplete: false };
+    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: ev.date, href: "/attendance", assigneeIds: [], canComplete: false };
     if (evDate <= todayEnd) today.push(item);
     else if (evDate <= weekEnd) upcoming.push(item);
   }

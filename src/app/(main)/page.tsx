@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
 import {
-  TASKS, DASHBOARD_POSTS, SCHEDULE_EVENTS,
+  TASKS, DASHBOARD_POSTS,
   getUser, CURRENT_USER_ID, getStoredProject,
 } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -240,27 +240,6 @@ export default function DashboardPage() {
           })));
         }
 
-        // Fetch events — only upcoming (from today through next 30 days)
-        const todayStr = new Date().toISOString().split("T")[0];
-        const thirtyDaysOut = new Date(); thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
-        const { data: evData, error: evError } = await supabase
-          .from("events")
-          .select("*")
-          .eq("project_id", pid)
-          .gte("date", todayStr)
-          .lte("date", thirtyDaysOut.toISOString().split("T")[0])
-          .order("date", { ascending: true });
-        if (evError) console.error("[Dashboard] events error:", evError);
-        if (!evError && evData) {
-          setDashEvents(evData.map((row) => ({
-            id: row.id as string,
-            title: row.title as string,
-            date: row.date as string,
-            time: (row.time as string) ?? undefined,
-            projectId: row.project_id as string,
-          })));
-        }
-
         // Fetch lab wins
         const { data: winsData, error: winsError } = await supabase
           .from("lab_wins")
@@ -314,15 +293,6 @@ export default function DashboardPage() {
     if (!localStorage.getItem("canopy_project")) {
       setTasks(TASKS);
       setDashPosts(DASHBOARD_POSTS);
-      // Seed demo events relative to today so they always appear in the widget
-      const d0 = new Date(); d0.setHours(0, 0, 0, 0);
-      const isoDate = (offset: number) => { const d = new Date(d0); d.setDate(d.getDate() + offset); return d.toISOString().split("T")[0]; };
-      setDashEvents([
-        { id: "ev-demo-1", title: "Lab Meeting", date: isoDate(0), time: "10:00", projectId: "demo" },
-        { id: "ev-demo-2", title: "Participant Interview", date: isoDate(1), time: "14:00", projectId: "demo" },
-        { id: "ev-demo-3", title: "IRB Submission Deadline", date: isoDate(3), projectId: "demo" },
-        { id: "ev-demo-4", title: "Data Analysis Workshop", date: isoDate(6), time: "09:00", projectId: "demo" },
-      ]);
     }
   }, []);
 

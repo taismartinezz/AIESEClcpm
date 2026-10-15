@@ -52,54 +52,6 @@ const TIMING_OPTIONS: Array<{ id: TimingChoice; label: string; line: string }> =
   { id: "this_week",  label: "This week",      line: "Anytime this week works for me." },
 ];
 
-// ── Slot-proposal helpers ─────────────────────────────────────────────────────
-
-const SLOT_COUNT = 16;
-const HOUR_START = 9;
-const MONTH_ABR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DAY_ABR   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-interface SuggestedSlot {
-  date: string;
-  startMin: number;
-  shortLabel: string; // e.g. "Tue Aug 19, 10:00 AM"
-}
-
-function minToLabel(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
-}
-
-function findRecipientSlots(recipientSlotSet: Set<string>): SuggestedSlot[] {
-  const results: SuggestedSlot[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let offset = 1; offset <= 14 && results.length < 3; offset++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offset);
-    const jsDay = d.getDay();
-    if (jsDay === 0 || jsDay === 6) continue;
-    const gridDay = jsDay - 1; // 0=Mon
-
-    for (let s = 0; s < SLOT_COUNT && results.length < 3; s++) {
-      if (!recipientSlotSet.has(`${gridDay}-${s}`)) continue;
-      const startMin = HOUR_START * 60 + s * 30;
-      const dateStr = d.toISOString().split("T")[0];
-      results.push({
-        date: dateStr,
-        startMin,
-        shortLabel: `${DAY_ABR[jsDay]} ${MONTH_ABR[d.getMonth()]} ${d.getDate()}, ${minToLabel(startMin)}`,
-      });
-      break; // one slot per day
-    }
-  }
-  return results;
-}
-
 function firstName(fullName: string): string {
   return fullName.split(" ")[0] || fullName;
 }
@@ -541,50 +493,6 @@ function SimpleComposeScreen({ recipient, projectId, userId, onBack, onClose, on
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  // Slot proposals
-  const [showSlots, setShowSlots] = useState(false);
-  const [slots, setSlots] = useState<SuggestedSlot[]>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [selectedSlots, setSelectedSlots] = useState<SuggestedSlot[]>([]);
-  const [slotsLoaded, setSlotsLoaded] = useState(false);
-
-  async function openSlots() {
-    setShowSlots(v => !v);
-    if (slotsLoaded || !projectId) return;
-    setSlotsLoading(true);
-    try {
-      const { data } = await supabase
-        .from("user_availability")
-        .select("slots")
-        .eq("project_id", projectId)
-        .eq("user_id", recipient.id)
-        .maybeSingle();
-      const slotSet = new Set<string>((data?.slots as string[]) ?? []);
-      setSlots(findRecipientSlots(slotSet));
-    } catch { /* non-fatal */ } finally {
-      setSlotsLoading(false);
-      setSlotsLoaded(true);
-    }
-  }
-
-  function toggleSlot(slot: SuggestedSlot) {
-    setSelectedSlots(prev =>
-      prev.some(s => s.date === slot.date)
-        ? prev.filter(s => s.date !== slot.date)
-        : prev.length < 3 ? [...prev, slot] : prev
-    );
-  }
-
-  function addSlotsToMessage() {
-    if (selectedSlots.length === 0) return;
-    const times = selectedSlots.map(s => s.shortLabel).join(", ");
-    const line = selectedSlots.length === 1
-      ? `\n\nWould this work? ${times}.`
-      : `\n\nWould any of these work? ${times}.`;
-    setBody(b => b.trimEnd() + line);
-    setSelectedSlots([]);
-    setShowSlots(false);
-  }
 
   function toggleTiming(choice: TimingChoice) {
     setTiming(prev => prev === choice ? null : choice);
@@ -678,78 +586,6 @@ function SimpleComposeScreen({ recipient, projectId, userId, onBack, onClose, on
             );
           })}
         </div>
-      </div>
-
-      {/* Slot proposals - optional */}
-      <div style={{ marginTop: 10 }}>
-        <button
-          onClick={openSlots}
-          style={{
-            fontSize: 12, color: "var(--color-secondary)",
-            background: "transparent", border: "1px solid var(--color-border)",
-            borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-            fontFamily: "var(--font-roboto)", minHeight: 36,
-          }}
-        >
-          {showSlots ? "Hide times" : "Suggest a time to meet"}
-        </button>
-
-        {showSlots && (
-          <div style={{ marginTop: 10 }}>
-            {slotsLoading && (
-              <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>Looking for open times…</p>
-            )}
-            {!slotsLoading && slots.length === 0 && (
-              <p style={{ fontSize: 12, color: "var(--color-secondary)" }}>
-                No availability set - {firstName(recipient.name)} hasn&rsquo;t filled in their schedule yet.
-              </p>
-            )}
-            {!slotsLoading && slots.length > 0 && (
-              <>
-                <p style={{ fontSize: 11, color: "var(--color-secondary)", marginBottom: 8 }}>
-                  Pick up to 3 times from {firstName(recipient.name)}&rsquo;s availability:
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {slots.map((slot) => {
-                    const on = selectedSlots.some(s => s.date === slot.date);
-                    return (
-                      <button
-                        key={slot.date}
-                        onClick={() => toggleSlot(slot)}
-                        style={{
-                          textAlign: "left", fontSize: 13, padding: "8px 12px", borderRadius: 8,
-                          border: `1px solid ${on ? "var(--color-navy)" : "var(--color-border)"}`,
-                          backgroundColor: on ? "rgba(27,46,75,0.07)" : "transparent",
-                          color: "var(--color-body)", cursor: "pointer",
-                          fontFamily: "var(--font-roboto)", minHeight: 44,
-                          display: "flex", alignItems: "center", gap: 10,
-                        }}
-                      >
-                        {on && <Check size={13} color="var(--color-navy)" />}
-                        {!on && <span style={{ width: 13 }} />}
-                        {slot.shortLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedSlots.length > 0 && (
-                  <button
-                    onClick={addSlotsToMessage}
-                    style={{
-                      marginTop: 10, fontSize: 12, fontWeight: 600,
-                      color: "var(--color-navy)", background: "transparent",
-                      border: "1px solid var(--color-navy)", borderRadius: 7,
-                      padding: "6px 14px", cursor: "pointer",
-                      fontFamily: "var(--font-roboto)", minHeight: 36,
-                    }}
-                  >
-                    Add {selectedSlots.length} time{selectedSlots.length > 1 ? "s" : ""} to message
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {error && (

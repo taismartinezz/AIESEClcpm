@@ -870,12 +870,12 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Scheduling section */}
+      {/* Time zone section — used for notification quiet hours */}
       <section style={sectionStyle} aria-labelledby="settings-schedule-heading">
         <div style={sectionHeaderStyle}>
           <Clock size={16} color="var(--color-secondary)" />
           <h2 id="settings-schedule-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-            Scheduling &amp; Working Hours
+            Time zone &amp; working hours
           </h2>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -887,7 +887,7 @@ export default function SettingsPage() {
           />
           <button onClick={handleSaveSchedule} disabled={savingSchedule}
             style={{ alignSelf: "flex-start", minHeight: 44, height: 38, padding: "0 20px", backgroundColor: savingSchedule ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingSchedule ? "default" : "pointer" }}>
-            {savingSchedule ? "Saving…" : "Save schedule settings"}
+            {savingSchedule ? "Saving…" : "Save time zone"}
           </button>
         </div>
       </section>

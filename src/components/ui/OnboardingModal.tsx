@@ -42,11 +42,6 @@ const STEPS: TourStep[] = [
     body: "Keep track of deadlines and follow-ups. Create reminders from here or with the + New button on the dashboard.",
   },
   {
-    selector: 'a[href="/literature"]',
-    title: "Literature",
-    body: "Your lab's shared citation library. Import from Zotero, attach PDFs, and track reading status for the team.",
-  },
-  {
     selector: 'a[href="/team"]',
     title: "Team",
     body: "See what everyone is working on, share your weekly update, and check availability for meetings.",

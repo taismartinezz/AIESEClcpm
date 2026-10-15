@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, BookMarked, Bookmark, Users,
+  LayoutDashboard, CheckSquare, BookOpen, Bookmark, Users,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
-  Menu, X, Settings, CalendarDays, CircleCheck, Plus, Search, MessageSquare,
+  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
@@ -39,8 +39,6 @@ const NAV_ITEMS = [
   { href: "/journal",     label: "Journal",    icon: BookOpen        },
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
-  { href: "/scheduling",  label: "Scheduling", icon: CalendarDays    },
-  { href: "/literature",  label: "Literature", icon: BookMarked      },
   { href: "/bookmarks",   label: "Bookmarks",  icon: Bookmark        },
   { href: "/team",        label: "Team",       icon: Users           },
 ];
@@ -520,7 +518,6 @@ type SupabaseNotif = {
 
 function notifHref(n: SupabaseNotif): string {
   if (n.type === "task_assigned") return "/tasks";
-  if (n.type === "reading_assigned") return "/literature";
   if (n.type === "chat_message") return "/chat";
   if (n.type === "lab_win") return "/dashboard";
   return "/dashboard";
@@ -953,7 +950,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (e.altKey && !e.metaKey && !e.ctrlKey) {
         const nav: Record<string, string> = {
           d: "/", t: "/tasks", j: "/journal", c: "/chat",
-          r: "/reminders", s: "/scheduling", l: "/literature",
+          r: "/reminders",
           b: "/bookmarks", m: "/team",
         };
         const dest = nav[e.key.toLowerCase()];

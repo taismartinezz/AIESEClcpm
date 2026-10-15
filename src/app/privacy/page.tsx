@@ -58,7 +58,7 @@ export default function PrivacyPage() {
           </h2>
           <ul style={{ fontSize: 14, color: "#2D2D2D", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
             <li><strong>Account information:</strong> your name, email address, and role (PI or Researcher), provided at sign-up.</li>
-            <li><strong>Workspace data:</strong> tasks, literature items, calendar events, and team information you add to your lab workspace.</li>
+            <li><strong>Workspace data:</strong> tasks, reminders, bookmarks, and team information you add to your lab workspace.</li>
             <li><strong>Journal entries:</strong> text you write in the private journal feature. These are encrypted and stored under your user ID only.</li>
             <li><strong>Usage metadata:</strong> timestamps of activity (e.g., when a task was created or completed) used to generate aggregate trends.</li>
           </ul>

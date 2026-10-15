@@ -62,3 +62,7 @@ This app must run on its **own** Supabase project — never point it at another 
 4. Set the auth **Site URL** and **Redirect URLs** as described in `docs/AUTH_SETUP.md`.
 
 `npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain still applies cleanly.
+
+## Removed modules
+
+The original app's **Scheduling** (availability grid, meeting proposals, Google Calendar sync) and **Literature** (shared paper library, Zotero import, PDF annotation, browser extension) modules were removed from the UI, API and types. Their database tables (`schedule_events`, `user_availability`, `meeting_proposals`, `literature_items`, `lit_*`, `project_libraries`, `user_zotero_credentials`) are **not dropped**, so existing data is preserved. Nothing reads or writes them any more; drop them by hand if you don't need the data.

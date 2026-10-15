@@ -401,7 +401,6 @@ export default function ProfilePage() {
     todo: 0, in_progress: 0, in_review: 0, done: 0,
   });
   const [recentTasks, setRecentTasks] = useState<import("@/types").Task[]>([]);
-  const [litCount, setLitCount] = useState(0);
   const [journalStreak, setJournalStreak] = useState(0);
 
   // ── Load profile & project from Supabase ─────────────────────────────────
@@ -484,10 +483,6 @@ export default function ProfilePage() {
             }));
           setRecentTasks(recent);
         });
-
-      supabase.from("literature_items").select("id", { count: "exact", head: true })
-        .eq("project_id", projectId).eq("added_by", user.id)
-        .then(({ count }) => setLitCount(count ?? 0));
 
       const monthStart = new Date().toISOString().slice(0, 7) + "-01";
       supabase.from("journal_entries").select("id", { count: "exact", head: true })
@@ -1315,13 +1310,6 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   )}
-                </div>
-
-                <div>
-                  <SectionLabel>Literature Contributions</SectionLabel>
-                  <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
-                    {litCount} {litCount === 1 ? "item" : "items"} added to the Lab Library
-                  </p>
                 </div>
 
                 <div>

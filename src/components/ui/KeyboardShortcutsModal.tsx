@@ -22,8 +22,6 @@ export const GLOBAL_SHORTCUTS: Shortcut[] = [
   { category: "Navigation", keys: ["Alt", "J"],      description: "Go to Journal"             },
   { category: "Navigation", keys: ["Alt", "C"],      description: "Go to Chat"                },
   { category: "Navigation", keys: ["Alt", "R"],      description: "Go to Reminders"           },
-  { category: "Navigation", keys: ["Alt", "S"],      description: "Go to Scheduling"          },
-  { category: "Navigation", keys: ["Alt", "L"],      description: "Go to Literature"          },
   { category: "Navigation", keys: ["Alt", "B"],      description: "Go to Bookmarks"           },
   { category: "Navigation", keys: ["Alt", "M"],      description: "Go to Team"                },
 ];
