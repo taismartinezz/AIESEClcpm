@@ -32,4 +32,13 @@ describe("supabase/full_schema.sql", () => {
     await db.exec(readFileSync(join(__dirname, "supabase-stub.sql"), "utf8"));
     await expect(db.exec(bundle)).resolves.toBeDefined();
   }, 60_000);
+
+  it("refuses to run twice, with a plain message, and changes nothing", async () => {
+    const db = new PGlite();
+    await db.exec(readFileSync(join(__dirname, "supabase-stub.sql"), "utf8"));
+    await db.exec(bundle);
+    const before = (await db.query<{ n: number }>("select count(*)::int as n from pg_policies")).rows[0].n;
+    await expect(db.exec(bundle)).rejects.toThrow(/already set up/);
+    expect((await db.query<{ n: number }>("select count(*)::int as n from pg_policies")).rows[0].n).toBe(before);
+  }, 120_000);
 });

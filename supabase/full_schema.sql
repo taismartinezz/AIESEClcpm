@@ -3,6 +3,15 @@
 -- Paste into the SQL editor of a NEW, empty Supabase project, or run the
 -- individual migrations in order instead. Both produce the same database.
 
+-- Already set up? Stop before changing anything (the whole script is one batch,
+-- so this error leaves the database exactly as it was).
+do $$
+begin
+  if to_regclass('public.departments') is not null then
+    raise exception 'This database is already set up: it has the app''s tables, so there is nothing to run. To apply a newer change, run only that file from supabase/migrations.';
+  end if;
+end $$;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- 20260701000_baseline.sql
 -- ════════════════════════════════════════════════════════════════════════════
