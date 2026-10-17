@@ -45,12 +45,18 @@ export default function AuthCallbackPage() {
       // A "Connect Google Calendar" round trip: hand the Google tokens to the server.
       await finishGoogleCalendarConnect(data.session).catch((e) => console.error("[Google Calendar]", e));
 
-      // Honor `next` if provided; otherwise route by lab membership
+      // Honor `next` if provided; otherwise route by LC membership
       if (safeNext !== "/") {
         router.replace(safeNext);
         return;
       }
-      router.replace(await getPostAuthDestination(user.id));
+      const destination = await getPostAuthDestination(user.id);
+      // New account from Google: start onboarding with the name Google gave us.
+      const googleName = (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined;
+      if (destination === "/onboarding" && googleName) {
+        try { localStorage.setItem("aiesec_signup_name", googleName); } catch { /* storage blocked */ }
+      }
+      router.replace(destination);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

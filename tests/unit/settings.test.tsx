@@ -38,6 +38,7 @@ vi.mock('@/lib/supabase', () => {
 
   return {
     isSupabaseConfigured: true,
+    isPreview: false,
     supabase: {
       auth: {
         getSession: vi.fn().mockResolvedValue({

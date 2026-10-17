@@ -6,7 +6,7 @@ import { supabase, isPreview } from "@/lib/supabase";
 import { connectGoogleCalendar } from "@/lib/google-calendar";
 
 /** Connect / disconnect the person's own Google Calendar (read-only). */
-export default function GoogleCalendarCard({ connected, email, onChanged }: { connected: boolean; email: string | null; onChanged: () => void }) {
+export default function GoogleCalendarCard({ connected, email, onChanged, returnTo = "/scheduling" }: { connected: boolean; email: string | null; onChanged: () => void; returnTo?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +15,7 @@ export default function GoogleCalendarCard({ connected, email, onChanged }: { co
     setError(null);
     try {
       if (isPreview) throw new Error("Google Calendar can't be connected in the preview, which uses sample data.");
-      const problem = await connectGoogleCalendar("/scheduling");
+      const problem = await connectGoogleCalendar(returnTo);
       if (problem) throw new Error(problem);
       // On success the browser goes to Google and comes back to Scheduling.
     } catch (e) {
@@ -48,7 +48,7 @@ export default function GoogleCalendarCard({ connected, email, onChanged }: { co
             : <AlertCircle size={13} color="var(--color-secondary)" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />}
           <p style={{ fontSize: 12, color: "var(--color-body)", margin: 0, lineHeight: 1.5 }}>
             {connected
-              ? <>Connected{email ? <> as <strong>{email}</strong></> : null}. Your Google events show in your Calendar view here.</>
+              ? <>Connected{email ? <> as <strong>{email}</strong></> : null}. Your Google events show in your Scheduling calendar.</>
               : "Not connected. Connect to see your Google Calendar events next to your LC's schedule."}
           </p>
         </div>
