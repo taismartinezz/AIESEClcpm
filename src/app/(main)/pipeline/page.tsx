@@ -105,7 +105,7 @@ export default function PipelinePage() {
         subtitle="Every exchange from sign-up to completed, per product."
         action={<>
           <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
-          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from EXPA</Button>}
+          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
           {myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}
         </>}
       >
@@ -144,7 +144,7 @@ export default function PipelinePage() {
           </p>
         ) : exchanges.length === 0 ? (
           <TeachingEmpty title="Your exchange pipeline" actions={<>
-            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from Google Sheets or EXPA</Button>
+            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import exchanges</Button>
             <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add one by hand</Button>
           </>}>
             Track every sign-up through Applied, Accepted, Approved, Realized, Finished and Completed, per product. Approvals and

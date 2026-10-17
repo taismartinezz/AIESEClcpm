@@ -40,32 +40,67 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
   return L > 0.179 ? "#000000" : "#ffffff";
 }
 
-const NAV_ITEMS = [
-  { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
-  { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
-  { href: "/outreach",    label: "Outreach",   icon: Send            },
-  { href: "/goals",       label: "Goals",      icon: Target          },
-  { href: "/partners",    label: "Partners",   icon: Handshake       },
-  { href: "/chat",        label: "Chat",       icon: MessageSquare   },
-  { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
-  { href: "/finance",     label: "Finance",    icon: Wallet          },
-  { href: "/attendance",  label: "Events",     icon: UserCheck       },
-  { href: "/tabling",     label: "Tabling",    icon: Store           },
-  { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
-  { href: "/handover",    label: "Handover",   icon: ScrollText      },
-  { href: "/team",        label: "Team",       icon: Users           },
-  { href: "/members",     label: "Members",    icon: UserPlus        },
-  { href: "/import",      label: "Import",     icon: FileSpreadsheet },
-  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
-  { href: "/journal",     label: "Journal",    icon: BookOpen        },
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavGroup = { id: string; label: string | null; items: NavItem[] };
+
+/** Sidebar groups. Check-in and Journal stay last, as agreed. */
+const NAV_GROUPS: NavGroup[] = [
+  { id: "main", label: null, items: [
+    { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
+    { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
+    { href: "/chat",        label: "Chat",       icon: MessageSquare   },
+    { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
+  ] },
+  { id: "exchanges", label: "Exchanges", items: [
+    { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
+    { href: "/outreach",    label: "Outreach",   icon: Send            },
+    { href: "/goals",       label: "Goals",      icon: Target          },
+    { href: "/partners",    label: "Partners",   icon: Handshake       },
+  ] },
+  { id: "people", label: "People", items: [
+    { href: "/team",        label: "Team",       icon: Users           },
+    { href: "/members",     label: "Members",    icon: UserPlus        },
+    { href: "/attendance",  label: "Events",     icon: UserCheck       },
+    { href: "/tabling",     label: "Tabling",    icon: Store           },
+  ] },
+  { id: "operations", label: "Operations", items: [
+    { href: "/finance",     label: "Finance",    icon: Wallet          },
+    { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
+    { href: "/handover",    label: "Handover",   icon: ScrollText      },
+    { href: "/import",      label: "Import",     icon: FileSpreadsheet },
+  ] },
+  { id: "wellbeing", label: "Wellbeing", items: [
+    { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
+    { href: "/journal",     label: "Journal",    icon: BookOpen        },
+  ] },
 ];
 
+const NATIONAL: NavGroup = { id: "national", label: "National", items: [{ href: "/mc", label: "National (MC)", icon: Globe2 }] };
 
-/** The sidebar items, plus "National" for people on an MC. */
-function useNavItems() {
+/** The sidebar groups, plus "National" for people on an MC (before Wellbeing). */
+function useNavGroups(): NavGroup[] {
   const { mcs } = useMcs();
-  return mcs.length > 0 ? [...NAV_ITEMS, { href: "/mc", label: "National", icon: Globe2 }] : NAV_ITEMS;
+  return mcs.length > 0 ? [...NAV_GROUPS.slice(0, -1), NATIONAL, NAV_GROUPS[NAV_GROUPS.length - 1]] : NAV_GROUPS;
+}
+
+function useNavItems(): NavItem[] {
+  return useNavGroups().flatMap((g) => g.items);
+}
+
+const COLLAPSE_KEY = "aiesec_nav_collapsed";
+/** Which sidebar sections are folded, remembered per browser. */
+function useCollapsed(): [Set<string>, (id: string) => void] {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set(["team"]);
+    try { const v = localStorage.getItem(COLLAPSE_KEY); return new Set(v ? JSON.parse(v) as string[] : ["team"]); } catch { return new Set(["team"]); }
+  });
+  const toggle = (id: string) => setCollapsed((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* storage blocked */ }
+    return next;
+  });
+  return [collapsed, toggle];
 }
 
 // ── LC switcher (top of the workspace menu) ───────────────────────────────────
@@ -183,6 +218,8 @@ function SidebarBody({
   projectColor?: string;
 }) {
   const navItems = useNavItems();
+  const navGroups = useNavGroups();
+  const [folded, toggleFolded] = useCollapsed();
   const [wsOpen, setWsOpen] = useState(false);
   const ICON_BTN = {
     width: 36, height: 36, display: "flex", alignItems: "center",
@@ -485,9 +522,21 @@ function SidebarBody({
         )}
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
-        {navItems.map(({ href, label, icon: Icon }) => {
+      {/* Nav items, in collapsible sections */}
+      <nav className="flex-1 px-2 overflow-y-auto" aria-label="Main navigation">
+        {navGroups.map((group) => {
+          const open = !group.label || !folded.has(group.id) || group.items.some((i) => isActive(i.href));
+          return (
+            <div key={group.id} style={{ marginBottom: 4 }}>
+              {group.label && (
+                <button type="button" onClick={() => toggleFolded(group.id)} aria-expanded={open}
+                  className="flex items-center w-full"
+                  style={{ gap: 4, padding: "8px 10px 3px", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-secondary)" }}>
+                  <ChevronDown size={11} aria-hidden="true" style={{ transform: open ? undefined : "rotate(-90deg)", transition: "transform 120ms" }} />
+                  {group.label}
+                </button>
+              )}
+              {open && group.items.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           const badgeCount = href === "/chat" ? chatUnread : 0;
           const showBadge = badgeCount > 0;
@@ -505,7 +554,7 @@ function SidebarBody({
                 fontSize: 13,
                 borderRadius: 8,
                 textDecoration: "none",
-                minHeight: 38,
+                minHeight: 34,
                 display: "flex",
                 alignItems: "center",
                 paddingLeft: 10,
@@ -522,11 +571,20 @@ function SidebarBody({
             </Link>
           );
         })}
+            </div>
+          );
+        })}
       </nav>
 
-      {/* Team member list */}
-      <div className="px-3 py-3 shrink-0">
-        <div className="max-h-48 overflow-y-auto space-y-0.5">
+      {/* Team member list (folded by default so the nav has room) */}
+      <div className="px-3 py-2 shrink-0" style={{ borderTop: "1px solid var(--color-border)" }}>
+        <button type="button" onClick={() => toggleFolded("team")} aria-expanded={!folded.has("team")}
+          className="flex items-center w-full"
+          style={{ gap: 4, padding: "4px 2px", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-secondary)" }}>
+          <ChevronDown size={11} aria-hidden="true" style={{ transform: folded.has("team") ? "rotate(-90deg)" : undefined, transition: "transform 120ms" }} />
+          Team ({team.length})
+        </button>
+        {!folded.has("team") && <div className="max-h-40 overflow-y-auto space-y-0.5">
           {team.length === 0 && (
             <p style={{ fontSize: 12, color: "var(--color-secondary)", padding: "2px 4px" }}>No teammates yet.</p>
           )}
@@ -550,7 +608,7 @@ function SidebarBody({
               </div>
             );
           })}
-        </div>
+        </div>}
       </div>
 
       {/* Footer: get help + settings + personal workspace */}

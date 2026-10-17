@@ -28,6 +28,8 @@ export interface BuiltImport {
 export interface ImportTarget {
   id: ImportTargetId;
   title: string;
+  /** Used in "Import …" buttons and titles. */
+  noun: string;
   description: string;
   rpc: "import_exchanges" | "import_partners" | "import_recruits" | "import_tasks";
   /** Fields that need a column before importing (any one of them). */
@@ -122,6 +124,7 @@ export const IMPORT_TARGETS: Record<ImportTargetId, ImportTarget> = {
   exchanges: {
     id: "exchanges",
     title: "Exchanges (EXPA or oGX/iGX tracker)",
+    noun: "exchanges",
     description: "Sign-ups and applications, per product. Re-importing updates people with the same EXPA ID.",
     rpc: "import_exchanges",
     requiresOneOf: ["person_name", "expa_id"],
@@ -141,6 +144,7 @@ export const IMPORT_TARGETS: Record<ImportTargetId, ImportTarget> = {
   partners: {
     id: "partners",
     title: "Partners (B2B / sponsor tracker)",
+    noun: "partners",
     description: "Companies and organisations, their stage and a contact. Matched by name on re-import.",
     rpc: "import_partners",
     requiresOneOf: ["name"],
@@ -174,6 +178,7 @@ export const IMPORT_TARGETS: Record<ImportTargetId, ImportTarget> = {
   recruits: {
     id: "recruits",
     title: "Recruitment (applications to join the LC)",
+    noun: "applications",
     description: "People who applied to become members, e.g. your Google Form responses. Matched by email on re-import.",
     rpc: "import_recruits",
     requiresOneOf: ["name"],
@@ -204,6 +209,7 @@ export const IMPORT_TARGETS: Record<ImportTargetId, ImportTarget> = {
   tasks: {
     id: "tasks",
     title: "Tasks (to-do or action-item sheet)",
+    noun: "tasks",
     description: "Action items with a due date and who is responsible. Identical tasks (same title and due date) are skipped.",
     rpc: "import_tasks",
     requiresOneOf: ["title"],

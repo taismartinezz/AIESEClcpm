@@ -114,6 +114,8 @@ export interface Task {
   scope?: "personal" | "project" | "lab";
   subProjectId?: string;
   departmentId?: string | null;
+  /** Who created the task; unassigned tasks count as theirs on the dashboard. */
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
   comments: TaskComment[];

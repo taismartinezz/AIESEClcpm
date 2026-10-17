@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Circle, X } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { UserRole } from "@/types";
+import { DemoLcButton } from "@/components/lc/DemoLc";
 
 interface Item { id: string; label: string; href: string; done: boolean }
 
@@ -114,6 +115,12 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
           </li>
         ))}
       </ul>
+      {role !== "member" && (
+        <p style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--color-secondary)", margin: "10px 0 0" }}>
+          Want to see how it looks with data first?
+          <DemoLcButton variant="button" />
+        </p>
+      )}
     </section>
   );
 }

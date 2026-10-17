@@ -35,9 +35,10 @@ const MR = {
 };
 
 function AddReminderModal({
-  onClose, projectId, userId, teamMembers,
+  onClose, onSaved, projectId, userId, teamMembers,
 }: {
   onClose: () => void;
+  onSaved: () => void;
   projectId: string;
   userId: string;
   teamMembers: User[];
@@ -57,9 +58,10 @@ function AddReminderModal({
   async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
-    const dueAt = date ? `${date}T${time || "09:00"}:00` : null;
+    // Local date + time → an instant in the person's own time zone.
+    const dueAt = date ? new Date(`${date}T${time || "09:00"}:00`).toISOString() : null;
     if (isSupabaseConfigured && projectId && userId) {
-      await supabase.from("reminders").insert({
+      const { error } = await supabase.from("reminders").insert({
         user_id: userId,
         project_id: projectId,
         title: title.trim(),
@@ -70,8 +72,10 @@ function AddReminderModal({
         completed: false,
         scope: "lab",
       });
+      if (error) { console.error("[Dashboard] reminder insert:", error.message); setSaving(false); return; }
     }
     setSaving(false);
+    onSaved();
     onClose();
   }
 
@@ -174,6 +178,7 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(isSupabaseConfigured);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [remindersVersion, setRemindersVersion] = useState(0);
 
   useEffect(() => {
     if (isSupabaseConfigured) {
@@ -237,6 +242,7 @@ export default function DashboardPage() {
             assigneeIds: ((row.task_assignees as any[]) ?? []).map((ta) => ta.user_id as string),
             dueDate: row.due_date as string | undefined,
             createdAt: row.created_at as string,
+            createdBy: (row.created_by as string | null) ?? null,
             updatedAt: row.updated_at as string,
             comments: (row.comments as Task["comments"]) ?? [],
             files: (row.files as Task["files"]) ?? [],
@@ -329,13 +335,14 @@ export default function DashboardPage() {
       const remProjectFilter = `,and(scope.eq.lab,project_id.eq.${activeProjectId})`;
       const nextWeek = new Date();
       nextWeek.setDate(nextWeek.getDate() + 7);
-      const { data: remData } = await supabase
+      const { data: remData, error: remError } = await supabase
         .from("reminders")
         .select("id, title, due_at, scope, assignee_id")
         .or(`user_id.eq.${uid},assignee_id.eq.${uid}${remProjectFilter}`)
         .eq("completed", false)
         .not("due_at", "is", null)
         .lt("due_at", nextWeek.toISOString());
+      if (remError) console.error("[Dashboard] reminders error:", remError.message);
       if (remData) {
         setOverdueReminders(remData.map((r) => ({
           id: r.id as string,
@@ -346,7 +353,7 @@ export default function DashboardPage() {
         })));
       }
     });
-  }, [activeProjectId, userId]);
+  }, [activeProjectId, userId, remindersVersion]);
 
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const timeOfDay = (() => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; })();
@@ -572,6 +579,7 @@ export default function DashboardPage() {
       {reminderModalOpen && (
         <AddReminderModal
           onClose={() => setReminderModalOpen(false)}
+          onSaved={() => setRemindersVersion((v) => v + 1)}
           projectId={projectId}
           userId={userId}
           teamMembers={teamMembers}
