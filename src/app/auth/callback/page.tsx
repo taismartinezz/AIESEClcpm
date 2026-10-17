@@ -21,8 +21,8 @@ export default function AuthCallbackPage() {
 
     // The auth provider sends ?error=... when the provider is disabled or the user cancels.
     // Forward the description so the login page can show a specific message.
-    if (oauthError || !code) {
-      const params = new URLSearchParams({ error: oauthError ?? "oauth_failed" });
+    if (oauthError) {
+      const params = new URLSearchParams({ error: oauthError });
       if (oauthErrorDesc) params.set("error_description", oauthErrorDesc);
       router.replace(`/login?${params.toString()}`);
       return;
@@ -33,17 +33,26 @@ export default function AuthCallbackPage() {
     const safeNext = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
     (async () => {
-      const { data, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchErr || !data.session) {
-        const params = new URLSearchParams({ error: "session_failed" });
-        if (exchErr?.message) params.set("error_description", exchErr.message);
+      // The Supabase client may already have exchanged the code on load; using
+      // the code a second time would fail, so reuse that session when it exists.
+      const fail = (description: string) => {
+        const params = new URLSearchParams({ error: "session_failed", error_description: description });
         router.replace(`/login?${params.toString()}`);
-        return;
+      };
+      // getSession() waits for the client's own handling of ?code=.
+      let session = (await supabase.auth.getSession()).data.session;
+      // Still use the code if there's no session yet, or if this was "Connect Google
+      // Calendar" while already signed in (the old session has no Google token).
+      if (code && (!session || !session.provider_token)) {
+        const { data, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (data.session) session = data.session;
+        else if (!session) { fail(exchErr?.message ?? "Couldn't finish signing in"); return; }
       }
+      if (!session) { fail("No sign-in code was returned"); return; }
 
-      const user = data.session.user;
+      const user = session.user;
       // A "Connect Google Calendar" round trip: hand the Google tokens to the server.
-      await finishGoogleCalendarConnect(data.session).catch((e) => console.error("[Google Calendar]", e));
+      await finishGoogleCalendarConnect(session).catch((e) => console.error("[Google Calendar]", e));
 
       // Honor `next` if provided; otherwise route by LC membership
       if (safeNext !== "/") {

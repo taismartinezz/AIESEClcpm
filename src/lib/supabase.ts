@@ -35,7 +35,9 @@ if (!g.__app_supabase) {
   const client = createClient(
     hasRealDatabase ? url : isPreview ? PREVIEW_URL : "https://placeholder.supabase.co",
     hasRealDatabase ? key : "preview-or-placeholder",
-    { auth: { debug: false }, ...(isPreview ? { global: { fetch: previewFetch } } : {}) },
+    // PKCE: OAuth comes back to /auth/callback as ?code=… (the default "implicit"
+    // flow returns tokens after a # instead, which the callback can't use).
+    { auth: { debug: false, flowType: "pkce" }, ...(isPreview ? { global: { fetch: previewFetch } } : {}) },
   );
   if (isPreview) {
     // No realtime server in the preview: channels are silent no-ops.
