@@ -192,3 +192,13 @@ describe('Login page — password visibility toggle', () => {
     expect(passwordInput).toHaveAttribute('type', 'password')
   })
 })
+
+describe('Login page: Supabase errors in plain words', () => {
+  it('explains unconfirmed emails, wrong passwords and rate limits, and keeps anything else as is', async () => {
+    const { explainAuthError } = await import('@/app/login/page')
+    expect(explainAuthError({ message: 'Email not confirmed', code: 'email_not_confirmed' })).toEqual({ message: expect.stringMatching(/isn't confirmed/), unconfirmed: true })
+    expect(explainAuthError({ message: 'Invalid login credentials' }).message).toMatch(/don't match.*Continue with Google/)
+    expect(explainAuthError({ message: 'Email rate limit exceeded' }).message).toMatch(/Too many attempts/)
+    expect(explainAuthError({ message: 'Something odd' })).toEqual({ message: 'Something odd', unconfirmed: false })
+  })
+})
