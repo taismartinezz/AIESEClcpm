@@ -39,8 +39,10 @@ describe("preview backend", () => {
   it("moving an exchange dates its stages, and goal progress counts it", async () => {
     await db.from("exchanges").update({ stage: "approved" }).eq("person_name", "Sam Okoro");
     const { data } = await db.from("exchanges").select("approved_at, accepted_at").eq("person_name", "Sam Okoro").single();
-    expect(data!.approved_at).toBe("2026-10-16");
-    expect(data!.accepted_at).toBe("2026-10-16");
+    const n = new Date();
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+    expect(data!.approved_at).toBe(today);   // stage dates use the real date, like the database
+    expect(data!.accepted_at).toBe(today);
     const { data: progress } = await db.rpc("goal_progress", { p_project_id: PREVIEW_LC_ID });
     expect((progress as { current: number }[]).some((p) => p.current >= 4)).toBe(true);
   });
