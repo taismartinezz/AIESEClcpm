@@ -91,7 +91,7 @@ This app must run on its **own** Supabase project. Never point it at another app
 
 ## Removed modules
 
-The original app's **Scheduling** (availability grid, meeting proposals, Google Calendar sync) and **Literature** (shared paper library, Zotero import, PDF annotation, browser extension) modules were removed from the UI, API and types. Their database tables (`schedule_events`, `user_availability`, `meeting_proposals`, `literature_items`, `lit_*`, `project_libraries`, `user_zotero_credentials`) are **not dropped**, so existing data is preserved. Nothing reads or writes them any more; drop them by hand if you don't need the data.
+The original app's **Literature** module (shared paper library, Zotero import, PDF annotation, browser extension) was removed from the UI, API and types. Its tables (`literature_items`, `lit_*`, `project_libraries`, `user_zotero_credentials`) are **not dropped**, so existing data is preserved; drop them by hand if you don't need it. **Scheduling** (availability grid, finding a time, meeting proposals, the LC calendar) is back, without the Google Calendar sync.
 
 ## Emails to members
 

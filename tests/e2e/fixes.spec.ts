@@ -101,3 +101,28 @@ test.describe('8 · small UI bugs', () => {
     expect(alpha).toBeGreaterThanOrEqual(0.4)
   })
 })
+
+test('sign-up accepts a name filled in by browser autofill', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByRole('link', { name: /create one|sign up|create an account/i }).or(page.getByRole('button', { name: /create one|sign up|create an account/i })).first().click({ timeout: 10000 })
+  await expect(page.getByLabel('Full name')).toBeVisible()
+  // Autofill sets the boxes without the typing events React listens to.
+  await page.evaluate(() => {
+    const set = (label: string, v: string) => { (document.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement).value = v }
+    set('Full name', 'Tais Martinez'); set('Email', 'tais@example.com'); set('Password', 'long-enough-password')
+  })
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page.getByText('Please enter your full name.')).toHaveCount(0)
+  await expect(page.getByText('Please enter a valid email address.')).toHaveCount(0)
+})
+
+test('Scheduling is back, with Connect Google Calendar', async ({ page }) => {
+  await setupAuthMocks(page, 'member', { tables: { schedule_events: [], user_availability: [], meeting_proposals: [] } })
+  await page.goto('/scheduling')
+  await expect(page.getByRole('heading', { level: 1, name: 'Scheduling' })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole('link', { name: 'Scheduling' })).toBeVisible()
+  await page.getByRole('button', { name: 'Availability' }).first().click()
+  const card = page.getByRole('region', { name: 'Google Calendar' })
+  await expect(card.getByRole('button', { name: 'Connect Google Calendar' })).toBeVisible()
+  await expect(card.getByText(/Read-only. Only you see your Google events/)).toBeVisible()
+})

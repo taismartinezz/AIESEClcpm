@@ -4,9 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPostAuthDestination } from "@/lib/postAuthRedirect";
+import { finishGoogleCalendarConnect } from "@/lib/google-calendar";
 
 // After OAuth sign-in, Supabase redirects here with ?code=... (PKCE flow).
-// We exchange the code for a session, then route to dashboard or onboarding.
+// We exchange the code for a session (saving Google Calendar tokens server-side
+// when this was a calendar connection), then route to dashboard or onboarding.
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -40,6 +42,8 @@ export default function AuthCallbackPage() {
       }
 
       const user = data.session.user;
+      // A "Connect Google Calendar" round trip: hand the Google tokens to the server.
+      await finishGoogleCalendarConnect(data.session).catch((e) => console.error("[Google Calendar]", e));
 
       // Honor `next` if provided; otherwise route by lab membership
       if (safeNext !== "/") {

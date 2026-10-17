@@ -16,26 +16,42 @@ own Supabase project. No provider credentials are stored in this repository.
 
 ---
 
-## 2. Optional OAuth providers
+## 2. Google sign-in and Google Calendar
 
-Social sign-in buttons are off unless you turn them on. To add one:
+"Continue with Google" shows on the login page by default, and Scheduling has a
+**Connect Google Calendar** button (read-only: people see their own Google
+events in their own calendar view). Both use one Google OAuth client.
 
-1. Enable the provider under **Authentication → Providers** in your Supabase
-   dashboard and follow Supabase's instructions for that provider. Its client
-   ID and secret live in Supabase, not in this app.
-2. List it in `NEXT_PUBLIC_AUTH_PROVIDERS` (comma-separated: `google`,
-   `microsoft`, `github`). Leave it empty for email-only sign-in.
+**In Google Cloud Console** (console.cloud.google.com), in a project for the app:
 
-```
-# Email only
-NEXT_PUBLIC_AUTH_PROVIDERS=
+1. **APIs & Services → Library**: enable **Google Calendar API**.
+2. **APIs & Services → OAuth consent screen**: user type *External*; app name,
+   support email; under *Scopes* add `.../auth/calendar.readonly`. While the app
+   is in *Testing*, add the Google accounts that will use it as *Test users*
+   (up to 100). Publishing for everyone needs Google's verification because
+   calendar access is a sensitive scope.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   type *Web application*. Under **Authorized redirect URIs** add
+   `https://<your-project-ref>.supabase.co/auth/v1/callback`
+   (Supabase shows the exact URL on its Google provider page). Copy the
+   **Client ID** and **Client secret**.
 
-# Email + GitHub
-NEXT_PUBLIC_AUTH_PROVIDERS=github
-```
+**In Supabase:**
 
-Providers not in the list are hidden, so nobody is sent to an error page for a
-provider you haven't configured.
+4. **Authentication → Sign In / Providers → Google**: switch it on and paste the
+   Client ID and Client secret.
+5. On the same page, switch on **Allow manual linking**. "Connect Google
+   Calendar" links Google to the account someone already has, instead of
+   creating a second account.
+
+**In Vercel** (and `.env` locally):
+
+6. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to the same values, so the
+   server can renew calendar access (Google's access lasts one hour; without
+   these people have to reconnect).
+
+To hide the Google button, set `NEXT_PUBLIC_AUTH_PROVIDERS=none`; to offer
+others too, list them, e.g. `google,github` (each must be enabled in Supabase).
 
 ---
 

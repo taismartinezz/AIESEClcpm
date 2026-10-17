@@ -192,6 +192,8 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Set after sign-up when the project asks new accounts to confirm their email.
+  const [confirmEmailSent, setConfirmEmailSent] = useState<string | null>(null);
   const [nameError, setNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -211,11 +213,12 @@ export default function LoginPage() {
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
   const googleWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, only
-  // email sign-in shows — providers must be configured in your own Supabase project first.
+  // OAuth buttons (comma-separated, e.g. "google,github"). Google shows by default;
+  // set NEXT_PUBLIC_AUTH_PROVIDERS=none for email only. Each provider must be
+  // enabled in your Supabase project (docs/AUTH_SETUP.md).
   const enabledProviders: Set<string> = new Set(
-    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "")
-      .toLowerCase().split(",").map(s => s.trim()).filter(Boolean)
+    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS || "google")
+      .toLowerCase().split(",").map(s => s.trim()).filter((s) => s && s !== "none")
   );
 
   // Already authed? Route to correct destination.
@@ -284,7 +287,13 @@ export default function LoginPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleEmailAuth = useCallback(async () => {
+  const nameState = name, emailState = email, passwordState = password;
+  // Values come from the form itself on submit: browser autofill fills the
+  // boxes without firing onChange, so React state can still be empty.
+  const handleEmailAuth = useCallback(async (fromForm?: { name: string; email: string; password: string }) => {
+    const name = fromForm?.name ?? nameState;
+    const email = (fromForm?.email ?? emailState).trim();
+    const password = fromForm?.password ?? passwordState;
     if (mode === "signup" && !name.trim()) { setNameError("Please enter your full name."); return; }
     if (!email.includes("@")) { setEmailError("Please enter a valid email address."); return; }
     if (password.length < 6) { setPasswordError("Password must be at least 6 characters."); return; }
@@ -303,10 +312,18 @@ export default function LoginPage() {
     }
 
     try {
-      const { error: authError } = mode === "signin"
+      const { data: authData, error: authError } = mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/login` } });
       if (authError) { setFormError(authError.message); setLoading(false); return; }
+      if (mode === "signup" && !authData.session) {
+        // The project asks new accounts to confirm their email first.
+        if (name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
+        setFormError("");
+        setConfirmEmailSent(email);
+        setLoading(false);
+        return;
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
@@ -338,7 +355,7 @@ export default function LoginPage() {
       setFormError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setLoading(false);
     }
-  }, [email, password, mode, router]);
+  }, [nameState, emailState, passwordState, mode, router]);
 
   const handleForgotPassword = useCallback(async () => {
     if (!forgotEmail.includes("@")) { setForgotError("Please enter a valid email address."); return; }
@@ -584,13 +601,20 @@ export default function LoginPage() {
 
         {/* Email form */}
         <form
-          onSubmit={(e) => { e.preventDefault(); handleEmailAuth(); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const values = { name: String(f.get("name") ?? ""), email: String(f.get("email") ?? ""), password: String(f.get("password") ?? "") };
+            setName(values.name); setEmail(values.email); setPassword(values.password);
+            handleEmailAuth(values);
+          }}
           noValidate
         >
         {mode === "signup" && (
           <>
             <input
               type="text"
+              name="name"
               value={name}
               onChange={(e) => { setName(e.target.value); setNameError(""); setFormError(""); }}
               placeholder="Full name"
@@ -624,6 +648,7 @@ export default function LoginPage() {
         )}
         <input
           type="email"
+          name="email"
           value={email}
           onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
           placeholder="Email"
@@ -655,6 +680,7 @@ export default function LoginPage() {
         <div style={{ position: "relative", marginTop: 10 }}>
           <input
             type={showPassword ? "text" : "password"}
+            name="password"
             value={password}
             onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }}
             placeholder="Password"
@@ -804,6 +830,11 @@ export default function LoginPage() {
             }}
           >
             {formError}
+          </p>
+        )}
+        {confirmEmailSent && (
+          <p role="status" style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "10px 0 0", lineHeight: 1.5 }}>
+            Almost there: we sent a confirmation link to <strong>{confirmEmailSent}</strong>. Open it, then come back here and sign in.
           </p>
         )}
         </form>

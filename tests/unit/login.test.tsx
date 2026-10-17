@@ -114,7 +114,8 @@ describe('Login page — Issue #4: forgot password', () => {
 describe('Login page — Issue #6: OAuth buttons', () => {
   afterEach(() => { delete process.env.NEXT_PUBLIC_AUTH_PROVIDERS })
 
-  it('shows no OAuth buttons unless providers are configured', async () => {
+  it('shows no OAuth buttons when NEXT_PUBLIC_AUTH_PROVIDERS=none', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'none'
     await renderLogin()
     expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument()
   })
