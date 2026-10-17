@@ -42,3 +42,15 @@ describe("meeting proposals", () => {
     expect(await asUser(db, u.pres, async (tx) => (await tx.query("update meeting_proposals set title = 'x' where id = $1 returning id", [id])).rows.length)).toBe(0);
   });
 });
+
+describe("Google Calendar connections", () => {
+  it("tokens are never readable through the API; you see only whether you're connected", async () => {
+    await db.query("insert into google_connections (user_id, google_email, access_token) values ($1, 'ana@gmail.example', 'secret-token')", [u.ana]);
+    await expect(asUser(db, u.ana, (tx) => tx.query("select access_token from google_connections"))).rejects.toThrow(/permission denied/);
+    const mine = await asUser(db, u.ana, async (tx) => (await tx.query("select * from google_calendar_status()")).rows);
+    expect(mine).toEqual([expect.objectContaining({ google_email: "ana@gmail.example" })]);
+    expect(await asUser(db, u.ben, async (tx) => (await tx.query("select * from google_calendar_status()")).rows)).toEqual([]);
+    await asUserCommit(db, u.ana, () => db.query("select disconnect_google_calendar()"));
+    expect((await db.query("select 1 from google_connections where user_id = $1", [u.ana])).rows).toEqual([]);
+  });
+});

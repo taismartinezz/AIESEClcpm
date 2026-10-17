@@ -5,7 +5,9 @@ import {
   Calendar, Users, Send, Clock, Check, X, Plus,
   Lock, Trash2, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
+import type { GoogleEvent } from "@/lib/google-calendar";
+import GoogleCalendarCard from "@/components/scheduling/GoogleCalendarCard";
 import { useProject } from "@/context/ProjectContext";
 import { computeInitials } from "@/lib/utils";
 import { toUserRole } from "@/lib/permissions";
@@ -131,7 +133,8 @@ interface CalEvent {
   endMin: number | null;
   color: string;
   bgColor: string;
-  type: "lab" | "personal" | "meeting";
+  type: "lab" | "personal" | "meeting" | "google";
+  link?: string | null;
   isScheduleEvent: boolean;
   ownerId: string;
 }
@@ -172,6 +175,20 @@ function toCalEvents(events: ScheduleEvent[], proposals: MeetingProposal[]): Cal
   return result;
 }
 
+/** Your own Google Calendar events, shown read-only in your Calendar view. */
+function googleToCalEvents(events: GoogleEvent[], currentUserId: string): CalEvent[] {
+  return events.map((g) => {
+    const start = new Date(g.allDay ? g.start + "T00:00:00" : g.start);
+    const end = g.end ? new Date(g.allDay ? g.end + "T00:00:00" : g.end) : null;
+    const startMin = g.allDay ? null : start.getHours() * 60 + start.getMinutes();
+    const endMin = g.allDay || !end ? null : Math.max((startMin ?? 0) + 15, end.getHours() * 60 + end.getMinutes() + (end.toDateString() !== start.toDateString() ? 24 * 60 : 0));
+    return {
+      id: `google:${g.id}`, title: g.title, date: makeDateStr(start), startMin, endMin: endMin == null ? null : Math.min(endMin, 24 * 60),
+      color: "#4285F4", bgColor: "rgba(66,133,244,0.12)", type: "google" as const, isScheduleEvent: false, ownerId: currentUserId, link: g.link,
+    };
+  });
+}
+
 function layoutDayEvents(dayEvents: CalEvent[]): LayoutEvent[] {
   const timed = dayEvents.filter(e => e.startMin !== null).sort((a, b) => a.startMin! - b.startMin!);
   if (timed.length === 0) return [];
@@ -203,9 +220,10 @@ function minToTimeStr(min: number): string {
 }
 
 function CalendarTab({
-  events, proposals, currentUserId, projectId, onAddEvent, onDeleteEvent,
+  events, proposals, googleEvents, currentUserId, projectId, onAddEvent, onDeleteEvent,
 }: {
   events: ScheduleEvent[];
+  googleEvents: GoogleEvent[];
   proposals: MeetingProposal[];
   currentUserId: string;
   projectId: string;
@@ -228,7 +246,7 @@ function CalendarTab({
   const [tpPos, setTpPos] = useState<{ top: number; left: number } | null>(null);
   const timeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const calEvents = useMemo(() => toCalEvents(events, proposals), [events, proposals]);
+  const calEvents = useMemo(() => [...toCalEvents(events, proposals), ...googleToCalEvents(googleEvents, currentUserId)], [events, proposals, googleEvents, currentUserId]);
 
   function navigate(dir: 1 | -1) {
     const d = new Date(anchor);
@@ -604,6 +622,9 @@ function CalendarTab({
               {detailEvent.startMin != null && ` · ${formatTimeDisplay(minToTimeStr(detailEvent.startMin))}`}
               {detailEvent.type === "meeting" && detailEvent.endMin != null && ` · ${formatDuration(detailEvent.endMin - detailEvent.startMin!)}`}
             </p>
+            {detailEvent.type === "google" && detailEvent.link && (
+              <a href={detailEvent.link} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>Open in Google Calendar</a>
+            )}
             {detailEvent.isScheduleEvent && detailEvent.ownerId === currentUserId && (
               <button onClick={() => { onDeleteEvent(detailEvent.id); setDetailEvent(null); }} className="flex items-center gap-1.5" style={{ marginLeft: 15, fontSize: 12, color: "var(--color-error)", background: "none", border: "none", cursor: "pointer" }}>
                 <Trash2 size={12} /> Delete event
@@ -615,7 +636,7 @@ function CalendarTab({
 
       {/* Legend */}
       <div className="flex gap-5">
-        {[{ color: "var(--color-navy)", label: "LC event" }, { color: "var(--color-secondary)", label: "Personal" }, { color: "var(--color-success)", label: "Meeting" }].map(({ color, label }) => (
+        {[{ color: "var(--color-navy)", label: "LC event" }, { color: "var(--color-secondary)", label: "Personal" }, { color: "var(--color-success)", label: "Meeting" }, ...(googleEvents.length ? [{ color: "#4285F4", label: "Google" }] : [])].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
             <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{label}</span>
@@ -636,7 +657,11 @@ function AvailabilityTab({
   teamMembers,
   currentUserId,
   subProjects,
+  google,
+  onGoogleChanged,
 }: {
+  google: { connected: boolean; email: string | null };
+  onGoogleChanged: () => void;
   onSave: (slots: string[], subProjectId: string | null) => void;
   allAvailabilities: WeeklyAvailability[];
   teamMembers: User[];
@@ -760,7 +785,7 @@ function AvailabilityTab({
             <SectionHeader
               title={
                 subProjects.length > 0
-                  ? `My Availability: ${availSubProjectId ? (subProjects.find(sp => sp.id === availSubProjectId)?.name ?? "Project") : "Lab-wide"}`
+                  ? `My Availability: ${availSubProjectId ? (subProjects.find(sp => sp.id === availSubProjectId)?.name ?? "Project") : "Whole LC"}`
                   : "My Weekly Availability"
               }
               action={
@@ -807,13 +832,14 @@ function AvailabilityTab({
               <div className="flex items-start gap-2 mb-4 px-3 py-2 rounded-lg" style={{ backgroundColor: "var(--color-navy-dim)", border: "1px solid var(--color-border)" }}>
                 <Lock size={13} style={{ marginTop: 2, color: "var(--color-navy)", flexShrink: 0 }} />
                 <p style={{ fontSize: 12, color: "var(--color-body)", margin: 0, lineHeight: 1.5 }}>
-                  You&apos;re editing your <strong>{availSubProjectId ? (subProjects.find(sp => sp.id === availSubProjectId)?.name ?? "project") : "lab-wide"}</strong> availability. Team members see only the aggregate overlap, not your individual schedule.
+                  You&apos;re editing your <strong>{availSubProjectId ? (subProjects.find(sp => sp.id === availSubProjectId)?.name ?? "group") : "whole-LC"}</strong> availability. Team members see only the aggregate overlap, not your individual schedule.
                 </p>
               </div>
               <AvailabilityGrid slots={slots} onChange={setSlots} />
             </div>
           </Card>
 
+          <GoogleCalendarCard connected={google.connected} email={google.email} onChanged={onGoogleChanged} />
         </div>
       ) : (
         <Card>
@@ -996,6 +1022,34 @@ export default function SchedulingPage() {
   const [allUserSettings, setAllUserSettings] = useState<UserSettings[]>([]);
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [google, setGoogle] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
+  const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([]);
+  const [googleVersion, setGoogleVersion] = useState(0);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+
+  // Your own Google Calendar: connection status, then events (−30 / +90 days).
+  useEffect(() => {
+    if (!isSupabaseConfigured || isPreview) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("google_calendar_status");
+        if (error) throw new Error(error.message);
+        const row = (Array.isArray(data) ? data[0] : data) as { google_email: string | null } | undefined;
+        if (cancelled) return;
+        setGoogle({ connected: Boolean(row), email: row?.google_email ?? null });
+        if (!row) { setGoogleEvents([]); return; }
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch("/api/google/calendar", { headers: { Authorization: `Bearer ${session?.access_token ?? ""}` } });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+        if (!cancelled) { setGoogleEvents((body.events ?? []) as GoogleEvent[]); setGoogleError(null); }
+      } catch (e) {
+        if (!cancelled) setGoogleError(`Google Calendar: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [googleVersion]);
 
   // Auth effect - resolve currentUserId once
   useEffect(() => {
@@ -1402,10 +1456,12 @@ export default function SchedulingPage() {
           />
           <div className="flex-1 overflow-y-auto">
             <div className="px-6 py-6 max-w-5xl mx-auto">
+              {googleError && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "0 0 10px" }}>{googleError}</p>}
               {tab === "calendar" && (
                 <CalendarTab
                   events={events}
                   proposals={proposals}
+                  googleEvents={googleEvents}
                   currentUserId={currentUserId}
                   projectId={projectId ?? ""}
                   onAddEvent={handleAddEvent}
@@ -1419,6 +1475,8 @@ export default function SchedulingPage() {
                   teamMembers={teamMembers}
                   currentUserId={currentUserId}
                   subProjects={subProjects}
+                  google={google}
+                  onGoogleChanged={() => setGoogleVersion((v) => v + 1)}
                 />
               )}
               {tab === "meetings" && (

@@ -213,11 +213,12 @@ export default function LoginPage() {
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
   const googleWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Enabled OAuth providers (comma-separated, e.g. "google,github"). If unset, only
-  // email sign-in shows — providers must be configured in your own Supabase project first.
+  // OAuth buttons (comma-separated, e.g. "google,github"). Google shows by default;
+  // set NEXT_PUBLIC_AUTH_PROVIDERS=none for email only. Each provider must be
+  // enabled in your Supabase project (docs/AUTH_SETUP.md).
   const enabledProviders: Set<string> = new Set(
-    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS ?? "")
-      .toLowerCase().split(",").map(s => s.trim()).filter(Boolean)
+    (process.env.NEXT_PUBLIC_AUTH_PROVIDERS || "google")
+      .toLowerCase().split(",").map(s => s.trim()).filter((s) => s && s !== "none")
   );
 
   // Already authed? Route to correct destination.
