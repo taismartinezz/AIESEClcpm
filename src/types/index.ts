@@ -31,6 +31,8 @@ export interface Department {
   sortOrder: number;
   /** AIESEC products this department runs (ogv, ogta, ogte, igv, igta, igte). */
   products: string[];
+  /** Member Pulse area this department is pooled into; null = automatic from its products. */
+  pulseArea?: "outgoing" | "incoming" | "support" | null;
 }
 
 export interface User {
@@ -335,6 +337,14 @@ export interface LcEvent {
   location: string | null;
   departmentId: string | null;
   createdBy: string | null;
+  /** Timed events; null for all-day. */
+  startsAt: string | null;
+  endsAt: string | null;
+  meetingUrl: string | null;
+  description: string | null;
+  audience: "lc" | "department" | "role" | "people";
+  audienceRole: "president" | "vp" | "member" | "exec" | null;
+  invitesSentAt: string | null;
 }
 
 export interface AttendanceRecord {
@@ -401,6 +411,7 @@ export interface Exchange {
   approvedAt: string | null;
   realizedAt: string | null;
   finishedAt: string | null;
+  completedAt: string | null;
   updatedAt: string;
 }
 

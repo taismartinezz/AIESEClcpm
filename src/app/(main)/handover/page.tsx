@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec, isPresident } from "@/lib/permissions";
@@ -107,7 +108,7 @@ export default function HandoverPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Handover notes need a connected database.</p>
+          <NeedsDatabase what="Handover">One note per department per term, so the next exec board doesn&apos;t start from zero.</NeedsDatabase>
         ) : sections.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Join a department to read its handover.</p>
         ) : (

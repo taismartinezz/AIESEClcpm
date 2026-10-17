@@ -5,6 +5,8 @@ import { Plus, Trash2, Landmark } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { AIESEC_PALETTE } from "@/lib/brand";
+import { PRODUCTS } from "@/lib/products";
+import { SUGGESTED_DEPARTMENTS, type SuggestedDepartment } from "@/lib/departments";
 import type { Department } from "@/types";
 
 interface ExecOption { id: string; name: string }
@@ -16,8 +18,9 @@ const inputStyle: React.CSSProperties = {
 };
 
 /**
- * President-only editor for the LC's departments: rename, recolour, assign the
- * leading VP, add and delete. RLS ("president manages departments") enforces
+ * President-only editor for the LC's departments: create (from scratch or from
+ * the usual AIESEC suggestions), rename, recolour, assign the leading VP, pick
+ * the exchange products each one runs, add and delete. New LCs start empty. RLS ("president manages departments") enforces
  * the same rule in the database.
  */
 export default function DepartmentsManager() {
@@ -75,6 +78,21 @@ export default function DepartmentsManager() {
     setNewName("");
   }
 
+  function addSuggested(s: SuggestedDepartment) {
+    if (!projectId) return;
+    return run(`suggest:${s.name}`, () => supabase.from("departments").insert({
+      project_id: projectId, name: s.name, color: s.color, products: s.products,
+      is_finance: s.is_finance && !departments.some((d) => d.isFinance), sort_order: departments.length + 1,
+    }));
+  }
+
+  function toggleProduct(dep: Department, code: string) {
+    const products = dep.products.includes(code) ? dep.products.filter((p) => p !== code) : [...dep.products, code];
+    return update(dep, { products });
+  }
+
+  const suggestions = SUGGESTED_DEPARTMENTS.filter((s) => !departments.some((d) => d.name.toLowerCase() === s.name.toLowerCase()));
+
   function remove(dep: Department) {
     if (!window.confirm(`Delete "${dep.name}"? Its members will have no department until you reassign them.`)) return;
     return run(dep.id, () => supabase.from("departments").delete().eq("id", dep.id));
@@ -83,13 +101,18 @@ export default function DepartmentsManager() {
   return (
     <div>
       <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 0, marginBottom: 12 }}>
-        Every member belongs to one department. A VP can lead several. The department marked{" "}
+        Create your LC&rsquo;s departments or committees (e.g. oGX, oGT, oGV, Marketing). Every member belongs to one department and a VP can lead several. Tick the exchange products a department runs so its exchanges show in the pipeline. The department marked{" "}
         <Landmark size={11} style={{ verticalAlign: "-1px" }} aria-label="finance" /> is the one whose VP handles finance.
       </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {departments.length === 0 && (
+        <p style={{ fontSize: 13, color: "var(--color-body)", margin: "0 0 12px" }}>No departments yet. Add your own below, or start from a suggestion.</p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {departments.map((dep) => (
-          <div key={dep.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, opacity: busyId === dep.id ? 0.6 : 1 }}>
+          <div key={dep.id} style={{ opacity: busyId === dep.id ? 0.6 : 1 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             <input
               type="color"
               value={dep.color}
@@ -138,6 +161,30 @@ export default function DepartmentsManager() {
               <Trash2 size={12} color="var(--color-secondary)" />
             </button>
           </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 6, paddingLeft: 38 }}>
+          <div role="group" aria-label={`Exchange products run by ${dep.name}`} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {PRODUCTS.map((p) => {
+              const on = dep.products.includes(p.code);
+              return (
+                <button key={p.code} type="button" aria-pressed={on} onClick={() => toggleProduct(dep, p.code)} title={p.name}
+                  style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 12, cursor: "pointer",
+                    border: `1px solid ${on ? "var(--color-navy)" : "var(--color-border)"}`,
+                    backgroundColor: on ? "var(--color-navy-dim)" : "transparent", color: on ? "var(--color-navy)" : "var(--color-secondary)" }}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <select aria-label={`Pulse area for ${dep.name}`} value={dep.pulseArea ?? ""} onChange={(e) => update(dep, { pulse_area: e.target.value || null })}
+            title="Small departments are pooled into an area for the Member Pulse"
+            style={{ ...inputStyle, height: 24, fontSize: 11, padding: "0 6px" }}>
+            <option value="">Pulse area: automatic</option>
+            <option value="outgoing">Pulse area: Outgoing</option>
+            <option value="incoming">Pulse area: Incoming</option>
+            <option value="support">Pulse area: Support</option>
+          </select>
+          </div>
+          </div>
         ))}
       </div>
 
@@ -159,6 +206,21 @@ export default function DepartmentsManager() {
           <Plus size={13} /> Add
         </button>
       </div>
+
+      {suggestions.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 6px" }}>Suggestions</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestions.map((s) => (
+              <button key={s.name} type="button" onClick={() => addSuggested(s)} disabled={busyId === `suggest:${s.name}`}
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, padding: "4px 10px", borderRadius: 14, cursor: "pointer",
+                  border: "1px dashed var(--color-border)", backgroundColor: "transparent", color: "var(--color-body)" }}>
+                <Plus size={11} aria-hidden="true" /> {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", marginTop: 10, marginBottom: 0 }}>{error}</p>

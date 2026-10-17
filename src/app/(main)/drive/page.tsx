@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, FolderPlus, Download, Pencil, Plus, Trash2, Upload, Folder, User as UserIcon, Users, Search, Library } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -157,9 +158,9 @@ export default function DrivePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 240, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The LC Drive needs a connected database.</p>
+          <NeedsDatabase what="LC Drive">Templates, brand kit, job descriptions and important links, in folders for the whole LC.</NeedsDatabase>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 230px) 1fr", gap: 20, alignItems: "start" }}>
+          <div className="grid gap-5 items-start md:grid-cols-[minmax(180px,230px)_1fr]">
             <nav aria-label="Drive folders">
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                 {navItem("all", "Everything", <Library size={14} aria-hidden="true" />, view.kind === "all", () => setView({ kind: "all" }), items.length)}

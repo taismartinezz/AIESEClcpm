@@ -5,14 +5,17 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { USERS, getStoredProject, getStoredUser } from "@/lib/mock-data";
+import { useMcs } from "@/hooks/useMcs";
+import { DemoLcButton } from "@/components/lc/DemoLc";
+import WhatsNew from "@/components/ui/WhatsNew";
+import { USERS, getStoredProject, getStoredUser, withDemoUser } from "@/lib/mock-data";
 import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
@@ -20,7 +23,7 @@ import SupportPanel from "@/components/support/SupportPanel";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
-import OnboardingModal, { useOnboarding } from "@/components/ui/OnboardingModal";
+import OnboardingModal, { useOnboarding, type TourRole } from "@/components/ui/OnboardingModal";
 import Tooltip from "@/components/ui/Tooltip";
 import GlobalSearch from "@/components/ui/GlobalSearch";
 import { UndoToastProvider } from "@/context/UndoToastContext";
@@ -39,22 +42,31 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 
 const NAV_ITEMS = [
   { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
   { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
   { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
+  { href: "/outreach",    label: "Outreach",   icon: Send            },
   { href: "/goals",       label: "Goals",      icon: Target          },
   { href: "/partners",    label: "Partners",   icon: Handshake       },
-  { href: "/journal",     label: "Journal",    icon: BookOpen        },
   { href: "/chat",        label: "Chat",       icon: MessageSquare   },
   { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
   { href: "/finance",     label: "Finance",    icon: Wallet          },
-  { href: "/attendance",  label: "Attendance", icon: UserCheck       },
+  { href: "/attendance",  label: "Events",     icon: UserCheck       },
   { href: "/tabling",     label: "Tabling",    icon: Store           },
   { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
   { href: "/handover",    label: "Handover",   icon: ScrollText      },
   { href: "/team",        label: "Team",       icon: Users           },
+  { href: "/members",     label: "Members",    icon: UserPlus        },
+  { href: "/import",      label: "Import",     icon: FileSpreadsheet },
+  { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
+  { href: "/journal",     label: "Journal",    icon: BookOpen        },
 ];
 
+
+/** The sidebar items, plus "National" for people on an MC. */
+function useNavItems() {
+  const { mcs } = useMcs();
+  return mcs.length > 0 ? [...NAV_ITEMS, { href: "/mc", label: "National", icon: Globe2 }] : NAV_ITEMS;
+}
 
 // ── LC switcher (top of the workspace menu) ───────────────────────────────────
 
@@ -83,6 +95,7 @@ function LcMenuSection({ onDone }: { onDone: () => void }) {
           </button>
         );
       })}
+      <DemoLcButton onDone={onDone} />
       <Link
         href="/onboarding?add=1"
         onClick={onDone}
@@ -169,6 +182,7 @@ function SidebarBody({
   projectName?: string;
   projectColor?: string;
 }) {
+  const navItems = useNavItems();
   const [wsOpen, setWsOpen] = useState(false);
   const ICON_BTN = {
     width: 36, height: 36, display: "flex", alignItems: "center",
@@ -279,7 +293,7 @@ function SidebarBody({
 
         {/* Page nav icons */}
         <nav className="flex-1 flex flex-col items-center overflow-y-auto" style={{ gap: 2, scrollbarWidth: "none" }} aria-label="Main navigation">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             const badgeCount = href === "/chat" ? chatUnread : 0;
             const showBadge = badgeCount > 0;
@@ -473,7 +487,7 @@ function SidebarBody({
 
       {/* Nav items */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           const badgeCount = href === "/chat" ? chatUnread : 0;
           const showBadge = badgeCount > 0;
@@ -718,7 +732,9 @@ function projectInitials(name: string): string {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope } = useProject();
+  const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
+  const { mcs: myMcs, loaded: mcsLoaded } = useMcs();
+  const tourRole: TourRole | null = lcLoading ? null : lcRole ?? (mcsLoaded && myMcs.length > 0 ? "mc" : null);
   const [navCollapsed, setNavCollapsed]   = useState(false);
   const [navWidth, setNavWidth]           = useState(() => {
     try {
@@ -729,7 +745,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   });
   const navWidthRef                       = useRef(210);
   const [showCreate, setShowCreate]       = useState(false);
-  const { show: showOnboarding, close: closeOnboarding } = useOnboarding();
+  const { show: showOnboarding, close: closeOnboarding } = useOnboarding(tourRole);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -781,7 +797,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const me = getStoredUser();
         setProfile({ ...me, avatar_initials: me.avatarInitials, avatar_color: me.avatarColor });
         setProject(getStoredProject());
-        setTeam(USERS.map((u) => (u.id === me.id ? me : u)));
+        setTeam(withDemoUser(USERS, me));
         setAuthed(true);
         return;
       }
@@ -935,6 +951,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       const { data: { session } } = await supabase.auth.getSession();
       const currentUserId = session?.user?.id ?? null;
+      // "Last seen" for Talent Management's activity view; best effort, never blocks loading.
+      if (currentUserId) void supabase.rpc("touch_last_seen").then(({ error }) => { if (error) console.warn("[last seen]", error.message); });
 
       const { data: members } = await supabase
         .from("team_members")
@@ -1412,7 +1430,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )}
     {projectId && <GlobalSearch projectId={projectId} />}
     {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} />}
-    {showOnboarding && authed && <OnboardingModal onClose={closeOnboarding} />}
+    {showOnboarding && authed && tourRole && <OnboardingModal role={tourRole} onClose={closeOnboarding} />}
+    {authed && !showOnboarding && <WhatsNew />}
     <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     {authed && <ChatDock />}
 </>

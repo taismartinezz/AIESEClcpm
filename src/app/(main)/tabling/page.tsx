@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -92,7 +93,7 @@ export default function TablingPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 240, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Tabling needs a connected database.</p>
+          <NeedsDatabase what="Tabling">Recruitment shifts members sign up for, with reminders and attended hours.</NeedsDatabase>
         ) : tab === "week" ? (
           <WeekView
             slots={slots} mySignups={mySignups} canCreate={exec} canManage={canManage} departments={departments}

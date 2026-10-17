@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, Plus, Search } from "lucide-react";
+import { AlertTriangle, Download, ExternalLink, Plus, Search, Upload } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import TeachingEmpty, { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { PRODUCTS, PRODUCT_BY_CODE, STAGES, STAGE_DATE_FIELD, STAGE_LABEL, type ExchangeStage, type ProductCode } from "@/lib/products";
-import { daysSince, mapExchange } from "@/lib/pipeline";
+import { daysSince, formatPct, localIsoDate, mapExchange, pipelineStats, stuckExchanges } from "@/lib/pipeline";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { useLcMembers } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
-import { Button, ErrorText, inputStyle } from "@/components/lc/ui";
+import { Button, ErrorText, Stat, inputStyle } from "@/components/lc/ui";
 import ExchangeModal from "@/components/pipeline/ExchangeModal";
+import ImportWizard from "@/components/import/ImportWizard";
 
 export default function PipelinePage() {
   const { projectId, userId, role, departments, departmentId, ledDepartmentIds, isLoading } = useProject();
@@ -34,6 +36,8 @@ export default function PipelinePage() {
   const reload = () => setVersion((v) => v + 1);
   const [editing, setEditing] = useState<Exchange | "new" | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [termStart, setTermStart] = useState(() => `${new Date().getFullYear()}-02-01`);
   const enabled = Boolean(projectId) && isSupabaseConfigured;
 
   useEffect(() => {
@@ -42,8 +46,12 @@ export default function PipelinePage() {
     (async () => {
       try {
         // RLS returns only the exchanges this person may see.
-        const { data, error: err } = await supabase.from("exchanges").select("*").eq("project_id", projectId).order("updated_at", { ascending: false });
+        const [{ data, error: err }, term] = await Promise.all([
+          supabase.from("exchanges").select("*").eq("project_id", projectId).order("updated_at", { ascending: false }),
+          supabase.rpc("lc_term_start", { p_project_id: projectId }),
+        ]);
         if (err) throw new Error(err.message);
+        if (!cancelled && !term.error && term.data) setTermStart(term.data as string);
         if (!cancelled) { setExchanges((data ?? []).map(mapExchange)); setError(null); }
       } catch (e) {
         if (!cancelled) setError(`Couldn't load the pipeline: ${e instanceof Error ? e.message : String(e)}`);
@@ -71,6 +79,9 @@ export default function PipelinePage() {
   const inProduct = exchanges.filter((e) => e.product === product);
   const shown = inProduct.filter((e) => !query || [e.personName, e.opportunity, e.hostEntity, e.expaId].some((v) => v?.toLowerCase().includes(query.toLowerCase())));
   const color = PRODUCT_BY_CODE[product].color;
+  const today = localIsoDate(new Date());
+  const stats = pipelineStats(inProduct, termStart, today);
+  const stuck = stuckExchanges(inProduct);
 
   function exportCsv() {
     downloadCsv(`pipeline-${product}-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(inProduct, [
@@ -91,9 +102,10 @@ export default function PipelinePage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Exchange pipeline"
-        subtitle="Every exchange from sign-up to finished, per product."
+        subtitle="Every exchange from sign-up to completed, per product."
         action={<>
           <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
+          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from EXPA</Button>}
           {myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}
         </>}
       >
@@ -125,13 +137,46 @@ export default function PipelinePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 260, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>The pipeline needs a connected database.</p>
+          <NeedsDatabase what="Exchange pipeline">Every exchange per product, from sign-up to completed, with this term&apos;s approvals, realizations and conversion rates.</NeedsDatabase>
         ) : myProducts.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>
             Your department doesn&apos;t run an exchange product. The pipeline is for the oGV, oGT/Te, iGV and iGT/Te departments.
           </p>
+        ) : exchanges.length === 0 ? (
+          <TeachingEmpty title="Your exchange pipeline" actions={<>
+            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from Google Sheets or EXPA</Button>
+            <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add one by hand</Button>
+          </>}>
+            Track every sign-up through Applied, Accepted, Approved, Realized, Finished and Completed, per product. Approvals and
+            realizations this term, conversion rates and stuck exchanges are worked out for you, and your goals count themselves.
+            Start by importing your oGX/iGX tracker or EXPA export.
+          </TeachingEmpty>
         ) : (
           <>
+            <section aria-label={`${PRODUCT_BY_CODE[product].label} this term`} style={{ marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+                <Stat label={`Approved this term`} value={String(stats.approved)} note={`since ${termStart}`} />
+                <Stat label="Realized this term" value={String(stats.realized)} note={`${stats.completed} completed`} />
+                <Stat label="Applied → accepted" value={formatPct(stats.appliedToAccepted)} note={`of ${stats.applied} who applied this term`} />
+                <Stat label="Applied → approved" value={formatPct(stats.appliedToApproved)} note="the conversion MCs track" />
+                <Stat label="Approved → realized" value={formatPct(stats.approvedToRealized)} note={`of ${stats.approved} approved this term`} />
+              </div>
+              {stuck.length > 0 && (
+                <div role="status" style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, backgroundColor: "var(--color-warning-bg)", fontSize: 12, color: "var(--color-body)" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, color: "var(--color-warning)" }}>
+                    <AlertTriangle size={13} aria-hidden="true" /> {stuck.length} stuck
+                  </span>{" "}
+                  {stuck.slice(0, 6).map(({ exchange: e, days }, i) => (
+                    <span key={e.id}>
+                      {i > 0 && " · "}
+                      <button type="button" onClick={() => setEditing(e)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: "var(--color-navy)", fontWeight: 600 }}>{e.personName}</button>
+                      {` ${STAGE_LABEL[e.stage].toLowerCase()} ${days}d`}
+                    </span>
+                  ))}
+                  {stuck.length > 6 && ` · and ${stuck.length - 6} more`}
+                </div>
+              )}
+            </section>
             <div style={{ position: "relative", maxWidth: 280, marginBottom: 12 }}>
               <Search size={14} color="var(--color-secondary)" aria-hidden="true" style={{ position: "absolute", left: 10, top: 12 }} />
               <input aria-label="Search exchanges" placeholder="Search name, project, EXPA ID…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ ...inputStyle, paddingLeft: 30 }} />
@@ -185,6 +230,14 @@ export default function PipelinePage() {
           </>
         )}
       </div>
+
+      {importing && projectId && (
+        <ImportWizard
+          target="exchanges" projectId={projectId} products={[product, ...myProducts.filter((p) => p !== product)]}
+          context={{ departments, roster, defaultDepartmentId: departmentId }}
+          onClose={() => setImporting(false)} onImported={reload}
+        />
+      )}
 
       {editing && projectId && userId && (
         <ExchangeModal

@@ -351,7 +351,7 @@ function WellbeingPreview({ role }: { role: "president" | "member" }) {
 
 // ── Supabase sync ─────────────────────────────────────────────────────────────
 // Creating an LC: insert the project (DB triggers seed the President/VP/Member
-// roles and the default departments), then join it as president.
+// roles), then join it as president. The president creates departments later.
 // Joining an LC: save the profile, then call join_lc_with_code(), which checks the
 // code server-side and assigns the invite's role — never a client-chosen one.
 
@@ -895,6 +895,9 @@ export default function OnboardingPage() {
           <NavButton large={isLarge} onClick={handleStep1Continue} disabled={!role}>
             Continue
           </NavButton>
+          <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", textAlign: "center", margin: "16px 0 0" }}>
+            On the national team (MC)? <a href="/mc" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Go to the national view</a>
+          </p>
         </div>
       </div>
     );

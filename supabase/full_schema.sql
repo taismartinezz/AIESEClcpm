@@ -5136,3 +5136,1785 @@ create policy "handover written by the department VP or president" on handover_n
 
 notify pgrst, 'reload schema';
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261018001_departments_by_president.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 038: New LCs start without departments; the president creates them.
+--
+-- Until now every new LC was given the eight AIESEC departments automatically.
+-- LCs organise their committees differently (oGX, oGT, oGV, …), so the
+-- president now creates them in Settings → Departments, where the usual AIESEC
+-- departments are offered as one-click suggestions. Existing LCs keep the
+-- departments they already have.
+--
+-- seed_default_departments() stays (not callable through the API) for scripts
+-- that want the classic setup.
+
+drop trigger if exists trg_seed_lc_departments on projects;
+drop function if exists _seed_lc_departments();
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261018002_pipeline_completed_import.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 039: Exchange pipeline — "Completed" stage and EXPA CSV import.
+--
+--   * Stages are now Signed up → Applied → Accepted → Approved → Realized →
+--     Finished → Completed (exchanges.completed_at, goals can target it).
+--   * Stage dates: when an exchange arrives at a stage with earlier dates
+--     missing (typical for imports), each missing date takes the next known
+--     later date instead of today, so conversion and "this term" numbers stay
+--     right. Sign-up is never after the application.
+--   * expa_id is unique per LC, so re-importing an EXPA export updates the
+--     exchanges already there instead of duplicating them.
+--   * import_exchanges(lc, product, rows) inserts or updates many exchanges in
+--     one call. It runs with the caller's own rights (SECURITY INVOKER), so the
+--     usual RLS decides what each person may add or change; rows it can't
+--     write are counted and reported back, not silently dropped.
+
+-- ── 1. Completed stage ───────────────────────────────────────────────────────
+
+alter table exchanges add column if not exists completed_at date;
+
+alter table exchanges drop constraint if exists exchanges_stage_check;
+alter table exchanges add constraint exchanges_stage_check
+  check (stage in ('signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished', 'completed'));
+
+alter table goals drop constraint if exists goals_stage_check;
+alter table goals add constraint goals_stage_check
+  check (stage in ('signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished', 'completed'));
+
+create or replace function _exchanges_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rank integer := array_position(
+    array['signed_up', 'applied', 'accepted', 'approved', 'realized', 'finished', 'completed'], new.stage);
+begin
+  if new.department_id is null then
+    select id into new.department_id from departments
+    where project_id = new.project_id and new.product = any (products)
+    order by sort_order limit 1;
+  elsif not exists (select 1 from departments where id = new.department_id and project_id = new.project_id) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  if new.owner_id is not null and not exists (
+    select 1 from team_members where project_id = new.project_id and user_id = new.owner_id
+  ) then
+    raise exception 'The owner must be a member of this LC';
+  end if;
+
+  -- Reaching a stage implies the earlier ones. A missing date takes the next
+  -- known later date (imports often carry only the latest), else today.
+  if v_rank >= 7 then new.completed_at := coalesce(new.completed_at, current_date); end if;
+  if v_rank >= 6 then new.finished_at  := coalesce(new.finished_at,  new.completed_at, current_date); end if;
+  if v_rank >= 5 then new.realized_at  := coalesce(new.realized_at,  new.finished_at,  current_date); end if;
+  if v_rank >= 4 then new.approved_at  := coalesce(new.approved_at,  new.realized_at,  current_date); end if;
+  if v_rank >= 3 then new.accepted_at  := coalesce(new.accepted_at,  new.approved_at,  current_date); end if;
+  if v_rank >= 2 then new.applied_at   := coalesce(new.applied_at,   new.accepted_at,  current_date); end if;
+  new.signed_up_at := least(coalesce(new.signed_up_at, current_date), coalesce(new.applied_at, current_date));
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+create or replace function goal_progress(p_project_id uuid)
+returns table (goal_id uuid, current numeric)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  if not auth_is_project_member(p_project_id) then
+    return;
+  end if;
+  return query
+  select g.id,
+         case when g.metric = 'manual' then g.current_value
+         else (
+           select count(*)::numeric
+           from   exchanges e
+           where  e.project_id = g.project_id
+             and  (g.product is not null and e.product = g.product
+                   or g.product is null and (g.department_id is null or e.department_id = g.department_id))
+             and  (case g.stage
+                     when 'signed_up' then e.signed_up_at
+                     when 'applied'   then e.applied_at
+                     when 'accepted'  then e.accepted_at
+                     when 'approved'  then e.approved_at
+                     when 'realized'  then e.realized_at
+                     when 'finished'  then e.finished_at
+                     when 'completed' then e.completed_at
+                   end) between g.starts_on and g.ends_on
+         ) end
+  from goals g
+  where g.project_id = p_project_id;
+end;
+$$;
+
+-- ── 2. One exchange per EXPA application per LC ──────────────────────────────
+
+create unique index if not exists exchanges_project_expa_id_key
+  on exchanges (project_id, expa_id) where expa_id is not null;
+
+-- ── 3. Bulk import ───────────────────────────────────────────────────────────
+-- p_rows: [{ expa_id, person_name, email, phone, opportunity, host_entity,
+--            expa_url, stage, signed_up_at, applied_at, accepted_at,
+--            approved_at, realized_at, finished_at, completed_at }, …]
+
+create or replace function import_exchanges(p_project_id uuid, p_product text, p_rows jsonb)
+returns table (inserted integer, updated integer, failed integer, errors text[])
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  r        jsonb;
+  v_id     uuid;
+  v_expa   text;
+  v_name   text;
+  v_ins    integer := 0;
+  v_upd    integer := 0;
+  v_fail   integer := 0;
+  v_errors text[]  := '{}';
+begin
+  if jsonb_typeof(p_rows) <> 'array' then
+    raise exception 'Expected a list of rows';
+  end if;
+  if jsonb_array_length(p_rows) > 2000 then
+    raise exception 'Import at most 2000 rows at a time';
+  end if;
+
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_expa := nullif(trim(r->>'expa_id'), '');
+    v_name := coalesce(nullif(trim(r->>'person_name'), ''), v_expa, '(no name)');
+    begin
+      v_id := null;
+      if v_expa is not null then
+        select id into v_id from exchanges where project_id = p_project_id and expa_id = v_expa;
+      end if;
+
+      if v_id is not null then
+        update exchanges set
+          stage        = coalesce(nullif(r->>'stage', ''), stage),
+          person_name  = coalesce(nullif(trim(r->>'person_name'), ''), person_name),
+          email        = coalesce(nullif(trim(r->>'email'), ''), email),
+          phone        = coalesce(nullif(trim(r->>'phone'), ''), phone),
+          opportunity  = coalesce(nullif(trim(r->>'opportunity'), ''), opportunity),
+          host_entity  = coalesce(nullif(trim(r->>'host_entity'), ''), host_entity),
+          expa_url     = coalesce(nullif(trim(r->>'expa_url'), ''), expa_url),
+          signed_up_at = coalesce((r->>'signed_up_at')::date, signed_up_at),
+          applied_at   = coalesce((r->>'applied_at')::date, applied_at),
+          accepted_at  = coalesce((r->>'accepted_at')::date, accepted_at),
+          approved_at  = coalesce((r->>'approved_at')::date, approved_at),
+          realized_at  = coalesce((r->>'realized_at')::date, realized_at),
+          finished_at  = coalesce((r->>'finished_at')::date, finished_at),
+          completed_at = coalesce((r->>'completed_at')::date, completed_at)
+        where id = v_id;
+        if not found then
+          raise exception 'you can''t edit this exchange';
+        end if;
+        v_upd := v_upd + 1;
+      else
+        insert into exchanges (project_id, product, stage, person_name, email, phone, opportunity, host_entity,
+                               expa_id, expa_url, signed_up_at, applied_at, accepted_at, approved_at,
+                               realized_at, finished_at, completed_at, created_by)
+        values (p_project_id, p_product, coalesce(nullif(r->>'stage', ''), 'signed_up'), v_name,
+                nullif(trim(r->>'email'), ''), nullif(trim(r->>'phone'), ''),
+                nullif(trim(r->>'opportunity'), ''), nullif(trim(r->>'host_entity'), ''),
+                v_expa, nullif(trim(r->>'expa_url'), ''),
+                coalesce((r->>'signed_up_at')::date, (r->>'applied_at')::date, current_date),
+                (r->>'applied_at')::date, (r->>'accepted_at')::date, (r->>'approved_at')::date,
+                (r->>'realized_at')::date, (r->>'finished_at')::date, (r->>'completed_at')::date,
+                auth.uid());
+        v_ins := v_ins + 1;
+      end if;
+    exception when others then
+      v_fail := v_fail + 1;
+      if coalesce(array_length(v_errors, 1), 0) < 20 then
+        v_errors := v_errors || (v_name || ': ' ||
+          case when sqlstate = '23505' then 'already in the pipeline, in a department you can''t see'
+               when sqlstate = '42501' then 'you can''t add exchanges for this product'
+               else sqlerrm end);
+      end if;
+    end;
+  end loop;
+
+  return query select v_ins, v_upd, v_fail, v_errors;
+end;
+$$;
+
+revoke execute on function import_exchanges(uuid, text, jsonb) from public, anon;
+grant  execute on function import_exchanges(uuid, text, jsonb) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261019001_member_lifecycle.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 040: Member lifecycle (Talent Management).
+--
+--   recruits             recruitment intake: people who applied to join the LC,
+--                        moving Applied → Interview → Offer → Joined (or
+--                        Rejected / Withdrawn). Personal data: the exec board
+--                        only.
+--   onboarding_steps     the LC's onboarding checklist (seeded with five steps,
+--                        edited by the exec board; a step can be limited to one
+--                        department).
+--   member_onboarding    which steps each member has done. Members tick their
+--                        own; the president and the member's VP can tick too.
+--   team_members         term_start / term_end per member, set with
+--                        set_member_term() by the president or the member's VP.
+--   user_profiles        last_seen_at, refreshed by touch_last_seen() when the
+--                        app opens.
+--   member_activity()    inactivity signals per member for the president (all)
+--                        and VPs (their departments): last seen, events attended
+--                        vs held, tabling no-shows, overdue tasks. Deliberately
+--                        NOT check-in participation: the check-in promises that
+--                        nobody can see who answered.
+
+-- ── 1. Recruitment intake ────────────────────────────────────────────────────
+
+create table if not exists recruits (
+  id             uuid primary key default gen_random_uuid(),
+  project_id     uuid not null references projects(id) on delete cascade,
+  name           text not null check (length(trim(name)) > 0),
+  email          text,
+  phone          text,
+  source         text,                 -- tabling, info session, social media, referral, form…
+  department_id  uuid references departments(id) on delete set null,   -- department they're interested in
+  stage          text not null default 'applied'
+                 check (stage in ('applied', 'interview', 'offer', 'joined', 'rejected', 'withdrawn')),
+  interview_at   timestamptz,
+  notes          text,
+  owner_id       uuid references user_profiles(id) on delete set null,
+  applied_on     date not null default current_date,
+  created_by     uuid references user_profiles(id) on delete set null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists recruits_project_stage_idx on recruits (project_id, stage);
+create unique index if not exists recruits_project_email_key on recruits (project_id, lower(email)) where email is not null;
+
+create or replace function _recruits_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_id is not null and not exists (
+    select 1 from departments where id = new.department_id and project_id = new.project_id
+  ) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  if new.owner_id is not null and not exists (
+    select 1 from team_members where project_id = new.project_id and user_id = new.owner_id
+  ) then
+    raise exception 'The owner must be a member of this LC';
+  end if;
+  new.email := nullif(lower(trim(new.email)), '');
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_recruits_guard on recruits;
+create trigger trg_recruits_guard
+  before insert or update on recruits
+  for each row execute function _recruits_guard();
+
+alter table recruits enable row level security;
+
+drop policy if exists "exec manages recruits" on recruits;
+create policy "exec manages recruits" on recruits
+  for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+-- ── 2. Onboarding checklist ──────────────────────────────────────────────────
+
+create table if not exists onboarding_steps (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  title         text not null check (length(trim(title)) > 0),
+  description   text,
+  department_id uuid references departments(id) on delete cascade,   -- null = every new member
+  sort_order    integer not null default 0,
+  created_at    timestamptz not null default now()
+);
+
+create table if not exists member_onboarding (
+  project_id uuid not null references projects(id) on delete cascade,
+  user_id    uuid not null references user_profiles(id) on delete cascade,
+  step_id    uuid not null references onboarding_steps(id) on delete cascade,
+  done_at    timestamptz not null default now(),
+  done_by    uuid references user_profiles(id) on delete set null,
+  primary key (user_id, step_id)
+);
+
+create or replace function seed_default_onboarding_steps(p_project_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into onboarding_steps (project_id, title, description, sort_order)
+  select p_project_id, s.title, s.descr, s.ord
+  from (values
+    ('Meet your VP',                    'A first 1:1 with the VP of your department.', 1),
+    ('Join the LC chat',                'Say hi in the LC channel in Chat.', 2),
+    ('Read the LC handbook',            'It is in the LC Drive, in Handover or Templates.', 3),
+    ('Attend your first LC meeting',    null, 4),
+    ('Do your first check-in',          'About a minute, every two weeks. Only averages are shared.', 5)
+  ) as s(title, descr, ord)
+  where not exists (select 1 from onboarding_steps where project_id = p_project_id);
+$$;
+revoke execute on function seed_default_onboarding_steps(uuid) from public, anon, authenticated;
+
+create or replace function _seed_lc_onboarding()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform seed_default_onboarding_steps(new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_seed_lc_onboarding on projects;
+create trigger trg_seed_lc_onboarding
+  after insert on projects
+  for each row execute function _seed_lc_onboarding();
+
+select seed_default_onboarding_steps(p.id) from projects p;
+
+create or replace function _member_onboarding_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  select project_id into new.project_id from onboarding_steps where id = new.step_id;
+  if not exists (select 1 from team_members where project_id = new.project_id and user_id = new.user_id) then
+    raise exception 'Onboarding is for members of this LC';
+  end if;
+  new.done_by := coalesce(auth.uid(), new.done_by);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_member_onboarding_guard on member_onboarding;
+create trigger trg_member_onboarding_guard
+  before insert on member_onboarding
+  for each row execute function _member_onboarding_guard();
+
+alter table onboarding_steps  enable row level security;
+alter table member_onboarding enable row level security;
+
+drop policy if exists "lc members see onboarding steps" on onboarding_steps;
+create policy "lc members see onboarding steps" on onboarding_steps
+  for select using (auth_is_project_member(project_id));
+
+drop policy if exists "exec manages onboarding steps" on onboarding_steps;
+create policy "exec manages onboarding steps" on onboarding_steps
+  for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+-- Who may see / tick a member's onboarding: the member, the president, their VP.
+create or replace function can_manage_member(p_project_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select p_user_id = auth.uid()
+      or is_lc_president(p_project_id)
+      or (lc_role(p_project_id) = 'vp' and in_led_department(p_project_id, p_user_id));
+$$;
+
+drop policy if exists "member, VP or president sees onboarding" on member_onboarding;
+create policy "member, VP or president sees onboarding" on member_onboarding
+  for select using (can_manage_member(project_id, user_id));
+
+drop policy if exists "member, VP or president ticks onboarding" on member_onboarding;
+create policy "member, VP or president ticks onboarding" on member_onboarding
+  for insert with check (
+    can_manage_member((select s.project_id from onboarding_steps s where s.id = step_id), user_id)
+  );
+
+drop policy if exists "member, VP or president unticks onboarding" on member_onboarding;
+create policy "member, VP or president unticks onboarding" on member_onboarding
+  for delete using (can_manage_member(project_id, user_id));
+
+-- ── 3. Term dates ────────────────────────────────────────────────────────────
+
+alter table team_members
+  add column if not exists term_start date,
+  add column if not exists term_end   date;
+
+alter table team_members drop constraint if exists team_members_term_dates;
+alter table team_members add constraint team_members_term_dates
+  check (term_end is null or term_start is null or term_end >= term_start);
+
+create or replace function set_member_term(p_project_id uuid, p_user_id uuid, p_start date, p_end date)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (is_lc_president(p_project_id) or (lc_role(p_project_id) = 'vp' and in_led_department(p_project_id, p_user_id))) then
+    raise exception 'Only the president or the member''s VP can set term dates';
+  end if;
+  update team_members set term_start = p_start, term_end = p_end
+   where project_id = p_project_id and user_id = p_user_id;
+  if not found then
+    raise exception 'Member not found';
+  end if;
+end;
+$$;
+
+revoke execute on function set_member_term(uuid, uuid, date, date) from public, anon;
+grant  execute on function set_member_term(uuid, uuid, date, date) to authenticated;
+
+-- ── 4. Last seen ─────────────────────────────────────────────────────────────
+
+alter table user_profiles add column if not exists last_seen_at timestamptz;
+
+create or replace function touch_last_seen()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update user_profiles set last_seen_at = now()
+   where id = auth.uid() and (last_seen_at is null or last_seen_at < now() - interval '1 hour');
+$$;
+
+revoke execute on function touch_last_seen() from public, anon;
+grant  execute on function touch_last_seen() to authenticated;
+
+-- ── 5. Activity signals ──────────────────────────────────────────────────────
+
+create or replace function member_activity(p_project_id uuid, p_days integer default 60)
+returns table (
+  user_id          uuid,
+  department_id    uuid,
+  role             text,
+  term_start       date,
+  term_end         date,
+  last_seen_at     timestamptz,
+  events_held      integer,   -- LC-wide or their department's events in the window, already started
+  events_attended  integer,
+  tabling_no_shows integer,
+  overdue_tasks    integer,
+  onboarding_done  integer,
+  onboarding_total integer
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_role text := lc_role(p_project_id);
+  v_from date := current_date - p_days;
+begin
+  if v_role not in ('president', 'vp') then
+    return;
+  end if;
+  return query
+  select tm.user_id, tm.department_id, tm.role, tm.term_start, tm.term_end, up.last_seen_at,
+         (select count(*)::int from lc_events e
+           where e.project_id = p_project_id and e.starts_on between v_from and current_date
+             and (e.department_id is null or e.department_id = tm.department_id)),
+         (select count(*)::int from event_attendance a join lc_events e on e.id = a.event_id
+           where a.project_id = p_project_id and a.user_id = tm.user_id and e.starts_on between v_from and current_date),
+         (select count(*)::int from tabling_signups su join tabling_slots s on s.id = su.slot_id
+           where su.project_id = p_project_id and su.user_id = tm.user_id and su.status = 'no_show'
+             and s.starts_at::date >= v_from),
+         (select count(*)::int from tasks t join task_assignees ta on ta.task_id = t.id
+           where t.project_id = p_project_id and ta.user_id = tm.user_id and t.status <> 'done'
+             and not coalesce(t.archived, false) and t.due_date < current_date),
+         (select count(*)::int from member_onboarding mo where mo.project_id = p_project_id and mo.user_id = tm.user_id),
+         (select count(*)::int from onboarding_steps os
+           where os.project_id = p_project_id and (os.department_id is null or os.department_id = tm.department_id))
+  from team_members tm
+  join user_profiles up on up.id = tm.user_id
+  where tm.project_id = p_project_id
+    and (v_role = 'president' or in_led_department(p_project_id, tm.user_id));
+end;
+$$;
+
+revoke execute on function member_activity(uuid, integer) from public, anon;
+grant  execute on function member_activity(uuid, integer) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261019002_tracker_import.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 041: Import trackers (Google Sheets / CSV) into partners, recruits and tasks.
+--
+-- Same contract as import_exchanges(): SECURITY INVOKER (the caller's RLS
+-- decides what they may write), one sub-transaction per row, and a summary of
+-- inserted / updated / failed rows with up to 20 reasons. Re-importing the same
+-- sheet updates instead of duplicating:
+--   partners  matched by name (case-insensitive)
+--   recruits  matched by email
+--   tasks     a task with the same title and due date is left alone
+
+-- ── Partners ──────────────────────────────────────────────────────────────────
+-- rows: [{ name, industry, website, stage, department_id, next_follow_up, notes,
+--          contact_name, contact_role, contact_email, contact_phone }]
+
+create or replace function import_partners(p_project_id uuid, p_rows jsonb)
+returns table (inserted integer, updated integer, failed integer, errors text[])
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  r jsonb; v_id uuid; v_name text;
+  v_ins integer := 0; v_upd integer := 0; v_fail integer := 0; v_errors text[] := '{}';
+begin
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) > 2000 then
+    raise exception 'Expected a list of at most 2000 rows';
+  end if;
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_name := nullif(trim(r->>'name'), '');
+    begin
+      if v_name is null then raise exception 'no organisation name'; end if;
+      select id into v_id from partners where project_id = p_project_id and lower(name) = lower(v_name) limit 1;
+      if v_id is not null then
+        update partners set
+          industry       = coalesce(nullif(trim(r->>'industry'), ''), industry),
+          website        = coalesce(nullif(trim(r->>'website'), ''), website),
+          stage          = coalesce(nullif(r->>'stage', ''), stage),
+          next_follow_up = coalesce((r->>'next_follow_up')::date, next_follow_up),
+          notes          = coalesce(nullif(trim(r->>'notes'), ''), notes)
+        where id = v_id;
+        if not found then raise exception 'you can''t edit this partner'; end if;
+        v_upd := v_upd + 1;
+      else
+        insert into partners (project_id, name, industry, website, stage, department_id, next_follow_up, notes, created_by)
+        values (p_project_id, v_name, nullif(trim(r->>'industry'), ''), nullif(trim(r->>'website'), ''),
+                coalesce(nullif(r->>'stage', ''), 'lead'), (r->>'department_id')::uuid,
+                (r->>'next_follow_up')::date, nullif(trim(r->>'notes'), ''), auth.uid())
+        returning id into v_id;
+        v_ins := v_ins + 1;
+      end if;
+      if nullif(trim(r->>'contact_name'), '') is not null and not exists (
+        select 1 from partner_contacts where partner_id = v_id and lower(name) = lower(trim(r->>'contact_name'))
+      ) then
+        insert into partner_contacts (partner_id, name, role_title, email, phone)
+        values (v_id, trim(r->>'contact_name'), nullif(trim(r->>'contact_role'), ''),
+                nullif(trim(r->>'contact_email'), ''), nullif(trim(r->>'contact_phone'), ''));
+      end if;
+    exception when others then
+      v_fail := v_fail + 1;
+      if coalesce(array_length(v_errors, 1), 0) < 20 then
+        v_errors := v_errors || (coalesce(v_name, '(no name)') || ': ' ||
+          case when sqlstate = '42501' then 'you can''t add partners for that department' else sqlerrm end);
+      end if;
+    end;
+  end loop;
+  return query select v_ins, v_upd, v_fail, v_errors;
+end;
+$$;
+
+-- ── Recruits ──────────────────────────────────────────────────────────────────
+-- rows: [{ name, email, phone, source, department_id, stage, applied_on, notes }]
+
+create or replace function import_recruits(p_project_id uuid, p_rows jsonb)
+returns table (inserted integer, updated integer, failed integer, errors text[])
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  r jsonb; v_id uuid; v_name text; v_email text;
+  v_ins integer := 0; v_upd integer := 0; v_fail integer := 0; v_errors text[] := '{}';
+begin
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) > 2000 then
+    raise exception 'Expected a list of at most 2000 rows';
+  end if;
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_name := nullif(trim(r->>'name'), '');
+    v_email := nullif(lower(trim(r->>'email')), '');
+    begin
+      if v_name is null then raise exception 'no name'; end if;
+      v_id := null;
+      if v_email is not null then
+        select id into v_id from recruits where project_id = p_project_id and email = v_email;
+      end if;
+      if v_id is not null then
+        update recruits set
+          name          = v_name,
+          phone         = coalesce(nullif(trim(r->>'phone'), ''), phone),
+          source        = coalesce(nullif(trim(r->>'source'), ''), source),
+          department_id = coalesce((r->>'department_id')::uuid, department_id),
+          stage         = coalesce(nullif(r->>'stage', ''), stage),
+          notes         = coalesce(nullif(trim(r->>'notes'), ''), notes)
+        where id = v_id;
+        if not found then raise exception 'you can''t edit recruits'; end if;
+        v_upd := v_upd + 1;
+      else
+        insert into recruits (project_id, name, email, phone, source, department_id, stage, applied_on, notes, created_by)
+        values (p_project_id, v_name, v_email, nullif(trim(r->>'phone'), ''), nullif(trim(r->>'source'), ''),
+                (r->>'department_id')::uuid, coalesce(nullif(r->>'stage', ''), 'applied'),
+                coalesce((r->>'applied_on')::date, current_date), nullif(trim(r->>'notes'), ''), auth.uid());
+        v_ins := v_ins + 1;
+      end if;
+    exception when others then
+      v_fail := v_fail + 1;
+      if coalesce(array_length(v_errors, 1), 0) < 20 then
+        v_errors := v_errors || (coalesce(v_name, '(no name)') || ': ' ||
+          case when sqlstate = '42501' then 'only the exec board can add recruits' else sqlerrm end);
+      end if;
+    end;
+  end loop;
+  return query select v_ins, v_upd, v_fail, v_errors;
+end;
+$$;
+
+-- ── Tasks ─────────────────────────────────────────────────────────────────────
+-- rows: [{ title, description, status, priority, due_date, department_id, assignee_ids: [uuid] }]
+
+create or replace function import_tasks(p_project_id uuid, p_rows jsonb)
+returns table (inserted integer, updated integer, failed integer, errors text[])
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  r jsonb; v_id uuid; v_title text; v_due date; a text;
+  v_ins integer := 0; v_skip integer := 0; v_fail integer := 0; v_errors text[] := '{}';
+begin
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) > 2000 then
+    raise exception 'Expected a list of at most 2000 rows';
+  end if;
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_title := nullif(trim(r->>'title'), '');
+    begin
+      if v_title is null then raise exception 'no title'; end if;
+      v_due := (r->>'due_date')::date;
+      if exists (select 1 from tasks where project_id = p_project_id and title = v_title and due_date is not distinct from v_due) then
+        v_skip := v_skip + 1;
+        continue;
+      end if;
+      insert into tasks (project_id, title, description, status, priority, due_date, department_id, scope, created_by)
+      values (p_project_id, v_title, coalesce(r->>'description', ''), coalesce(nullif(r->>'status', ''), 'todo'),
+              coalesce(nullif(r->>'priority', ''), 'medium'), v_due, (r->>'department_id')::uuid, 'lab', auth.uid())
+      returning id into v_id;
+      for a in select * from jsonb_array_elements_text(coalesce(r->'assignee_ids', '[]'::jsonb)) loop
+        insert into task_assignees (task_id, user_id) values (v_id, a::uuid) on conflict do nothing;
+      end loop;
+      v_ins := v_ins + 1;
+    exception when others then
+      v_fail := v_fail + 1;
+      if coalesce(array_length(v_errors, 1), 0) < 20 then
+        v_errors := v_errors || (coalesce(v_title, '(no title)') || ': ' || sqlerrm);
+      end if;
+    end;
+  end loop;
+  -- "updated" reports tasks that were already there and left alone.
+  return query select v_ins, v_skip, v_fail, v_errors;
+end;
+$$;
+
+revoke execute on function import_partners(uuid, jsonb) from public, anon;
+revoke execute on function import_recruits(uuid, jsonb) from public, anon;
+revoke execute on function import_tasks(uuid, jsonb)    from public, anon;
+grant  execute on function import_partners(uuid, jsonb) to authenticated;
+grant  execute on function import_recruits(uuid, jsonb) to authenticated;
+grant  execute on function import_tasks(uuid, jsonb)    to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261019003_mc_national.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 042: Member Committees (MC) — the national view.
+--
+--   mcs               a national entity (e.g. "AIESEC in Portugal"). Has two
+--                     codes: member_code (MC members join with it) and
+--                     lc_code (an LCP links their LC with it).
+--   mc_members        people on the MC. They are NOT members of any LC through
+--                     this, so they never see an LC's tasks, chat, exchanges
+--                     or wellbeing data.
+--   projects.mc_id    the MC an LC belongs to, set by the LC's president.
+--   mc_dashboard()    per-LC numbers for MC members: counts only (approved,
+--                     realized, completed, applied this term per product, and
+--                     member count). No names, no personal data, no pulse.
+
+create table if not exists mcs (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (length(trim(name)) > 0),
+  member_code text not null unique default upper(substr(md5(gen_random_uuid()::text), 1, 8)),
+  lc_code     text not null unique default upper(substr(md5(gen_random_uuid()::text), 1, 8)),
+  term_start  date,                                  -- national term start; default 1 February
+  created_by  uuid references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists mc_members (
+  mc_id     uuid not null references mcs(id) on delete cascade,
+  user_id   uuid not null references auth.users(id) on delete cascade,
+  role      text not null default 'member' check (role in ('mcp', 'member')),
+  joined_at timestamptz not null default now(),
+  primary key (mc_id, user_id)
+);
+
+alter table projects add column if not exists mc_id uuid references mcs(id) on delete set null;
+
+create or replace function is_mc_member(p_mc_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (select 1 from mc_members where mc_id = p_mc_id and user_id = auth.uid());
+$$;
+
+create or replace function is_mcp(p_mc_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (select 1 from mc_members where mc_id = p_mc_id and user_id = auth.uid() and role = 'mcp');
+$$;
+
+alter table mcs        enable row level security;
+alter table mc_members enable row level security;
+
+-- MC members see their MC (with codes); an LC's president sees the MC their LC belongs to (name only via the view below).
+drop policy if exists "mc members read their mc" on mcs;
+create policy "mc members read their mc" on mcs for select using (is_mc_member(id));
+
+drop policy if exists "mcp updates their mc" on mcs;
+create policy "mcp updates their mc" on mcs for update using (is_mcp(id)) with check (is_mcp(id));
+
+drop policy if exists "mc members see each other" on mc_members;
+create policy "mc members see each other" on mc_members for select using (is_mc_member(mc_id));
+
+drop policy if exists "mcp removes members or self leaves" on mc_members;
+create policy "mcp removes members or self leaves" on mc_members for delete using (user_id = auth.uid() or is_mcp(mc_id));
+
+-- ── Creating and joining ─────────────────────────────────────────────────────
+
+create or replace function create_mc(p_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_id uuid;
+begin
+  if auth.uid() is null then raise exception 'Not signed in'; end if;
+  insert into mcs (name, created_by) values (trim(p_name), auth.uid()) returning id into v_id;
+  insert into mc_members (mc_id, user_id, role) values (v_id, auth.uid(), 'mcp');
+  return v_id;
+end;
+$$;
+
+create or replace function join_mc(p_code text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_id uuid;
+begin
+  if auth.uid() is null then raise exception 'Not signed in'; end if;
+  select id into v_id from mcs where member_code = upper(trim(p_code));
+  if v_id is null then raise exception 'Invalid MC code'; end if;
+  insert into mc_members (mc_id, user_id) values (v_id, auth.uid()) on conflict do nothing;
+  return v_id;
+end;
+$$;
+
+-- The LC's president links (or, with null, unlinks) their LC.
+create or replace function link_lc_to_mc(p_project_id uuid, p_lc_code text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_mc mcs%rowtype;
+begin
+  if not is_lc_president(p_project_id) then
+    raise exception 'Only the LC president can link the LC to an MC';
+  end if;
+  if p_lc_code is null or trim(p_lc_code) = '' then
+    update projects set mc_id = null where id = p_project_id;
+    return null;
+  end if;
+  select * into v_mc from mcs where lc_code = upper(trim(p_lc_code));
+  if not found then raise exception 'Invalid MC code'; end if;
+  update projects set mc_id = v_mc.id where id = p_project_id;
+  return v_mc.name;
+end;
+$$;
+
+-- Name of the MC an LC belongs to (for the LC's settings page).
+create or replace function lc_mc_name(p_project_id uuid)
+returns text
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select m.name from projects p join mcs m on m.id = p.mc_id
+  where p.id = p_project_id and auth_is_project_member(p_project_id);
+$$;
+
+-- An MC member may remove an LC from their MC.
+create or replace function unlink_lc_from_mc(p_project_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from projects where id = p_project_id and mc_id is not null and is_mcp(mc_id)) then
+    raise exception 'Only the MCP can remove an LC from the MC';
+  end if;
+  update projects set mc_id = null where id = p_project_id;
+end;
+$$;
+
+-- ── National dashboard ───────────────────────────────────────────────────────
+
+create or replace function mc_dashboard(p_mc_id uuid, p_from date default null, p_to date default null)
+returns table (
+  project_id uuid, lc_name text, members integer, product text,
+  applied integer, approved integer, realized integer, completed integer
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_from date;
+  v_to   date := coalesce(p_to, current_date);
+begin
+  if not is_mc_member(p_mc_id) then
+    return;
+  end if;
+  select coalesce(p_from, term_start,
+           case when current_date >= make_date(extract(year from current_date)::int, 2, 1)
+                then make_date(extract(year from current_date)::int, 2, 1)
+                else make_date(extract(year from current_date)::int - 1, 2, 1) end)
+    into v_from from mcs where id = p_mc_id;
+
+  return query
+  select p.id, p.name,
+         (select count(*)::int from team_members tm where tm.project_id = p.id),
+         pr.code,
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.product = pr.code and e.applied_at   between v_from and v_to),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.product = pr.code and e.approved_at  between v_from and v_to),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.product = pr.code and e.realized_at  between v_from and v_to),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.product = pr.code and e.completed_at between v_from and v_to)
+  from projects p
+  cross join unnest(array['ogv', 'ogta', 'ogte', 'igv', 'igta', 'igte']) as pr(code)
+  where p.mc_id = p_mc_id
+  order by p.name, pr.code;
+end;
+$$;
+
+revoke execute on function create_mc(text)                     from public, anon;
+revoke execute on function join_mc(text)                       from public, anon;
+revoke execute on function link_lc_to_mc(uuid, text)           from public, anon;
+revoke execute on function lc_mc_name(uuid)                    from public, anon;
+revoke execute on function unlink_lc_from_mc(uuid)             from public, anon;
+revoke execute on function mc_dashboard(uuid, date, date)      from public, anon;
+grant  execute on function create_mc(text)                     to authenticated;
+grant  execute on function join_mc(text)                       to authenticated;
+grant  execute on function link_lc_to_mc(uuid, text)           to authenticated;
+grant  execute on function lc_mc_name(uuid)                    to authenticated;
+grant  execute on function unlink_lc_from_mc(uuid)             to authenticated;
+grant  execute on function mc_dashboard(uuid, date, date)      to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261019004_demo_lc.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 043: A demo LC to click around in.
+--
+-- create_demo_lc() gives the caller a private LC full of fictional data
+-- (exchanges at every stage, goals, partners, tasks, events, tabling slots,
+-- recruits, finance entries, a handover note) with the caller as president.
+-- Nobody else is in it, so nothing real can break, and it's a ready-made LC to
+-- show at conferences. delete_demo_lc() removes it (only demo LCs, only by
+-- their owner). The people in it are names on records, not accounts.
+
+alter table projects add column if not exists is_demo boolean not null default false;
+
+create or replace function create_demo_lc()
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid  uuid := auth.uid();
+  v_lc   uuid;
+  v_role uuid;
+  d      record;
+  v_ogv  uuid; v_igt uuid; v_mkt uuid; v_bd uuid; v_fl uuid; v_tm uuid;
+  v_term date;
+  v_ev   uuid;
+  v_task uuid;
+begin
+  if v_uid is null then raise exception 'Not signed in'; end if;
+  if not exists (select 1 from user_profiles where id = v_uid) then
+    raise exception 'Create your profile first';
+  end if;
+  if (select count(*) from projects where owner_id = v_uid and is_demo) >= 3 then
+    raise exception 'You already have 3 demo LCs. Delete one first.';
+  end if;
+
+  insert into projects (name, institution, owner_id, is_demo)
+  values ('Demo LC (sample data)', 'Demo University', v_uid, true)
+  returning id into v_lc;
+
+  select id into v_role from lab_roles where project_id = v_lc and name = 'President';
+  insert into team_members (project_id, user_id, role, lab_role_id) values (v_lc, v_uid, 'president', v_role);
+
+  perform seed_default_departments(v_lc);
+  select id into v_ogv from departments where project_id = v_lc and name = 'Outgoing Global Volunteer';
+  select id into v_igt from departments where project_id = v_lc and name = 'Incoming Global Talent/Teacher';
+  select id into v_mkt from departments where project_id = v_lc and name = 'Marketing';
+  select id into v_bd  from departments where project_id = v_lc and name = 'Business Development';
+  select id into v_fl  from departments where project_id = v_lc and name = 'Finance & Legality';
+  select id into v_tm  from departments where project_id = v_lc and name = 'Talent Management';
+  v_term := lc_term_start(v_lc);
+
+  -- Exchanges: a realistic spread over the term (dates relative to today).
+  insert into exchanges (project_id, product, stage, person_name, email, opportunity, host_entity, expa_id,
+                         applied_at, accepted_at, approved_at, realized_at, finished_at, completed_at, created_by)
+  values
+    (v_lc, 'ogv', 'completed', 'Marta Silva',  'marta@demo.example', 'Teaching English to kids', 'AIESEC in Bogotá',   'DEMO-1',
+       current_date - 160, current_date - 150, current_date - 140, current_date - 100, current_date - 60, current_date - 50, v_uid),
+    (v_lc, 'ogv', 'realized',  'Leo Kamau',    'leo@demo.example',   'Climate education',        'AIESEC in Nairobi',  'DEMO-2',
+       current_date - 90, current_date - 80, current_date - 70, current_date - 10, null, null, v_uid),
+    (v_lc, 'ogv', 'approved',  'Inês Pereira', 'ines@demo.example',  'Women empowerment',        'AIESEC in Hanoi',    'DEMO-3',
+       current_date - 30, current_date - 25, current_date - 3, null, null, null, v_uid),
+    (v_lc, 'ogv', 'approved',  'Tom Reyes',    'tom@demo.example',   'Health awareness',         'AIESEC in Lima',     'DEMO-4',
+       current_date - 20, current_date - 15, current_date - 9, null, null, null, v_uid),
+    (v_lc, 'ogv', 'accepted',  'Nadia Farah',  'nadia@demo.example', 'Climate education',        'AIESEC in Nairobi',  'DEMO-5',
+       current_date - 35, current_date - 21, null, null, null, null, v_uid),
+    (v_lc, 'ogv', 'applied',   'Sam Okoro',    'sam@demo.example',   'Teaching English to kids', 'AIESEC in Bogotá',   'DEMO-6',
+       current_date - 18, null, null, null, null, null, v_uid),
+    (v_lc, 'ogv', 'applied',   'Ana Costa',    'ana@demo.example',   'Ocean clean-up',           'AIESEC in Bali',     'DEMO-7',
+       current_date - 4, null, null, null, null, null, v_uid),
+    (v_lc, 'ogv', 'signed_up', 'Eli Novak',    'eli@demo.example',   null, null, 'DEMO-8',
+       null, null, null, null, null, null, v_uid),
+    (v_lc, 'igta', 'realized', 'Chen Wei',     'chen@demo.example',  'Marketing intern at Demo Bank', 'AIESEC in Taipei', 'DEMO-9',
+       current_date - 120, current_date - 110, current_date - 95, current_date - 40, null, null, v_uid),
+    (v_lc, 'igte', 'approved', 'Priya Shah',   'priya@demo.example', 'English teacher, City Language School', 'AIESEC in Pune', 'DEMO-10',
+       current_date - 25, current_date - 20, current_date - 6, null, null, null, v_uid);
+
+  insert into goals (project_id, department_id, title, metric, product, stage, target, starts_on, ends_on, created_by)
+  values (v_lc, v_ogv, 'oGV approvals',  'pipeline', 'ogv', 'approved', 20, v_term, v_term + 364, v_uid),
+         (v_lc, v_ogv, 'oGV realizations','pipeline', 'ogv', 'realized', 15, v_term, v_term + 364, v_uid);
+  insert into goals (project_id, department_id, title, metric, target, current_value, unit, starts_on, ends_on, created_by)
+  values (v_lc, null, 'New members recruited', 'manual', 15, 6, 'members', v_term, v_term + 364, v_uid);
+
+  insert into partners (project_id, name, industry, stage, department_id, next_follow_up, created_by)
+  values (v_lc, 'Demo Bank', 'Banking', 'meeting', v_bd, current_date + 2, v_uid),
+         (v_lc, 'City Language School', 'Education', 'partner', v_igt, null, v_uid),
+         (v_lc, 'Print & Co', 'Printing', 'proposal', v_mkt, current_date - 1, v_uid);
+
+  insert into tasks (project_id, title, status, priority, due_date, department_id, created_by)
+  values (v_lc, 'Design recruitment posters', 'in_progress', 'high', current_date + 3, v_mkt, v_uid)
+  returning id into v_task;
+  insert into task_assignees (task_id, user_id) values (v_task, v_uid);
+  insert into tasks (project_id, title, status, priority, due_date, department_id, created_by)
+  values (v_lc, 'Collect conference receipts', 'todo', 'medium', current_date - 2, v_fl, v_uid),
+         (v_lc, 'Book the auditorium for the info session', 'todo', 'high', current_date + 5, v_ogv, v_uid),
+         (v_lc, 'Plan the next LC meeting', 'backlog', 'low', null, null, v_uid);
+
+  insert into lc_events (project_id, name, type, starts_on, ends_on, location, created_by)
+  values (v_lc, 'oGV info session', 'info_session', current_date + 6, current_date + 6, 'Room 2.14', v_uid);
+  insert into lc_events (project_id, name, type, starts_on, ends_on, location, created_by)
+  values (v_lc, 'Local conference', 'local_conference', current_date - 20, current_date - 19, 'Campus centre', v_uid)
+  returning id into v_ev;
+  insert into event_attendance (event_id, user_id, project_id, recorded_by) values (v_ev, v_uid, v_lc, v_uid);
+
+  insert into tabling_slots (project_id, starts_at, ends_at, location, purpose, capacity, department_id, created_by)
+  values (v_lc, date_trunc('day', now()) + interval '2 days 12 hours', date_trunc('day', now()) + interval '2 days 14 hours', 'Library entrance', 'oGV recruitment', 3, v_ogv, v_uid),
+         (v_lc, date_trunc('day', now()) + interval '4 days 10 hours', date_trunc('day', now()) + interval '4 days 12 hours', 'Main hall', 'Member recruitment', 2, v_tm, v_uid);
+
+  insert into recruits (project_id, name, email, source, department_id, stage, created_by)
+  values (v_lc, 'Lucía Pérez', 'lucia@demo.example', 'Tabling', v_mkt, 'interview', v_uid),
+         (v_lc, 'Omar Ben',    'omar@demo.example',  'Instagram', v_ogv, 'applied', v_uid),
+         (v_lc, 'Hana Kim',    'hana@demo.example',  'Referral', null, 'offer', v_uid);
+
+  insert into finance_entries (project_id, type, amount, currency, entry_date, department_id, description, recorded_by)
+  values (v_lc, 'income',  450, 'EUR', current_date - 30, null, 'Sponsorship: Demo Bank', v_uid),
+         (v_lc, 'expense', 120, 'EUR', current_date - 12, v_mkt, 'Posters for the info session', v_uid);
+
+  insert into handover_notes (project_id, department_id, term_label, title, body, updated_by)
+  values (v_lc, null, extract(year from v_term)::int || '/' || lpad(((extract(year from v_term)::int + 1) % 100)::text, 2, '0'),
+          'LC-wide handover', E'## Open items and deadlines\n- Demo Bank contract renews in March.\n', v_uid);
+
+  return v_lc;
+end;
+$$;
+
+create or replace function delete_demo_lc(p_project_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from projects where id = p_project_id and is_demo and owner_id = auth.uid();
+  if not found then raise exception 'Only your own demo LCs can be deleted'; end if;
+end;
+$$;
+
+revoke execute on function create_demo_lc()      from public, anon;
+revoke execute on function delete_demo_lc(uuid)  from public, anon;
+grant  execute on function create_demo_lc()      to authenticated;
+grant  execute on function delete_demo_lc(uuid)  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261020001_member_emails.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 044: Emails to members — event invites with RSVP, reminders,
+-- announcements, preferences.
+--
+--   lc_events        + start/end time, online link, description, and an
+--                    audience: whole LC, one department, one role, or chosen
+--                    people (event_invitees).
+--   event_rsvps      Going / Not going. Members answer for themselves, in the
+--                    app or from the email (signed link, see /api/rsvp); the
+--                    exec board sees everyone's answers.
+--   user_settings    email_mode: 'all' | 'digest' (weekly digest + important)
+--                    | 'important' (event reminders, overdue tasks, invites).
+--   projects         email_sender_name, e.g. "AIESEC at Northwestern".
+--   announcements    one-off emails from the president or a VP to an audience.
+--   email_log        what the reminder job already sent (service role only),
+--                    so every reminder goes out once.
+
+-- ── 1. Events: time, link, audience ──────────────────────────────────────────
+
+alter table lc_events
+  add column if not exists starts_at         timestamptz,
+  add column if not exists ends_at           timestamptz,
+  add column if not exists meeting_url       text,
+  add column if not exists description       text,
+  add column if not exists audience          text not null default 'lc',
+  add column if not exists audience_role     text,
+  add column if not exists invites_sent_at   timestamptz;
+
+alter table lc_events drop constraint if exists lc_events_audience_check;
+alter table lc_events add constraint lc_events_audience_check check (
+  audience in ('lc', 'department', 'role', 'people')
+  and (audience <> 'department' or department_id is not null)
+  and (audience <> 'role' or audience_role in ('president', 'vp', 'member', 'exec'))
+);
+alter table lc_events drop constraint if exists lc_events_meeting_url_check;
+alter table lc_events add constraint lc_events_meeting_url_check check (meeting_url is null or meeting_url ~* '^https://');
+
+-- Old department-tagged events were meant for that department.
+update lc_events set audience = 'department' where department_id is not null and audience = 'lc';
+
+create table if not exists event_invitees (
+  event_id   uuid not null references lc_events(id) on delete cascade,
+  user_id    uuid not null references user_profiles(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  primary key (event_id, user_id)
+);
+
+create table if not exists event_rsvps (
+  event_id     uuid not null references lc_events(id) on delete cascade,
+  user_id      uuid not null references user_profiles(id) on delete cascade,
+  project_id   uuid not null references projects(id) on delete cascade,
+  response     text not null check (response in ('going', 'not_going')),
+  responded_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+create or replace function _event_child_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  select project_id into new.project_id from lc_events where id = new.event_id;
+  if new.project_id is null then raise exception 'Event not found'; end if;
+  if not exists (select 1 from team_members where project_id = new.project_id and user_id = new.user_id) then
+    raise exception 'Only members of this LC';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_event_invitees_guard on event_invitees;
+create trigger trg_event_invitees_guard before insert or update on event_invitees
+  for each row execute function _event_child_guard();
+drop trigger if exists trg_event_rsvps_guard on event_rsvps;
+create trigger trg_event_rsvps_guard before insert or update on event_rsvps
+  for each row execute function _event_child_guard();
+
+-- Everyone an event is for.
+create or replace function event_audience(p_event_id uuid)
+returns setof uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select tm.user_id
+  from lc_events e
+  join team_members tm on tm.project_id = e.project_id
+  where e.id = p_event_id
+    and case e.audience
+          when 'lc'         then true
+          when 'department' then tm.department_id = e.department_id
+                                 or exists (select 1 from departments d where d.id = e.department_id and d.vp_user_id = tm.user_id)
+          when 'role'       then case e.audience_role when 'exec' then tm.role in ('president', 'vp') else tm.role = e.audience_role end
+          when 'people'     then exists (select 1 from event_invitees i where i.event_id = e.id and i.user_id = tm.user_id)
+        end;
+$$;
+
+alter table event_invitees enable row level security;
+alter table event_rsvps    enable row level security;
+
+drop policy if exists "invitees visible to the LC" on event_invitees;
+create policy "invitees visible to the LC" on event_invitees for select using (auth_is_project_member(project_id));
+drop policy if exists "exec manages invitees" on event_invitees;
+create policy "exec manages invitees" on event_invitees for all
+  using (is_lc_exec(project_id))
+  with check (is_lc_exec((select e.project_id from lc_events e where e.id = event_id)));
+
+drop policy if exists "own rsvp or exec" on event_rsvps;
+create policy "own rsvp or exec" on event_rsvps for select using (user_id = auth.uid() or is_lc_exec(project_id));
+drop policy if exists "answer your own rsvp" on event_rsvps;
+create policy "answer your own rsvp" on event_rsvps for insert with check (user_id = auth.uid());
+drop policy if exists "change your own rsvp" on event_rsvps;
+create policy "change your own rsvp" on event_rsvps for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ── 2. Preferences and sender name ───────────────────────────────────────────
+
+alter table user_settings add column if not exists email_mode text not null default 'all';
+alter table user_settings drop constraint if exists user_settings_email_mode_check;
+alter table user_settings add constraint user_settings_email_mode_check check (email_mode in ('all', 'digest', 'important'));
+
+alter table projects add column if not exists email_sender_name text;
+alter table projects drop constraint if exists projects_email_sender_name_check;
+alter table projects add constraint projects_email_sender_name_check
+  check (email_sender_name is null or (length(trim(email_sender_name)) between 2 and 60 and email_sender_name !~ '[<>"@]'));
+
+-- ── 3. Announcements ─────────────────────────────────────────────────────────
+
+create table if not exists announcements (
+  id             uuid primary key default gen_random_uuid(),
+  project_id     uuid not null references projects(id) on delete cascade,
+  author_id      uuid references user_profiles(id) on delete set null,
+  audience       text not null default 'lc' check (audience in ('lc', 'department', 'role')),
+  department_id  uuid references departments(id) on delete set null,
+  audience_role  text check (audience_role in ('president', 'vp', 'member', 'exec')),
+  subject        text not null check (length(trim(subject)) between 1 and 150),
+  body           text not null check (length(trim(body)) between 1 and 5000),
+  created_at     timestamptz not null default now(),
+  sent_at        timestamptz,
+  sent_count     integer
+);
+
+alter table announcements enable row level security;
+
+-- Announcements are read where they're sent (email); in the app the exec board sees the history.
+drop policy if exists "exec sees announcements" on announcements;
+create policy "exec sees announcements" on announcements for select using (is_lc_exec(project_id));
+drop policy if exists "exec writes announcements" on announcements;
+create policy "exec writes announcements" on announcements for insert
+  with check (is_lc_exec(project_id) and author_id = auth.uid());
+
+-- ── 4. Send log (reminder job) ───────────────────────────────────────────────
+
+create table if not exists email_log (
+  kind     text not null,            -- event_invite, event_24h, event_1h, task_due, task_overdue, task_overdue_vp, checkin_open, checkin_nudge, digest, announcement
+  ref_id   text not null,            -- event / task / period / week / announcement id
+  user_id  uuid not null references auth.users(id) on delete cascade,
+  sent_at  timestamptz not null default now(),
+  primary key (kind, ref_id, user_id)
+);
+
+alter table email_log enable row level security;   -- no policies: service role only
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261020002_outreach.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 045: oGX outreach — approved templates and email sequences tied to
+-- the pipeline.
+--
+--   exchanges            + email_consent / consent_source (only people who
+--                        signed up with AIESEC and agreed to be contacted are
+--                        ever emailed), unsubscribed_at, replied_at.
+--   outreach_templates   subject + body with merge fields. Draft → Pending →
+--                        Approved / Rejected. Approvers: the president, the VP
+--                        of the template's department, or a member of the LC's
+--                        MC. Editing an approved template sends it back to
+--                        draft unless the editor can approve.
+--   outreach_sequences   e.g. "oGV sign-ups": steps on day 0 / 3 / 7, each an
+--   outreach_steps       approved template, for exchanges at a trigger stage.
+--   outreach_enrollments one exchange in one sequence, sent from one member.
+--                        Stops automatically when the exchange leaves the
+--                        trigger stage, replies, or unsubscribes.
+--   outreach_messages    every email sent, shown on the lead's record.
+--   outreach_stats()     per sequence: enrolled, replied, moved on, applied.
+
+-- ── 1. Consent and status on exchanges ───────────────────────────────────────
+
+alter table exchanges
+  add column if not exists email_consent   boolean not null default false,
+  add column if not exists consent_source  text,
+  add column if not exists unsubscribed_at timestamptz,
+  add column if not exists replied_at      timestamptz;
+
+-- ── 2. Templates ─────────────────────────────────────────────────────────────
+
+create table if not exists outreach_templates (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  department_id uuid references departments(id) on delete set null,
+  name          text not null check (length(trim(name)) > 0),
+  subject       text not null check (length(trim(subject)) between 1 and 150),
+  body          text not null check (length(trim(body)) between 1 and 5000),
+  status        text not null default 'draft' check (status in ('draft', 'pending', 'approved', 'rejected')),
+  review_note   text,
+  created_by    uuid references user_profiles(id) on delete set null,
+  approved_by   uuid references auth.users(id) on delete set null,
+  approved_at   timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create or replace function can_approve_template(p_project_id uuid, p_department_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_lc_president(p_project_id)
+      or (p_department_id is not null and p_department_id in (select led_department_ids(p_project_id)))
+      or exists (select 1 from projects p where p.id = p_project_id and p.mc_id is not null and is_mc_member(p.mc_id));
+$$;
+
+-- Who works on outreach for a department: the exec board and that department's members.
+create or replace function can_use_outreach(p_project_id uuid, p_department_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_lc_exec(p_project_id)
+      or (p_department_id is not null and p_department_id = my_department_id(p_project_id))
+      or (p_department_id is null and auth_is_project_member(p_project_id));
+$$;
+
+create or replace function _outreach_template_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_approver boolean := auth.uid() is null or can_approve_template(new.project_id, new.department_id);
+begin
+  if new.department_id is not null and not exists (
+    select 1 from departments where id = new.department_id and project_id = new.project_id
+  ) then
+    raise exception 'Department does not belong to this LC';
+  end if;
+  if tg_op = 'INSERT' then
+    if new.status not in ('draft', 'pending') and not v_approver then
+      raise exception 'New templates start as a draft';
+    end if;
+  else
+    -- Only approvers decide; anyone else changing an approved template sends it back to draft.
+    if new.status in ('approved', 'rejected') and new.status is distinct from old.status and not v_approver then
+      raise exception 'Only the president, the department''s VP or your MC can approve templates';
+    end if;
+    if (new.subject, new.body) is distinct from (old.subject, old.body) and old.status = 'approved' and not v_approver then
+      new.status := 'draft';
+    end if;
+  end if;
+  if new.status = 'approved' and (tg_op = 'INSERT' or old.status <> 'approved') then
+    new.approved_by := auth.uid();
+    new.approved_at := now();
+  elsif new.status <> 'approved' then
+    new.approved_by := null;
+    new.approved_at := null;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_outreach_template_guard on outreach_templates;
+create trigger trg_outreach_template_guard before insert or update on outreach_templates
+  for each row execute function _outreach_template_guard();
+
+alter table outreach_templates enable row level security;
+
+drop policy if exists "outreach templates visible to their team and approvers" on outreach_templates;
+create policy "outreach templates visible to their team and approvers" on outreach_templates for select
+  using (can_use_outreach(project_id, department_id) or can_approve_template(project_id, department_id));
+drop policy if exists "team writes outreach templates" on outreach_templates;
+create policy "team writes outreach templates" on outreach_templates for insert
+  with check (can_use_outreach(project_id, department_id) and created_by = auth.uid());
+drop policy if exists "author or approver edits outreach templates" on outreach_templates;
+create policy "author or approver edits outreach templates" on outreach_templates for update
+  using (created_by = auth.uid() or can_approve_template(project_id, department_id))
+  with check (can_use_outreach(project_id, department_id) or can_approve_template(project_id, department_id));
+drop policy if exists "author or approver deletes outreach templates" on outreach_templates;
+create policy "author or approver deletes outreach templates" on outreach_templates for delete
+  using (created_by = auth.uid() or can_approve_template(project_id, department_id));
+
+-- ── 3. Sequences ─────────────────────────────────────────────────────────────
+
+create table if not exists outreach_sequences (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  department_id uuid references departments(id) on delete set null,
+  name          text not null check (length(trim(name)) > 0),
+  product       text not null check (product in ('ogv', 'ogta', 'ogte', 'igv', 'igta', 'igte')),
+  trigger_stage text not null default 'signed_up' check (trigger_stage in ('signed_up', 'applied', 'accepted')),
+  active        boolean not null default false,
+  created_by    uuid references user_profiles(id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+
+create table if not exists outreach_steps (
+  sequence_id uuid not null references outreach_sequences(id) on delete cascade,
+  step_no     integer not null check (step_no between 1 and 10),
+  delay_days  integer not null check (delay_days between 0 and 60),
+  template_id uuid not null references outreach_templates(id) on delete restrict,
+  primary key (sequence_id, step_no)
+);
+
+create or replace function _outreach_sequence_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_id is null then
+    select id into new.department_id from departments
+    where project_id = new.project_id and new.product = any (products) order by sort_order limit 1;
+  end if;
+  -- A sequence can only go live when every step uses an approved template.
+  if new.active and (
+       not exists (select 1 from outreach_steps where sequence_id = new.id)
+       or exists (select 1 from outreach_steps s join outreach_templates t on t.id = s.template_id
+                  where s.sequence_id = new.id and t.status <> 'approved')
+     ) then
+    raise exception 'Every step needs an approved template before the sequence can start';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_outreach_sequence_guard on outreach_sequences;
+create trigger trg_outreach_sequence_guard before insert or update on outreach_sequences
+  for each row execute function _outreach_sequence_guard();
+
+create or replace function _outreach_step_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from outreach_templates t join outreach_sequences s on s.project_id = t.project_id
+    where t.id = new.template_id and s.id = new.sequence_id
+  ) then
+    raise exception 'Template does not belong to this LC';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_outreach_step_guard on outreach_steps;
+create trigger trg_outreach_step_guard before insert or update on outreach_steps
+  for each row execute function _outreach_step_guard();
+
+alter table outreach_sequences enable row level security;
+alter table outreach_steps     enable row level security;
+
+drop policy if exists "team sees sequences" on outreach_sequences;
+create policy "team sees sequences" on outreach_sequences for select using (can_use_outreach(project_id, department_id));
+drop policy if exists "exec manages sequences" on outreach_sequences;
+create policy "exec manages sequences" on outreach_sequences for all
+  using (is_lc_president(project_id) or (department_id is not null and department_id in (select led_department_ids(project_id))))
+  with check (is_lc_president(project_id) or (department_id is null and is_lc_exec(project_id)) or (department_id in (select led_department_ids(project_id))));
+
+drop policy if exists "steps follow their sequence" on outreach_steps;
+create policy "steps follow their sequence" on outreach_steps for select
+  using (exists (select 1 from outreach_sequences s where s.id = sequence_id and can_use_outreach(s.project_id, s.department_id)));
+drop policy if exists "sequence managers edit steps" on outreach_steps;
+create policy "sequence managers edit steps" on outreach_steps for all
+  using (exists (select 1 from outreach_sequences s where s.id = sequence_id
+                 and (is_lc_president(s.project_id) or s.department_id in (select led_department_ids(s.project_id)))))
+  with check (exists (select 1 from outreach_sequences s where s.id = sequence_id
+                 and (is_lc_president(s.project_id) or s.department_id in (select led_department_ids(s.project_id)) or (s.department_id is null and is_lc_exec(s.project_id)))));
+
+-- ── 4. Enrollments and messages ──────────────────────────────────────────────
+
+create table if not exists outreach_enrollments (
+  id           uuid primary key default gen_random_uuid(),
+  project_id   uuid not null references projects(id) on delete cascade,
+  sequence_id  uuid not null references outreach_sequences(id) on delete cascade,
+  exchange_id  uuid not null references exchanges(id) on delete cascade,
+  sender_id    uuid not null references user_profiles(id) on delete cascade,
+  enrolled_at  timestamptz not null default now(),
+  next_step    integer not null default 1,
+  next_send_at timestamptz,
+  status       text not null default 'active' check (status in ('active', 'stopped', 'completed')),
+  stop_reason  text check (stop_reason in ('stage_changed', 'replied', 'unsubscribed', 'manual', 'no_email', 'template_unapproved')),
+  stopped_at   timestamptz,
+  unique (sequence_id, exchange_id)
+);
+
+create index if not exists outreach_enrollments_due_idx on outreach_enrollments (next_send_at) where status = 'active';
+
+create table if not exists outreach_messages (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references projects(id) on delete cascade,
+  exchange_id   uuid not null references exchanges(id) on delete cascade,
+  enrollment_id uuid references outreach_enrollments(id) on delete set null,
+  template_id   uuid references outreach_templates(id) on delete set null,
+  step_no       integer,
+  sender_id     uuid references user_profiles(id) on delete set null,
+  to_email      text not null,
+  subject       text not null,
+  status        text not null check (status in ('sent', 'failed')),
+  error         text,
+  sent_at       timestamptz not null default now()
+);
+
+create index if not exists outreach_messages_exchange_idx on outreach_messages (exchange_id, sent_at desc);
+create index if not exists outreach_messages_sender_idx on outreach_messages (sender_id, sent_at desc);
+
+alter table outreach_enrollments enable row level security;
+alter table outreach_messages    enable row level security;
+
+drop policy if exists "enrollments follow the exchange" on outreach_enrollments;
+create policy "enrollments follow the exchange" on outreach_enrollments for select
+  using (exists (select 1 from exchanges e where e.id = exchange_id and can_work_on_exchange(e.project_id, e.department_id, e.owner_id)));
+drop policy if exists "stop an enrollment you can see" on outreach_enrollments;
+create policy "stop an enrollment you can see" on outreach_enrollments for update
+  using (exists (select 1 from exchanges e where e.id = exchange_id and can_work_on_exchange(e.project_id, e.department_id, e.owner_id)))
+  with check (status in ('active', 'stopped'));
+
+drop policy if exists "messages follow the exchange" on outreach_messages;
+create policy "messages follow the exchange" on outreach_messages for select
+  using (exists (select 1 from exchanges e where e.id = exchange_id and can_work_on_exchange(e.project_id, e.department_id, e.owner_id)));
+-- Messages are written by the sending job (service role) only.
+
+-- Enroll exchanges; returns how many were enrolled and why others weren't.
+create or replace function enroll_in_sequence(p_sequence_id uuid, p_exchange_ids uuid[])
+returns table (enrolled integer, skipped integer, reasons text[])
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_seq   outreach_sequences%rowtype;
+  v_ex    exchanges%rowtype;
+  v_first integer;
+  v_in    integer := 0;
+  v_skip  integer := 0;
+  v_why   text[] := '{}';
+  x       uuid;
+begin
+  select * into v_seq from outreach_sequences where id = p_sequence_id;
+  if not found or not can_use_outreach(v_seq.project_id, v_seq.department_id) then raise exception 'Sequence not found'; end if;
+  if not v_seq.active then raise exception 'Start the sequence first (it needs approved templates)'; end if;
+  select delay_days into v_first from outreach_steps where sequence_id = p_sequence_id order by step_no limit 1;
+
+  foreach x in array p_exchange_ids loop
+    select * into v_ex from exchanges where id = x and project_id = v_seq.project_id;
+    if not found or not can_work_on_exchange(v_ex.project_id, v_ex.department_id, v_ex.owner_id) then
+      v_skip := v_skip + 1; continue;
+    end if;
+    if v_ex.email is null then v_skip := v_skip + 1; v_why := v_why || (v_ex.person_name || ': no email'); continue; end if;
+    if not v_ex.email_consent then v_skip := v_skip + 1; v_why := v_why || (v_ex.person_name || ': no consent to be contacted'); continue; end if;
+    if v_ex.unsubscribed_at is not null then v_skip := v_skip + 1; v_why := v_why || (v_ex.person_name || ': unsubscribed'); continue; end if;
+    if v_ex.product <> v_seq.product or v_ex.stage <> v_seq.trigger_stage then
+      v_skip := v_skip + 1; v_why := v_why || (v_ex.person_name || ': not at the sequence''s stage'); continue;
+    end if;
+    insert into outreach_enrollments (project_id, sequence_id, exchange_id, sender_id, next_send_at)
+    values (v_seq.project_id, p_sequence_id, x, auth.uid(), now() + make_interval(days => coalesce(v_first, 0)))
+    on conflict (sequence_id, exchange_id) do nothing;
+    if found then v_in := v_in + 1; else v_skip := v_skip + 1; v_why := v_why || (v_ex.person_name || ': already in this sequence'); end if;
+  end loop;
+  return query select v_in, v_skip, v_why[1:20];
+end;
+$$;
+
+revoke execute on function enroll_in_sequence(uuid, uuid[]) from public, anon;
+grant  execute on function enroll_in_sequence(uuid, uuid[]) to authenticated;
+
+-- Stop sequences automatically: the person moved on, replied, or unsubscribed.
+create or replace function _exchange_outreach_stop()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.unsubscribed_at is not null and old.unsubscribed_at is null then
+    update outreach_enrollments set status = 'stopped', stop_reason = 'unsubscribed', stopped_at = now()
+     where exchange_id = new.id and status = 'active';
+  end if;
+  if new.replied_at is not null and old.replied_at is null then
+    update outreach_enrollments set status = 'stopped', stop_reason = 'replied', stopped_at = now()
+     where exchange_id = new.id and status = 'active';
+  end if;
+  if new.stage is distinct from old.stage then
+    update outreach_enrollments en set status = 'stopped', stop_reason = 'stage_changed', stopped_at = now()
+      from outreach_sequences s
+     where en.exchange_id = new.id and en.status = 'active' and s.id = en.sequence_id and s.trigger_stage <> new.stage;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_exchange_outreach_stop on exchanges;
+create trigger trg_exchange_outreach_stop after update of stage, replied_at, unsubscribed_at on exchanges
+  for each row execute function _exchange_outreach_stop();
+
+-- ── 5. Results ───────────────────────────────────────────────────────────────
+
+create or replace function outreach_stats(p_project_id uuid)
+returns table (sequence_id uuid, name text, product text, enrolled integer, active integer, replied integer,
+               unsubscribed integer, moved_on integer, applied integer, emails_sent integer)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select s.id, s.name, s.product,
+         count(en.*)::int,
+         count(*) filter (where en.status = 'active')::int,
+         count(*) filter (where en.stop_reason = 'replied')::int,
+         count(*) filter (where en.stop_reason = 'unsubscribed')::int,
+         count(*) filter (where en.stop_reason = 'stage_changed')::int,
+         count(*) filter (where e.applied_at is not null and e.applied_at >= en.enrolled_at::date)::int,
+         (select count(*)::int from outreach_messages m join outreach_enrollments x on x.id = m.enrollment_id
+           where x.sequence_id = s.id and m.status = 'sent')
+  from outreach_sequences s
+  left join outreach_enrollments en on en.sequence_id = s.id
+  left join exchanges e on e.id = en.exchange_id
+  where s.project_id = p_project_id and can_use_outreach(s.project_id, s.department_id)
+  group by s.id, s.name, s.product;
+$$;
+
+revoke execute on function outreach_stats(uuid) from public, anon;
+grant  execute on function outreach_stats(uuid) to authenticated;
+
+-- ── 6. Imports can record consent ────────────────────────────────────────────
+-- Same as migration 039, plus email_consent / consent_source per row. Consent
+-- is only ever added by an import, never taken away.
+
+create or replace function import_exchanges(p_project_id uuid, p_product text, p_rows jsonb)
+returns table (inserted integer, updated integer, failed integer, errors text[])
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  r        jsonb;
+  v_id     uuid;
+  v_expa   text;
+  v_name   text;
+  v_ins    integer := 0;
+  v_upd    integer := 0;
+  v_fail   integer := 0;
+  v_errors text[]  := '{}';
+begin
+  if jsonb_typeof(p_rows) <> 'array' then
+    raise exception 'Expected a list of rows';
+  end if;
+  if jsonb_array_length(p_rows) > 2000 then
+    raise exception 'Import at most 2000 rows at a time';
+  end if;
+
+  for r in select * from jsonb_array_elements(p_rows) loop
+    v_expa := nullif(trim(r->>'expa_id'), '');
+    v_name := coalesce(nullif(trim(r->>'person_name'), ''), v_expa, '(no name)');
+    begin
+      v_id := null;
+      if v_expa is not null then
+        select id into v_id from exchanges where project_id = p_project_id and expa_id = v_expa;
+      end if;
+
+      if v_id is not null then
+        update exchanges set
+          stage        = coalesce(nullif(r->>'stage', ''), stage),
+          person_name  = coalesce(nullif(trim(r->>'person_name'), ''), person_name),
+          email        = coalesce(nullif(trim(r->>'email'), ''), email),
+          phone        = coalesce(nullif(trim(r->>'phone'), ''), phone),
+          opportunity  = coalesce(nullif(trim(r->>'opportunity'), ''), opportunity),
+          host_entity  = coalesce(nullif(trim(r->>'host_entity'), ''), host_entity),
+          expa_url     = coalesce(nullif(trim(r->>'expa_url'), ''), expa_url),
+          signed_up_at = coalesce((r->>'signed_up_at')::date, signed_up_at),
+          applied_at   = coalesce((r->>'applied_at')::date, applied_at),
+          accepted_at  = coalesce((r->>'accepted_at')::date, accepted_at),
+          approved_at  = coalesce((r->>'approved_at')::date, approved_at),
+          realized_at  = coalesce((r->>'realized_at')::date, realized_at),
+          finished_at  = coalesce((r->>'finished_at')::date, finished_at),
+          completed_at = coalesce((r->>'completed_at')::date, completed_at),
+          email_consent  = email_consent or coalesce((r->>'email_consent')::boolean, false),
+          consent_source = coalesce(consent_source, nullif(r->>'consent_source', ''))
+        where id = v_id;
+        if not found then
+          raise exception 'you can''t edit this exchange';
+        end if;
+        v_upd := v_upd + 1;
+      else
+        insert into exchanges (project_id, product, stage, person_name, email, phone, opportunity, host_entity,
+                               expa_id, expa_url, signed_up_at, applied_at, accepted_at, approved_at,
+                               realized_at, finished_at, completed_at, created_by, email_consent, consent_source)
+        values (p_project_id, p_product, coalesce(nullif(r->>'stage', ''), 'signed_up'), v_name,
+                nullif(trim(r->>'email'), ''), nullif(trim(r->>'phone'), ''),
+                nullif(trim(r->>'opportunity'), ''), nullif(trim(r->>'host_entity'), ''),
+                v_expa, nullif(trim(r->>'expa_url'), ''),
+                coalesce((r->>'signed_up_at')::date, (r->>'applied_at')::date, current_date),
+                (r->>'applied_at')::date, (r->>'accepted_at')::date, (r->>'approved_at')::date,
+                (r->>'realized_at')::date, (r->>'finished_at')::date, (r->>'completed_at')::date,
+                auth.uid(), coalesce((r->>'email_consent')::boolean, false), nullif(r->>'consent_source', ''));
+        v_ins := v_ins + 1;
+      end if;
+    exception when others then
+      v_fail := v_fail + 1;
+      if coalesce(array_length(v_errors, 1), 0) < 20 then
+        v_errors := v_errors || (v_name || ': ' ||
+          case when sqlstate = '23505' then 'already in the pipeline, in a department you can''t see'
+               when sqlstate = '42501' then 'you can''t add exchanges for this product'
+               else sqlerrm end);
+      end if;
+    end;
+  end loop;
+
+  return query select v_ins, v_upd, v_fail, v_errors;
+end;
+$$;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261021001_pulse_areas.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 046: Member Pulse by area (Outgoing / Incoming / Support).
+--
+-- Small departments may never reach the privacy threshold on their own. The
+-- president can also see the pulse per area, which pools departments:
+-- Outgoing (oGV/oGTa/oGTe), Incoming (iGV/iGTa/iGTe) and Support (everything
+-- else). The president can move a department to another area. Same
+-- threshold, suppression and opt-out as the department pulse; only the
+-- president can call it.
+
+alter table departments add column if not exists pulse_area text;
+alter table departments drop constraint if exists departments_pulse_area_check;
+alter table departments add constraint departments_pulse_area_check check (pulse_area is null or pulse_area in ('outgoing', 'incoming', 'support'));
+
+create or replace function department_area(p_department_id uuid)
+returns text
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(d.pulse_area,
+           case when d.products && array['ogv', 'ogta', 'ogte'] then 'outgoing'
+                when d.products && array['igv', 'igta', 'igte'] then 'incoming'
+                else 'support' end)
+  from departments d where d.id = p_department_id;
+$$;
+
+create or replace function get_area_pulse(p_project_id uuid)
+returns table (area text, period_start date, question_id text, avg_score numeric, respondent_count integer, suppressed boolean)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_min  integer;
+  v_days integer;
+begin
+  if not is_lc_president(p_project_id) then
+    return;
+  end if;
+  select min_wellbeing_respondents, checkin_period_weeks * 7 into v_min, v_days from projects where id = p_project_id;
+
+  return query
+  with scores as (
+    select s.*, department_area(s.department_id) as area
+    from _pulse_scores(p_project_id, 'member', 8) s
+    where s.department_id is not null
+  ),
+  periods as (
+    select generate_series(
+      checkin_period_start(p_project_id, now()) - 7 * v_days,
+      checkin_period_start(p_project_id, now()),
+      make_interval(days => v_days)
+    )::date as period_start
+  ),
+  areas as (select unnest(array['outgoing', 'incoming', 'support']) as area),
+  counts as (
+    select a.area, p.period_start,
+           (select count(distinct s.user_id) from scores s where s.area = a.area and s.period_start = p.period_start)::integer as n
+    from areas a cross join periods p
+  ),
+  agg as (
+    select s.area, s.period_start, s.question_id, avg(s.score) as avg_score from scores s group by 1, 2, 3
+  )
+  select c.area, c.period_start, a.question_id, round(a.avg_score, 2), c.n, false
+  from counts c join agg a on a.area = c.area and a.period_start = c.period_start
+  where c.n >= v_min
+  union all
+  select c.area, c.period_start, null::text, null::numeric, null::integer, true
+  from counts c where c.n < v_min
+  order by 1, 2, 3;
+end;
+$$;
+
+revoke execute on function get_area_pulse(uuid) from public, anon;
+grant  execute on function get_area_pulse(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+

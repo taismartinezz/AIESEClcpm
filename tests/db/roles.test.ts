@@ -2,17 +2,18 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { freshDatabase, asUser } from "./harness";
-import { createUser, createLc, addMember, type Lc } from "./fixtures";
+import { createUser, createLc, addMember, asUserCommit, type Lc } from "./fixtures";
 
 let db: PGlite;
 let lc: Lc;
 let vp: string;
 let member: string;
 let outsider: string;
+let president: string;
 
 beforeAll(async () => {
   db = await freshDatabase();
-  const president = await createUser(db, "Pres");
+  president = await createUser(db, "Pres");
   vp = await createUser(db, "Vera");
   member = await createUser(db, "Mo");
   outsider = await createUser(db, "Out");
@@ -26,7 +27,21 @@ describe("LC creation", () => {
     expect(Object.keys(lc.roleIds).sort()).toEqual(["Member", "President", "VP"]);
   });
 
-  it("seeds the eight default AIESEC departments with F&L flagged as finance", async () => {
+  it("a new LC starts without departments; only the president creates them", async () => {
+    const lcId = await asUserCommit(db, president, async () =>
+      (await db.query<{ id: string }>("insert into projects (name, owner_id) values ('Empty LC', $1) returning id", [president])).rows[0].id);
+    const { rows: none } = await db.query("select 1 from departments where project_id = $1", [lcId]);
+    expect(none).toHaveLength(0);
+    await asUserCommit(db, president, () =>
+      db.query("insert into team_members (project_id, user_id, role, lab_role_id) select $1, $2, 'president', id from lab_roles where project_id = $1 and name = 'President'", [lcId, president]));
+    const created = await asUser(db, president, async (tx) =>
+      (await tx.query("insert into departments (project_id, name, products) values ($1, 'oGX', '{ogv,ogta,ogte}') returning id", [lcId])).rows.length);
+    expect(created).toBe(1);
+    await expect(asUser(db, outsider, (tx) => tx.query("insert into departments (project_id, name) values ($1, 'oGX')", [lcId])))
+      .rejects.toThrow(/row-level security/);
+  });
+
+  it("the classic AIESEC setup flags F&L as finance", async () => {
     expect(Object.keys(lc.departments)).toHaveLength(8);
     const { rows } = await db.query<{ name: string }>(
       "select name from departments where project_id = $1 and is_finance", [lc.id],

@@ -49,6 +49,7 @@ vi.mock('@/lib/supabase', () => {
         }),
         resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
       },
+      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
       from: vi.fn((table: string) => {
         if (table === 'user_profiles') {
           return makeQuery({

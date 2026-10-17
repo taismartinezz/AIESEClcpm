@@ -69,6 +69,11 @@ export interface PulseSeries {
   periods: PulsePeriod[];             // oldest → newest, always the full window
 }
 
+/** Has any group in the window reached the privacy threshold at least once? */
+export function hasVisibleData(series: PulseSeries[]): boolean {
+  return series.some((s) => s.periods.some((p) => !p.suppressed && p.overall != null));
+}
+
 /** A drop this large (on the 1–5 scale) versus the average of the 4 previous periods gets flagged. */
 export const NOTICEABLE_DROP = 0.5;
 

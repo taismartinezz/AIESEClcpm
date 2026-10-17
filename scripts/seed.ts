@@ -3,6 +3,7 @@ dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 import { SEED_LC_NAME, SEED_PEOPLE } from "./seed-data";
+import { SUGGESTED_DEPARTMENTS as SEED_DEPARTMENTS } from "../src/lib/departments";
 import { resetSeed } from "./reset";
 
 // Creates a demo Local Committee in the Supabase project from .env.local:
@@ -58,7 +59,7 @@ async function seed() {
     console.log(`  ✓ ${person.role.padEnd(9)} ${person.email}`);
   }
 
-  // 2. The LC (triggers seed system roles and the default departments)
+  // 2. The LC (triggers seed the system roles) and its departments
   const president = SEED_PEOPLE.find((p) => p.role === "president")!;
   const { data: lc, error: lcErr } = await supabase
     .from("projects")
@@ -67,6 +68,9 @@ async function seed() {
     .single();
   if (lcErr) throw lcErr;
   const lcId = lc.id as string;
+  // New LCs start without departments; the demo LC uses the classic eight.
+  const { error: seedDepErr } = await supabase.from("departments").insert(SEED_DEPARTMENTS.map((d, i) => ({ ...d, project_id: lcId, sort_order: i + 1 })));
+  if (seedDepErr) throw seedDepErr;
 
   const { data: deps, error: depErr } = await supabase.from("departments").select("id, name").eq("project_id", lcId);
   if (depErr) throw depErr;
@@ -179,6 +183,8 @@ async function seed() {
     { person_name: "Leo K.", stage: "applied", opportunity: "Climate education", host_entity: "AIESEC in Nairobi" },
     { person_name: "Inês P.", stage: "realized", opportunity: "Women empowerment project", host_entity: "AIESEC in Hanoi" },
     { person_name: "Tom R.", stage: "signed_up", opportunity: null, host_entity: null },
+    { person_name: "Nadia F.", stage: "accepted", opportunity: "Climate education", host_entity: "AIESEC in Nairobi",
+      applied_at: new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10), accepted_at: new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10) },
   ];
   const { error: exErr } = await supabase.from("exchanges").insert(pipeline.map((e) => ({
     ...e, project_id: lcId, product: "ogv", owner_id: ids[ogvMember.email], created_by: ids[ogvMember.email],
@@ -219,6 +225,15 @@ async function seed() {
   });
   if (hErr) throw hErr;
   console.log("  ✓ 3 Drive links and a handover note");
+
+  // 12. Recruitment intake
+  const { error: recErr } = await supabase.from("recruits").insert([
+    { project_id: lcId, name: "Lucía P.", email: "lucia@applicant.example", source: "Tabling", department_id: depId["Marketing"], stage: "interview", created_by: ids[president.email] },
+    { project_id: lcId, name: "Omar B.", email: "omar@applicant.example", source: "Instagram", department_id: depId["Outgoing Global Volunteer"], stage: "applied", created_by: ids[president.email] },
+    { project_id: lcId, name: "Hana K.", email: "hana@applicant.example", source: "Referral", stage: "offer", created_by: ids[president.email] },
+  ]);
+  if (recErr) throw recErr;
+  console.log("  ✓ 3 applicants in recruitment");
 
   console.log(`\nDone. Sign in as any ${SEED_PEOPLE[0].email.split("@")[1]} account above with SEED_PASSWORD.\n`);
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
+import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isFinanceLead } from "@/lib/permissions";
@@ -91,7 +92,7 @@ export default function FinancePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !isSupabaseConfigured || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Finance needs a connected database.</p>
+          <NeedsDatabase what="Finance">The LC&apos;s income and expenses, expense claims with receipts, and who approves them.</NeedsDatabase>
         ) : tab === "ledger" && canSeeLedger ? (
           <LedgerView
             projectId={projectId} userId={userId} currency={currency}

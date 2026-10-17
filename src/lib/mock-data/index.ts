@@ -183,6 +183,18 @@ export const TEAM_MEMBERS: TeamMember[] = USERS.map((u, i) => ({
   weeklyUpdatedAt: WEEKLY_UPDATES[u.id] ? hoursAgo(8 + i * 4) : undefined,
 }));
 
+/**
+ * The demo roster with the signed-in demo user in it. An LC has one president:
+ * if the demo user set themselves up as president, Sofia becomes a VP.
+ */
+export function withDemoUser<T extends User>(people: T[], me: User): T[] {
+  return people.map((u) => {
+    if (u.id === me.id) return { ...u, ...me };
+    if (me.role === "president" && u.role === "president") return { ...u, role: "vp" };
+    return u;
+  });
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export const NOTIFICATIONS: Notification[] = [

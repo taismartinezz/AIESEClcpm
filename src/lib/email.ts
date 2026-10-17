@@ -4,13 +4,31 @@ import { APP_NAME } from "@/lib/brand";
 
 const RESEND_KEY  = process.env.RESEND_API_KEY  ?? "";
 const FROM        = process.env.EMAIL_FROM       ?? `${APP_NAME} <notifications@example.com>`;
-const APP_URL     = (process.env.APP_URL         ?? "http://localhost:3000").replace(/\/$/, "");
+export const APP_URL = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
   text: string;
+  /** Shown as "<fromName> via AIESEClcpm"; the address stays EMAIL_FROM's. */
+  fromName?: string;
+  /** Replies go here (e.g. the organiser), not to the no-reply sender. */
+  replyTo?: string;
+  cc?: string[];
+  /** Base64 content, e.g. an .ics calendar invite. */
+  attachments?: { filename: string; content: string; contentType?: string }[];
+  headers?: Record<string, string>;
+}
+
+/** "Name <addr>" → addr; a bare address is returned as is. */
+export function fromAddress(from: string): string {
+  return from.match(/<([^>]+)>/)?.[1] ?? from.trim();
+}
+
+/** Display name safe for a From header: no quotes, angle brackets, @ or line breaks. */
+export function safeDisplayName(name: string): string {
+  return name.replace(/[<>"@\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
 }
 
 // Escape characters that could break out of an HTML attribute or text node.
@@ -34,7 +52,15 @@ export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; e
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_KEY}` },
-      body: JSON.stringify({ from: FROM, to: [payload.to], subject: payload.subject, html: payload.html, text: payload.text }),
+      body: JSON.stringify({
+        from: payload.fromName ? `${safeDisplayName(payload.fromName)} via ${APP_NAME} <${fromAddress(FROM)}>` : FROM,
+        to: [payload.to],
+        subject: payload.subject, html: payload.html, text: payload.text,
+        ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
+        ...(payload.cc?.length ? { cc: payload.cc } : {}),
+        ...(payload.attachments?.length ? { attachments: payload.attachments.map((a) => ({ filename: a.filename, content: a.content, ...(a.contentType ? { content_type: a.contentType } : {}) })) } : {}),
+        ...(payload.headers ? { headers: payload.headers } : {}),
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -52,7 +78,7 @@ export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; e
 
 // ── Template helpers ───────────────────────────────────────────────────────────
 
-function baseHtml(body: string): string {
+export function baseHtml(body: string): string {
   const prefsUrl = `${APP_URL}/settings#notifications`;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -84,11 +110,11 @@ function baseHtml(body: string): string {
 </html>`;
 }
 
-function btn(text: string, url: string): string {
+export function btn(text: string, url: string): string {
   return `<a href="${escapeHtml(url)}" style="display:inline-block;background:#0263C4;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;margin:20px 0;">${escapeHtml(text)}</a>`;
 }
 
-function p(text: string): string {
+export function p(text: string): string {
   return `<p style="margin:0 0 14px;font-size:14px;color:#1e293b;line-height:1.6;">${text}</p>`;
 }
 

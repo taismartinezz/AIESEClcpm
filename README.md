@@ -14,7 +14,7 @@ Everyone can belong to several LCs and has a role **in each one**:
 | **VP** | executive board | lead one or more departments and see their departments' wellbeing averages |
 | **Member** | team member | belongs to one department and reports to its VP |
 
-**Departments.** Each LC starts with the eight AIESEC departments (oGV, oGTa, iGV, iGTa, Marketing, Talent Management, Finance & Legality, Business Development). The president can rename, recolour, add or delete them and choose which VP leads each one.
+**Departments.** A new LC starts without departments: the president creates them in Settings → Departments (e.g. oGX, oGT, oGV, Marketing…), with the usual AIESEC departments offered as one-click suggestions. The president chooses which VP leads each one, which exchange products it runs (for the pipeline) and which one handles finance.
 
 **Groups.** Inside an LC you can create groups (a project team, an organising committee, …) with their own tasks, reminders, chat channel and bookmarks.
 
@@ -28,6 +28,12 @@ Everyone can belong to several LCs and has a role **in each one**:
 - **Reminders**: personal, LC-wide and group reminders, including an automatic check-in reminder.
 - **LC Drive**: links and uploaded files (templates, brand kit, job descriptions…) in LC folders, plus personal and group items. `/bookmarks` redirects here.
 - **Handover**: one note per department per term for whoever takes over next.
+- **Members** (Talent Management): recruitment intake, onboarding checklists, term dates and activity signals.
+- **Import**: bring Google Sheets trackers (exchanges, partners, tasks, recruitment) in from a link or CSV.
+- **Outreach**: approved email templates and sequences for oGX sign-ups, with consent, unsubscribe and results per sequence.
+- **Events**: invites to the LC, a department, a role or chosen people, RSVP from the email, calendar files and reminders.
+- **National (MC)**: an MC sees every linked LC's exchange numbers side by side (counts only).
+- **Learning the app**: a short tour per role, a getting-started checklist, a demo LC with sample data and `/help`.
 - **Team**: the directory, grouped into Executive Board and one section per department.
 - **Finance**: income and expense ledger with running balance, month and year-to-date totals, spend by category and department, filters and CSV export. Any member can submit an **expense claim** with a receipt photo or PDF; the person in charge of finance approves or rejects it (a rejection needs a reason), and an approved claim creates the matching ledger entry. Members see only their own claims; other VPs see their departments' claims and spend.
 - **Attendance**: LC events and conferences. VPs and the LCP log who attended (searchable, or a whole department at once); views by event, by member (with totals per event type this term) and a sortable, exportable table. Members see only their own history; VPs see their departments.
@@ -86,3 +92,41 @@ This app must run on its **own** Supabase project. Never point it at another app
 ## Removed modules
 
 The original app's **Scheduling** (availability grid, meeting proposals, Google Calendar sync) and **Literature** (shared paper library, Zotero import, PDF annotation, browser extension) modules were removed from the UI, API and types. Their database tables (`schedule_events`, `user_availability`, `meeting_proposals`, `literature_items`, `lit_*`, `project_libraries`, `user_zotero_credentials`) are **not dropped**, so existing data is preserved. Nothing reads or writes them any more; drop them by hand if you don't need the data.
+
+## Emails to members
+
+Event invites (with Going / Not going buttons and a calendar file), reminders,
+the Monday digest and announcements are sent through [Resend](https://resend.com).
+
+1. Verify your domain in Resend, then set `RESEND_API_KEY` and `EMAIL_FROM`
+   (e.g. `AIESEClcpm <notifications@your-domain.org>`). Without a key, emails
+   are only logged to the server console.
+2. Set `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` and `RSVP_SECRET`.
+3. Each LC president can set the sender name (Settings → LC settings), e.g.
+   "AIESEC at Northwestern". Replies go to the person who sent the email.
+4. Members choose how much email they get (Settings → Notifications):
+   everything, the Monday digest only, or only important emails. Event
+   invites and reminders, overdue tasks and announcements always go out.
+
+### The reminder job
+
+`GET /api/cron/notify` (with `Authorization: Bearer <CRON_SECRET>`) sends
+whatever is due: event reminders 24 h and 1 h before, tasks due tomorrow and
+overdue (the department's VP is copied after 3 days), check-in open and
+"closes in 2 days" nudges, and the Monday digest. Every email is logged, so the
+job can run as often as you like without sending anything twice.
+
+`vercel.json` runs it once a day (07:30 UTC), which works on Vercel's free plan
+but is too rare for the 1-hour reminders. To run it every 15 minutes, either
+use Vercel Pro and change the schedule to `*/15 * * * *`, or schedule it from
+Supabase (Database → Extensions: enable `pg_cron` and `pg_net`, then in the SQL
+editor):
+
+```sql
+select cron.schedule('aiesec-notify', '*/15 * * * *', $$
+  select net.http_get(
+    url := 'https://YOUR-DEPLOYMENT/api/cron/notify',
+    headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
+  );
+$$);
+```

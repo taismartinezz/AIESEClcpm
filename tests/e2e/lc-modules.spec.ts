@@ -85,6 +85,19 @@ test.describe('Pipeline and goals', () => {
     await expect(page.getByRole('region', { name: 'Approved: 1' }).getByText('Marta S.')).toBeVisible()
   })
 
+  test('headline numbers, conversion and stuck exchanges for the term', async ({ page }) => {
+    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10)
+    const stuck = { ...ex, id: 'ex2', person_name: 'Leo K.', stage: 'accepted', applied_at: ago(30), accepted_at: ago(20), approved_at: null }
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [ex, stuck] }, rpc: { lc_term_start: '2026-02-01' } })
+    await page.goto('/pipeline')
+    await expect(page.getByText('Approved this term', { exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Applied → approved', { exact: true })).toBeVisible()
+    await expect(page.getByRole('status').getByText('1 stuck')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Completed: 0' })).toBeVisible()
+    await page.getByRole('button', { name: /import from expa/i }).click()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+  })
+
   test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
     await setupAuthMocks(page, 'member', { departments: [OGV] })
     await page.goto('/pipeline')
@@ -138,5 +151,111 @@ test.describe('LC Drive and handover', () => {
     await expect(page.getByLabel('Term')).toHaveValue('2026/27')
     await page.getByRole('button', { name: /write handover/i }).first().click()
     await expect(page.getByLabel(/Handover for LC-wide/)).toHaveValue(/What we did this term/)
+  })
+})
+
+test.describe('Members and import', () => {
+  test('the president sees recruitment, onboarding and activity', async ({ page }) => {
+    const recruit = { id: 'r1', project_id: 'project-abc', name: 'Lucía P.', email: 'lucia@x.example', phone: null, source: 'Tabling', department_id: null, stage: 'interview', interview_at: null, notes: null, owner_id: null, applied_on: '2026-10-01' }
+    await setupAuthMocks(page, 'president', { tables: { recruits: [recruit], onboarding_steps: [], member_onboarding: [] }, rpc: { member_activity: [] } })
+    await page.goto('/members')
+    await expect(page.getByText('Lucía P.')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('combobox', { name: 'Stage for Lucía P.' })).toHaveValue('interview')
+    await page.getByRole('tab', { name: 'Activity & terms' }).click()
+    await expect(page.getByText(/Check-in answers and who did the check-in are never shown/)).toBeVisible()
+  })
+
+  test('the import page offers trackers by role and explains Google Sheets sharing', async ({ page }) => {
+    await setupAuthMocks(page, 'member')
+    await page.goto('/import')
+    await expect(page.getByText('Anyone with the link can view')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Partners \(B2B/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Recruitment/ })).toHaveCount(0)
+    await page.getByRole('button', { name: /Tasks \(to-do/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+    await expect(page.getByLabel('Link to the sheet')).toBeVisible()
+  })
+})
+
+test.describe('National (MC)', () => {
+  test('an MC member sees LCs side by side with national totals', async ({ page }) => {
+    const mc = { id: 'mc1', name: 'AIESEC in Portugal', member_code: 'AAAA1111', lc_code: 'BBBB2222', term_start: null }
+    const rows = [
+      { project_id: 'l1', lc_name: 'LC Lisbon', members: 30, product: 'ogv', applied: 10, approved: 4, realized: 2, completed: 0 },
+      { project_id: 'l2', lc_name: 'LC Porto', members: 22, product: 'ogv', applied: 5, approved: 1, realized: 0, completed: 0 },
+    ]
+    await setupAuthMocks(page, 'member', { tables: { mcs: [mc], mc_members: [{ mc_id: 'mc1', role: 'mcp' }] }, rpc: { mc_dashboard: rows } })
+    await page.goto('/mc')
+    await expect(page.getByText('LC Lisbon')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('rowheader', { name: 'National' })).toBeVisible()
+    await expect(page.getByText('33%')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'National' }).first()).toBeVisible()
+  })
+})
+
+test.describe('Learning the app', () => {
+  test('an empty pipeline explains itself and offers the import', async ({ page }) => {
+    const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: null, is_finance: false, sort_order: 1, products: ['ogv'] }
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [] } })
+    await page.goto('/pipeline')
+    await expect(page.getByRole('region', { name: 'Your exchange pipeline' })).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: /Import from Google Sheets or EXPA/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+  })
+
+  test('the help page has guides per feature and can replay the tour', async ({ page }) => {
+    await setupAuthMocks(page, 'vp')
+    await page.goto('/help')
+    await expect(page.getByRole('heading', { name: 'Importing a Google Sheet' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Replay the tour/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: "What's new" })).toBeVisible()
+  })
+})
+
+test.describe('Events, RSVPs and announcements', () => {
+  const ev = { id: 'ev1', project_id: 'project-abc', name: 'General Assembly', type: 'local_event', starts_on: '2099-01-10', ends_on: '2099-01-10', starts_at: '2099-01-10T17:00:00Z', ends_at: null, location: 'Room 2.1', meeting_url: 'https://zoom.example/j/1', description: null, department_id: null, audience: 'lc', audience_role: null, invites_sent_at: null, created_by: 'someone-else' }
+
+  test('a member answers Going on an upcoming event', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { lc_events: [ev], event_attendance: [], event_rsvps: [] } })
+    await page.goto('/attendance')
+    await page.getByRole('tab', { name: 'Events' }).click()
+    await expect(page.getByRole('group', { name: 'Are you going?' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('link', { name: 'Join online' })).toBeVisible()
+  })
+
+  test('the exec board sees RSVP counts, can email invites and send announcements', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { tables: { lc_events: [ev], event_attendance: [], event_rsvps: [{ event_id: 'ev1', user_id: 'x', response: 'going' }], announcements: [] } })
+    await page.goto('/attendance')
+    await expect(page.getByText('1', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Email the invite' })).toBeVisible()
+    await page.getByRole('button', { name: /Announcement/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Send an announcement' })).toBeVisible()
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await page.getByRole('button', { name: /^Event$/ }).click()
+    await page.getByLabel('Who is it for?').selectOption('people')
+    await expect(page.getByRole('group', { name: /People/ })).toBeVisible()
+  })
+})
+
+test.describe('Outreach', () => {
+  const OGV = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: 'mock-user-id', is_finance: false, sort_order: 1, products: ['ogv'] }
+  const tpl = { id: 't1', project_id: 'project-abc', department_id: 'dep-ogv', name: 'Day 0 welcome', subject: 'Hi {first_name}', body: 'Hi {first_name}, I am {sender_name}.', status: 'pending', review_note: null, created_by: 'x', updated_at: new Date().toISOString() }
+
+  test('an empty outreach page explains sequences', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { outreach_templates: [], outreach_sequences: [] }, rpc: { outreach_stats: [] } })
+    await page.goto('/outreach')
+    await expect(page.getByRole('region', { name: /Follow up with every sign-up/ })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('templates show their status, preview merge fields and can be approved by the LCP', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [OGV], tables: { outreach_templates: [tpl], outreach_sequences: [] }, rpc: { outreach_stats: [] } })
+    await page.goto('/outreach')
+    await page.getByRole('tab', { name: /Templates \(1 to review\)/ }).click({ timeout: 10000 })
+    await page.getByRole('button', { name: /Day 0 welcome/ }).click()
+    const preview = page.getByRole('region', { name: 'Preview' })
+    await expect(preview.getByText('Hi Ana', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible()
+    await page.getByLabel('Subject').fill('Hi {firstname}')
+    await expect(page.getByRole('alert').filter({ hasText: '{firstname}' })).toBeVisible()
   })
 })

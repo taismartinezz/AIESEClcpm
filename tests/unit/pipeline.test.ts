@@ -11,8 +11,8 @@ describe("products and stages", () => {
     expect(color.ogte).toBe("#F48924");
   });
 
-  it("run Sign-up → Applied → Accepted → Approved → Realized → Finished, each with a date field", () => {
-    expect(STAGES.map((s) => s.label)).toEqual(["Sign-up", "Applied", "Accepted", "Approved", "Realized", "Finished"]);
+  it("run Sign-up → Applied → Accepted → Approved → Realized → Finished → Completed, each with a date field", () => {
+    expect(STAGES.map((s) => s.label)).toEqual(["Sign-up", "Applied", "Accepted", "Approved", "Realized", "Finished", "Completed"]);
     expect(STAGES.every((s) => STAGE_DATE_FIELD[s.code])).toBe(true);
   });
 });

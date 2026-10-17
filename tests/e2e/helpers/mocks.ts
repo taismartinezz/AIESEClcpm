@@ -73,7 +73,7 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
       const _origGet = Storage.prototype.getItem
       Storage.prototype.getItem = function (key) {
         if (typeof key === 'string' && /^sb-.+-auth-token$/.test(key)) return session
-        if (key === 'aiesec_tour_v2') return 'done'
+        if (typeof key === 'string' && key.startsWith('aiesec_tour')) return 'done'
         return _origGet.call(this, key)
       }
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Download, Plus, Search } from "lucide-react";
+import { AlertTriangle, Download, Plus, Search, Upload } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import TeachingEmpty, { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec } from "@/lib/permissions";
@@ -12,6 +13,7 @@ import { useLcMembers } from "@/hooks/useLcMembers";
 import type { Partner, PartnerStage } from "@/types";
 import { Button, ErrorText, Panel, inputStyle, selectStyle } from "@/components/lc/ui";
 import PartnerModal from "@/components/partners/PartnerModal";
+import ImportWizard from "@/components/import/ImportWizard";
 
 export default function PartnersPage() {
   const { projectId, userId, role, departments, departmentId, isLoading } = useProject();
@@ -28,6 +30,7 @@ export default function PartnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState<Partner | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
   const enabled = Boolean(projectId) && isSupabaseConfigured;
 
   useEffect(() => {
@@ -78,6 +81,7 @@ export default function PartnersPage() {
         subtitle="Companies and organisations your LC works with: stage, contacts and follow-ups."
         action={<>
           <Button variant="secondary" onClick={exportCsv} disabled={shown.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
+          {allowedDepartments.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import</Button>}
           {allowedDepartments.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add partner</Button>}
         </>}
       />
@@ -86,7 +90,15 @@ export default function PartnersPage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>Partners need a connected database.</p>
+          <NeedsDatabase what="Partners">Companies and organisations your LC works with: stage, contacts, history and the next follow-up.</NeedsDatabase>
+        ) : partners.length === 0 && allowedDepartments.length > 0 ? (
+          <TeachingEmpty title="Your partners in one place" actions={<>
+            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from Google Sheets</Button>
+            <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add a partner</Button>
+          </>}>
+            Every company and organisation your LC works with: where the conversation is, who the contact is, what was said last
+            and when to follow up. You get a nudge when a follow-up is due. Import your B2B or sponsor tracker to start.
+          </TeachingEmpty>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div role="group" aria-label="Filter by stage" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -158,6 +170,11 @@ export default function PartnersPage() {
         )}
       </div>
 
+      {importing && projectId && (
+        <ImportWizard target="partners" projectId={projectId} products={[]}
+          context={{ departments, roster, defaultDepartmentId: departmentId }}
+          onClose={() => setImporting(false)} onImported={() => setVersion((v) => v + 1)} />
+      )}
       {editing && projectId && userId && (
         <PartnerModal
           projectId={projectId} userId={userId} departments={departments} allowedDepartmentIds={allowedDepartments} roster={roster}

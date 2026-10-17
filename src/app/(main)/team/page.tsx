@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CURRENT_USER_ID, TEAM_MEMBERS, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
+import { CURRENT_USER_ID, TEAM_MEMBERS, withDemoUser, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
@@ -529,7 +529,7 @@ export default function TeamPage() {
     if (!isSupabaseConfigured) {
       const su = getStoredUser();
       setDemoRole(su.role);
-      setTeam(TEAM_MEMBERS);
+      setTeam(withDemoUser(TEAM_MEMBERS, su));
       setLoading(false);
       return;
     }
@@ -872,6 +872,13 @@ export default function TeamPage() {
         {!loading && visibleTeam.length === 0 && (
           <p style={{ fontSize: 13, color: "var(--color-secondary)", marginBottom: 16 }}>
             {activeScope === "project" ? "No members in this group yet." : "Your LC will appear here once members join."}
+          </p>
+        )}
+        {isPresident && isSupabaseConfigured && departments.length === 0 && activeScope !== "project" && (
+          <p role="status" style={{ fontSize: 13, color: "var(--color-body)", marginBottom: 16, padding: "10px 14px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)" }}>
+            Your LC has no departments yet.{" "}
+            <a href="/settings#departments" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Create them in Settings</a>{" "}
+            (e.g. oGX, oGT, oGV) so you can place members and assign VPs.
           </p>
         )}
         {groupDirectory(visibleTeam, departments, activeScope === "project").map((section) => (

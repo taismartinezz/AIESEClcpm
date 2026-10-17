@@ -14,6 +14,7 @@ import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
+import McLinkSettings from "@/components/lc/McLinkSettings";
 import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
 import CategoriesManager from "@/components/finance/CategoriesManager";
 import type { UserRole } from "@/types";
@@ -101,6 +102,7 @@ export default function SettingsPage() {
   const [notifTaskAssigned, setNotifTaskAssigned] = useState(true);
   const [notifLabWin, setNotifLabWin] = useState(true);
   const [notifDigest, setNotifDigest] = useState(false);
+  const [emailMode, setEmailMode] = useState<"all" | "digest" | "important">("all");
   const [isMobile, setIsMobile] = useState(false);
 
   // Working hours + timezone
@@ -112,6 +114,7 @@ export default function SettingsPage() {
   const [projectName, setProjectName] = useState("");
   const [projectInstitution, setProjectInstitution] = useState("");
   const [lcCurrency, setLcCurrency] = useState("EUR");
+  const [senderName, setSenderName] = useState("");
   const [termStart, setTermStart] = useState("");
   const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
   const [customPrompts, setCustomPrompts] = useState<{ id: string; text: string }[]>([]);
@@ -152,6 +155,7 @@ export default function SettingsPage() {
           if (proj) {
             setProjectName((proj.name as string) ?? "");
             setProjectInstitution((proj.institution as string) ?? "");
+            setSenderName((proj.email_sender_name as string | null) ?? "");
             setLcCurrency((proj.currency as string) ?? "EUR");
             setTermStart((proj.term_start_date as string) ?? "");
             const loadedIds = proj.active_prompt_ids as string[] | null | undefined;
@@ -174,6 +178,7 @@ export default function SettingsPage() {
             if (userSettings.notif_task_assigned != null) setNotifTaskAssigned(userSettings.notif_task_assigned as boolean);
             if (userSettings.notif_lab_win != null) setNotifLabWin(userSettings.notif_lab_win as boolean);
             if (userSettings.notif_digest != null) setNotifDigest(userSettings.notif_digest as boolean);
+            if (userSettings.email_mode) setEmailMode(userSettings.email_mode as typeof emailMode);
           }
 
           // Fetch current user's role title in this LC for the Profile section
@@ -270,6 +275,7 @@ export default function SettingsPage() {
         institution: projectInstitution,
         currency: lcCurrency.trim().toUpperCase(),
         term_start_date: termStart || null,
+        email_sender_name: senderName.trim() || null,
         active_prompt_ids: activePromptIds,
         custom_prompts: customPrompts,
       }).eq("id", project.id);
@@ -280,7 +286,7 @@ export default function SettingsPage() {
     } finally {
       setSavingLabSettings(false);
     }
-  }, [project, projectName, projectInstitution, lcCurrency, termStart, activePromptIds, customPrompts]);
+  }, [project, projectName, projectInstitution, lcCurrency, senderName, termStart, activePromptIds, customPrompts]);
 
   const handleSendEmailInvites = useCallback(async () => {
     if (!project?.id) return;
@@ -399,12 +405,12 @@ export default function SettingsPage() {
     const userId = session?.user?.id;
     if (!userId) return;
     const { error } = await supabase.from("user_settings").upsert(
-      { user_id: userId, notif_task_assigned: notifTaskAssigned, notif_lab_win: notifLabWin, notif_digest: notifDigest, updated_at: new Date().toISOString() },
+      { user_id: userId, notif_task_assigned: notifTaskAssigned, notif_lab_win: notifLabWin, notif_digest: notifDigest, email_mode: emailMode, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
     if (error) showToast("Failed to save: " + error.message);
     else showToast("Notification preferences saved.");
-  }, [notifTaskAssigned, notifLabWin, notifDigest]);
+  }, [notifTaskAssigned, notifLabWin, notifDigest, emailMode]);
 
   if (loading) return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "32px 20px" }} className="space-y-6">
@@ -809,7 +815,7 @@ export default function SettingsPage() {
 
       {/* Departments — president only */}
       {isPresident && activeScope !== "personal" && (
-        <section style={sectionStyle} aria-labelledby="settings-departments-heading">
+        <section id="departments" style={sectionStyle} aria-labelledby="settings-departments-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
             <h2 id="settings-departments-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
@@ -818,6 +824,21 @@ export default function SettingsPage() {
           </div>
           <div style={{ padding: "20px" }}>
             <DepartmentsManager />
+          </div>
+        </section>
+      )}
+
+      {/* National (MC) — president only */}
+      {isPresident && activeScope !== "personal" && (
+        <section id="national" style={sectionStyle} aria-labelledby="settings-national-heading">
+          <div style={sectionHeaderStyle}>
+            <Globe2 size={16} color="var(--color-secondary)" />
+            <h2 id="settings-national-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
+              National (MC)
+            </h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <McLinkSettings />
           </div>
         </section>
       )}
@@ -865,6 +886,12 @@ export default function SettingsPage() {
                 <input id="lc-currency" value={lcCurrency} maxLength={3} onChange={e => setLcCurrency(e.target.value.toUpperCase())}
                   placeholder="EUR" style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
                 <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>3-letter code used for new finance entries and claims.</p>
+              </div>
+              <div>
+                <label style={labelStyle} htmlFor="lc-sender-name">Email sender name</label>
+                <input id="lc-sender-name" value={senderName} maxLength={60} onChange={e => setSenderName(e.target.value)}
+                  placeholder={projectName || "AIESEC at Northwestern"} style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>Emails to members come from this name. Replies go to whoever sent them.</p>
               </div>
               <div>
                 <label style={labelStyle} htmlFor="lc-term-start">Term starts on</label>
@@ -956,7 +983,7 @@ export default function SettingsPage() {
       </section>
 
       {/* Notifications section */}
-      <section style={sectionStyle} aria-labelledby="settings-notif-heading">
+      <section id="notifications" style={sectionStyle} aria-labelledby="settings-notif-heading">
         <div style={sectionHeaderStyle}>
           <Bell size={16} color="var(--color-secondary)" />
           <h2 id="settings-notif-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
@@ -964,10 +991,23 @@ export default function SettingsPage() {
           </h2>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <fieldset style={{ border: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", marginBottom: 6 }}>How much email?</legend>
+            {([
+              { v: "all", label: "Everything", description: "Reminders for tasks and check-ins, the Monday digest, plus everything below" },
+              { v: "digest", label: "Monday digest only", description: "One email a week with your tasks, upcoming events and LC wins, plus the important ones" },
+              { v: "important", label: "Only important", description: "Event invites and reminders, overdue tasks and announcements" },
+            ] as const).map((o) => (
+              <label key={o.v} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                <input type="radio" name="email-mode" value={o.v} checked={emailMode === o.v} onChange={() => setEmailMode(o.v)} style={{ accentColor: "var(--color-navy)", marginTop: 3 }} />
+                <span><span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", display: "block" }}>{o.label}</span><span style={{ fontSize: 12, color: "var(--color-secondary)" }}>{o.description}</span></span>
+              </label>
+            ))}
+            <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Event reminders, overdue tasks and announcements always come through.</p>
+          </fieldset>
           {[
             { id: "notif-task", label: "Task assignments", description: "When someone assigns a task to you", value: notifTaskAssigned, set: setNotifTaskAssigned },
             { id: "notif-win", label: "LC wins", description: "When someone posts a win", value: notifLabWin, set: setNotifLabWin },
-            { id: "notif-digest", label: "Weekly digest", description: "A weekly summary of your LC's activity", value: notifDigest, set: setNotifDigest },
           ].map(({ id, label, description, value, set }) => (
             <label key={id} htmlFor={id} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", minHeight: 44 }}>
               <input
