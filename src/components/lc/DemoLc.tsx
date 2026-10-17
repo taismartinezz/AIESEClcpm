@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { Button } from "@/components/lc/ui";
 
@@ -11,7 +11,7 @@ export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void
   const { setActiveLc } = useProject();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!isSupabaseConfigured) return null;
+  if (!isSupabaseConfigured || isPreview) return null;
 
   async function create() {
     setBusy(true);
@@ -58,6 +58,14 @@ export function DemoBanner() {
     return () => { cancelled = true; };
   }, [projectId]);
 
+  if (isPreview) {
+    return (
+      <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, backgroundColor: "var(--color-navy-dim)", fontSize: 13, color: "var(--color-body)" }}>
+        <Sparkles size={15} color="var(--color-navy)" aria-hidden="true" />
+        <span>This is a <strong>preview with sample data</strong>: click around and change anything. Nothing is saved; reloading the page starts over.</span>
+      </div>
+    );
+  }
   if (!isDemo || !projectId) return null;
 
   async function remove() {

@@ -21,8 +21,8 @@ export function NeedsDatabase({ what, children }: { what: string; children: Reac
     <TeachingEmpty title={what}>
       {children}
       <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-secondary)" }}>
-        You&apos;re looking at the preview without a database, so there&apos;s nothing to show here yet. To use it, connect a Supabase
-        project (see the README) or <Link href="/help" style={{ color: "var(--color-navy)" }}>read how it works</Link>.
+        This part of the app isn&apos;t switched on for your LC yet, so there&apos;s nothing to show. Ask your LCP or whoever set the app up;
+        meanwhile <Link href="/help" style={{ color: "var(--color-navy)" }}>read how it works</Link>.
       </p>
     </TeachingEmpty>
   );

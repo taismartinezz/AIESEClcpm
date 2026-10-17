@@ -6,8 +6,8 @@ import { setupAuthMocks } from './helpers/mocks'
 
 const FL = { id: 'dep-fl', project_id: 'project-abc', name: 'Finance & Legality', color: '#037EF3', vp_user_id: 'someone-else', is_finance: true, sort_order: 7 }
 
-const future = new Date(Date.now() + 3 * 86_400_000)
-future.setHours(12, 0, 0, 0)
+// Later today, so the shift is in this week's view whatever day the test runs.
+const future = new Date(Date.now() + 2 * 3_600_000)
 const slot = {
   id: 'slot-1', project_id: 'project-abc', starts_at: future.toISOString(),
   ends_at: new Date(future.getTime() + 2 * 3_600_000).toISOString(),
@@ -94,8 +94,8 @@ test.describe('Pipeline and goals', () => {
     await expect(page.getByText('Applied → approved', { exact: true })).toBeVisible()
     await expect(page.getByRole('status').getByText('1 stuck')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Completed: 0' })).toBeVisible()
-    await page.getByRole('button', { name: /import from expa/i }).click()
-    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+    await page.getByRole('button', { name: 'Import exchanges' }).click()
+    await expect(page.getByRole('dialog', { name: 'Import exchanges' })).toBeVisible()
   })
 
   test('a member of a non-exchange department is told the pipeline is not theirs', async ({ page }) => {
@@ -199,8 +199,8 @@ test.describe('Learning the app', () => {
     await setupAuthMocks(page, 'president', { departments: [OGV], tables: { exchanges: [] } })
     await page.goto('/pipeline')
     await expect(page.getByRole('region', { name: 'Your exchange pipeline' })).toBeVisible({ timeout: 10000 })
-    await page.getByRole('button', { name: /Import from Google Sheets or EXPA/ }).click()
-    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
+    await page.getByRole('region', { name: 'Your exchange pipeline' }).getByRole('button', { name: 'Import exchanges' }).click()
+    await expect(page.getByRole('dialog', { name: 'Import exchanges' })).toBeVisible()
   })
 
   test('the help page has guides per feature and can replay the tour', async ({ page }) => {

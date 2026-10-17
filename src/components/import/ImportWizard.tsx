@@ -117,7 +117,7 @@ export default function ImportWizard({ target: initialTarget, targets, projectId
 
   return (
     <Modal
-      title="Import a tracker" onClose={onClose} width={660}
+      title={(targets ?? []).length > 1 ? "Import a tracker" : `Import ${IMPORT_TARGETS[initialTarget].noun}`} onClose={onClose} width={660}
       footer={result ? <Button onClick={onClose}>Done</Button> : <>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button onClick={runImport} disabled={busy !== null || !plan || plan.rows.length === 0 || Boolean(missing)}>

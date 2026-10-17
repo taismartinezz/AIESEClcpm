@@ -130,3 +130,31 @@ select cron.schedule('aiesec-notify', '*/15 * * * *', $$
   );
 $$);
 ```
+
+## Deploying on Vercel: environment variables
+
+Without the two `NEXT_PUBLIC_SUPABASE_*` variables the app runs in **preview
+mode**: a sample LC that lives in the browser, with a banner saying so. When
+the server starts it logs every missing variable by name (Vercel → your
+project → Logs, search for `[config]`).
+
+Add these in Vercel → Settings → Environment Variables (environment:
+Production, and Preview if you use preview deployments), then **Redeploy**.
+Variables starting with `NEXT_PUBLIC_` are built into the app, so they only
+take effect after a new deployment.
+
+| Name | Where to find the value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API (or Data API) → Project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API Keys → Publishable key (`sb_publishable_…`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → Secret key (`sb_secret_…`). Never give it a `NEXT_PUBLIC_` name. |
+| `NEXT_PUBLIC_APP_URL` and `APP_URL` | Your site's address, e.g. `https://aiese-clcpm.vercel.app` (no trailing slash) |
+| `JOURNAL_KEY_SECRET` | Any long random string (`openssl rand -base64 32`). Keep it forever: changing it makes saved journal entries unreadable. |
+| `CRON_SECRET` | Any long random string |
+| `RSVP_SECRET` | Any long random string |
+| `INTERNAL_API_SECRET` | Any long random string |
+| `RESEND_API_KEY` | Resend → API Keys → Create API key (after verifying your domain in Resend → Domains) |
+| `EMAIL_FROM` | An address on the domain you verified, e.g. `AIESEClcpm <notifications@your-domain.org>` |
+
+Also in Supabase → Authentication → URL Configuration: set Site URL to your
+site's address and add `https://your-site/**` to Redirect URLs.

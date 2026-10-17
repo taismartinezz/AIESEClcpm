@@ -95,7 +95,7 @@ export default function AttendancePage() {
         {loading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
-          <NeedsDatabase what="Attendance">LC events and who came, so Talent Management can spot who&apos;s drifting away.</NeedsDatabase>
+          <NeedsDatabase what="Events">LC events and who came, so Talent Management can spot who&apos;s drifting away.</NeedsDatabase>
         ) : tab === "events" ? (
           <EventsView
             events={events} records={records} rsvps={rsvps} userId={userId} roster={roster} departments={departments} canManage={exec}

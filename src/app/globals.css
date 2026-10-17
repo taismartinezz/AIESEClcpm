@@ -17,7 +17,7 @@
   --color-navy:       #0263C4;
   --color-navy-hover: #01529F;
   --color-navy-dim:   rgba(3, 126, 243, 0.08);
-  --color-navy-scrim: rgba(1, 40, 82, 0.18);
+  --color-navy-scrim: rgba(1, 25, 52, 0.5);
 
   /* Text */
   --color-body:       #2D2D2D;
@@ -242,7 +242,7 @@ body {
   --color-navy:         #0263C4;
   --color-navy-hover:   #01529F;
   --color-navy-dim:     rgba(3,126,243,0.08);
-  --color-navy-scrim:   rgba(1,40,82,0.18);
+  --color-navy-scrim:   rgba(1,25,52,0.5);
 
   /* ── Text ── */
   --color-body:         #2D2D2D;

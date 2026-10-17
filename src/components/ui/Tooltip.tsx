@@ -62,9 +62,12 @@ export default function Tooltip({ label, children, delay = 450, placement = "bot
         style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
         onMouseEnter={show}
         onMouseLeave={hide}
-        onFocus={show}
+        // Keyboard focus only: focus that returns to the button after a panel
+        // closes (or a mouse click) shouldn't leave the tooltip hanging.
+        onFocus={(e) => { if ((e.target as HTMLElement).matches?.(":focus-visible")) show(); }}
         onBlur={hide}
         onClick={hide}
+        onKeyDown={(e) => { if (e.key === "Escape") hide(); }}
       >
         {children}
       </span>

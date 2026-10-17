@@ -39,12 +39,17 @@ const SECTION_CFG = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** "2026-10-15" is a calendar date: read it in the viewer's time zone, not as UTC midnight. */
+export function parseDue(iso: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + "T00:00:00") : new Date(iso);
+}
+
 function overdueLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return parseDue(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function upcomingLabel(iso: string): string {
-  const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
+  const d = parseDue(iso);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const tomorrowEnd = new Date(tomorrow); tomorrowEnd.setDate(tomorrow.getDate() + 1);
@@ -54,7 +59,7 @@ function upcomingLabel(iso: string): string {
 
 // ── Categorizer ───────────────────────────────────────────────────────────────
 
-function categorize(
+export function categorize(
   tasks: Task[],
   reminders: OverdueReminder[],
   events: CalendarEvent[],
@@ -69,7 +74,9 @@ function categorize(
   const upcoming: AgendaItem[] = [];
 
   for (const t of tasks) {
-    if (!t.dueDate || t.status === "done" || !t.assigneeIds.includes(userId)) continue;
+    // Yours: assigned to you, or unassigned and created by you.
+    const mine = t.assigneeIds.includes(userId) || (t.assigneeIds.length === 0 && t.createdBy === userId);
+    if (!t.dueDate || t.status === "done" || !mine) continue;
     const due = new Date(t.dueDate + "T23:59:59");
     const item: AgendaItem = { id: t.id, title: t.title, kind: "task", dateIso: t.dueDate, href: "/tasks", assigneeIds: t.assigneeIds, canComplete: true };
     if (due < todayStart)    overdue.push(item);
@@ -93,7 +100,7 @@ function categorize(
     else if (evDate <= weekEnd) upcoming.push(item);
   }
 
-  const byDate = (a: AgendaItem, b: AgendaItem) => new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime();
+  const byDate = (a: AgendaItem, b: AgendaItem) => parseDue(a.dateIso).getTime() - parseDue(b.dateIso).getTime();
   return { overdue: overdue.sort(byDate), today: today.sort(byDate), upcoming: upcoming.sort(byDate) };
 }
 
@@ -198,7 +205,7 @@ function AgendaCard({
   const isToday = sectionKey === "today";
 
   return (
-    <div className="agenda-card" style={{
+    <section aria-label={cfg.label} className="agenda-card" style={{
       flex: 1, minWidth: 200,
       backgroundColor: "var(--color-surface)",
       border: "1px solid var(--color-border)",
@@ -247,7 +254,7 @@ function AgendaCard({
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
