@@ -179,6 +179,21 @@ async function resolveProjectInvite(userId: string, userEmail: string) {
 
 // ── Login page ────────────────────────────────────────────────────────────────
 
+/** Supabase's sign-in errors in plain words; the original message is kept for anything unexpected. */
+export function explainAuthError(err: { message: string; code?: string }): { message: string; unconfirmed: boolean } {
+  const m = err.message.toLowerCase();
+  if (err.code === "email_not_confirmed" || m.includes("email not confirmed")) {
+    return { message: "Your email isn't confirmed yet. Open the link we emailed you, or send a new one.", unconfirmed: true };
+  }
+  if (err.code === "invalid_credentials" || m.includes("invalid login credentials")) {
+    return { message: "That email and password don't match. If you signed up with Google, use Continue with Google.", unconfirmed: false };
+  }
+  if (m.includes("rate limit") || err.code === "over_email_send_rate_limit") {
+    return { message: "Too many attempts. Wait a minute and try again.", unconfirmed: false };
+  }
+  return { message: err.message, unconfirmed: false };
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">(() => {
@@ -194,6 +209,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   // Set after sign-up when the project asks new accounts to confirm their email.
   const [confirmEmailSent, setConfirmEmailSent] = useState<string | null>(null);
+  // Sign-in refused because the email isn't confirmed yet: offer to resend the link.
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function resendConfirmation() {
+    if (!unconfirmedEmail) return;
+    setResendState("sending");
+    const { error } = await supabase.auth.resend({ type: "signup", email: unconfirmedEmail, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } });
+    if (error) { setFormError(`Couldn't resend the email: ${error.message}`); setResendState("idle"); return; }
+    setResendState("sent");
+  }
   const [nameError, setNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -229,9 +256,13 @@ export default function LoginPage() {
     // Surface OAuth errors forwarded from /auth/callback
     const params = new URLSearchParams(window.location.search);
 
-    // Session-expired redirect from AppShell
+    // Session-expired redirect from AppShell (only sent when there was a session)
     if (params.get("reason") === "session_expired") {
       setOAuthError("Your session expired. Please sign in again.");
+    }
+    // Confirmation link opened somewhere the sign-up didn't start (e.g. another browser)
+    if (params.get("notice") === "email_confirmed") {
+      setNotice("Your email is confirmed. Sign in with your email and password.");
     }
 
     const errorCode = params.get("error");
@@ -301,6 +332,8 @@ export default function LoginPage() {
     setEmailError("");
     setPasswordError("");
     setFormError("");
+    setUnconfirmedEmail(null);
+    setNotice(null);
     setLoading(true);
 
     if (!isSupabaseConfigured) {
@@ -314,8 +347,21 @@ export default function LoginPage() {
     try {
       const { data: authData, error: authError } = mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/login` } });
-      if (authError) { setFormError(authError.message); setLoading(false); return; }
+        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } });
+      if (authError) {
+        const { message, unconfirmed } = explainAuthError(authError);
+        setFormError(message);
+        setUnconfirmedEmail(unconfirmed ? email : null);
+        setLoading(false);
+        return;
+      }
+      // Supabase answers a sign-up for an existing (confirmed) email with a user
+      // that has no identities, so nobody can probe which emails have accounts.
+      if (mode === "signup" && authData.user && (authData.user.identities ?? []).length === 0) {
+        setFormError("There's already an account with this email. Sign in instead (or use Continue with Google if that's how you signed up).");
+        setLoading(false);
+        return;
+      }
       if (mode === "signup" && !authData.session) {
         // The project asks new accounts to confirm their email first.
         if (name.trim()) localStorage.setItem("aiesec_signup_name", name.trim());
@@ -337,7 +383,7 @@ export default function LoginPage() {
 
       const { data: member, error: memberError } = await supabase
         .from("team_members").select("id").eq("user_id", user.id).limit(1).maybeSingle();
-      if (memberError) { setLoading(false); return; }
+      if (memberError) { setFormError(`Signed in, but couldn't load your LC: ${memberError.message}`); setLoading(false); return; }
       if (member) {
         await resolveProjectInvite(user.id, user.email ?? "");
         router.push("/");
@@ -829,6 +875,17 @@ export default function LoginPage() {
           >
             {formError}
           </p>
+        )}
+        {unconfirmedEmail && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "8px 0 0" }}>
+            <button type="button" onClick={resendConfirmation} disabled={resendState !== "idle"}
+              style={{ fontFamily: "var(--font-roboto)", fontSize: 12, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "1px solid var(--color-border)", borderRadius: 6, padding: "6px 10px", cursor: resendState === "idle" ? "pointer" : "default" }}>
+              {resendState === "sending" ? "Sending…" : resendState === "sent" ? "Sent: check your inbox" : "Resend confirmation email"}
+            </button>
+          </div>
+        )}
+        {notice && (
+          <p role="status" style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "10px 0 0", lineHeight: 1.5 }}>{notice}</p>
         )}
         {confirmEmailSent && (
           <p role="status" style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "10px 0 0", lineHeight: 1.5 }}>

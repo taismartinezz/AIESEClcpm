@@ -46,7 +46,13 @@ export default function AuthCallbackPage() {
       if (code && (!session || !session.provider_token)) {
         const { data, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
         if (data.session) session = data.session;
-        else if (!session) { fail(exchErr?.message ?? "Couldn't finish signing in"); return; }
+        else if (!session) {
+          // An email-confirmation link opened in another browser: Supabase already
+          // confirmed the email, but this browser can't finish the sign-in.
+          if (/code verifier|flow state/i.test(exchErr?.message ?? "")) { router.replace("/login?notice=email_confirmed"); return; }
+          fail(exchErr?.message ?? "Couldn't finish signing in");
+          return;
+        }
       }
       if (!session) { fail("No sign-in code was returned"); return; }
 

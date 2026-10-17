@@ -133,3 +133,25 @@ test('Google sign-in: the /auth/callback?code=… return lands in the app, not o
   await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 })
   await expect(page).toHaveURL(/localhost:3000\/(\?.*)?$/)
 })
+
+test.describe('Email sign-in', () => {
+  test('an unconfirmed email says so and offers to resend the confirmation', async ({ page }) => {
+    await page.route('**/auth/v1/token**', (r) => r.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ code: 400, error_code: 'email_not_confirmed', msg: 'Email not confirmed' }) }))
+    let resent = false
+    await page.route('**/auth/v1/resend**', (r) => { resent = true; return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }) })
+    await page.goto('/login')
+    await page.getByLabel('Email').fill('new@example.com')
+    await page.locator('input[aria-label="Password"]').fill('long-enough-password')
+    await page.getByRole('button', { name: /continue with email/i }).click()
+    await expect(page.getByText(/isn't confirmed yet/)).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: 'Resend confirmation email' }).click()
+    await expect(page.getByRole('button', { name: /Sent: check your inbox/ })).toBeVisible()
+    expect(resent).toBe(true)
+  })
+
+  test('a first-time visitor is not told their session expired', async ({ page }) => {
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/login$/, { timeout: 10000 })
+    await expect(page.getByText(/session expired/i)).toHaveCount(0)
+  })
+})

@@ -867,6 +867,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         // On failure, attempt one refresh before redirecting.
         let user: import("@supabase/supabase-js").User | null = null;
         {
+          // Never signed in (or signed out): just the login page, no "session expired".
+          const { data: { session: stored } } = await supabase.auth.getSession();
+          if (!stored) { router.replace("/login"); return; }
           const { data: { user: verified } } = await supabase.auth.getUser();
           if (verified) {
             user = verified;
