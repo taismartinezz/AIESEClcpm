@@ -115,3 +115,12 @@ test('sign-up accepts a name filled in by browser autofill', async ({ page }) =>
   await expect(page.getByText('Please enter your full name.')).toHaveCount(0)
   await expect(page.getByText('Please enter a valid email address.')).toHaveCount(0)
 })
+
+test('Scheduling is back: calendar, availability and meetings', async ({ page }) => {
+  await setupAuthMocks(page, 'member', { tables: { schedule_events: [], user_availability: [], meeting_proposals: [] } })
+  await page.goto('/scheduling')
+  await expect(page.getByRole('heading', { level: 1, name: 'Scheduling' })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole('link', { name: 'Scheduling' })).toBeVisible()
+  await expect(page.getByText('Availability').first()).toBeVisible()
+  await expect(page.getByText(/Google Calendar/)).toHaveCount(0)
+})

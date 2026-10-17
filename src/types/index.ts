@@ -467,3 +467,52 @@ export interface PartnerActivity {
   happenedOn: string;
   authorId: string | null;
 }
+
+// ── Scheduling (availability, meeting proposals, schedule events) ─────────────
+
+// "day-slot" key where day=0..4 (Mon-Fri), slot=0..15 (9:00-16:30 in 30-min steps)
+export interface WeeklyAvailability {
+  userId: string;
+  projectId: string;
+  subProjectId?: string | null;
+  slots: string[];
+  updatedAt: string;
+}
+
+export type MeetingResponseStatus = "pending" | "accepted" | "declined";
+
+export interface MeetingResponse {
+  userId: string;
+  status: MeetingResponseStatus;
+  respondedAt?: string;
+}
+
+export interface MeetingProposal {
+  id: string;
+  projectId: string;
+  proposerId: string;
+  title: string;
+  description?: string;
+  proposedDate: string;    // ISO date "YYYY-MM-DD"
+  proposedTime: string;    // "HH:MM"
+  durationMinutes: number;
+  inviteeIds: string[];
+  responses: MeetingResponse[];
+  createdAt: string;
+}
+
+export type ScheduleEventScope = "lab" | "personal" | "project";
+
+export interface ScheduleEvent {
+  id: string;
+  projectId: string;
+  title: string;
+  date: string;            // ISO date "YYYY-MM-DD"
+  time?: string;           // "HH:MM"
+  endTime?: string;        // "HH:MM"
+  scope: ScheduleEventScope;
+  createdBy: string;
+  description?: string;
+  subProjectId?: string | null;
+}
+

@@ -5,7 +5,7 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send,
+  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send, CalendarDays,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
@@ -50,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
     { href: "/chat",        label: "Chat",       icon: MessageSquare   },
     { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
+    { href: "/scheduling",  label: "Scheduling", icon: CalendarDays    },
   ] },
   { id: "exchanges", label: "Exchanges", items: [
     { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
