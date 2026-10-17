@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { Fragment, useState, useRef, useCallback, useEffect } from "react";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ export default function AvailabilityGrid({ slots, onChange, readOnly = false }: 
           const isHourBoundary = slot % 2 === 0;
           const label = isHourBoundary ? slotToLabel(slot) : "";
           return (
-            <>
+            <Fragment key={slot}>
               {/* Time label */}
               <div
                 key={`label-${slot}`}
@@ -145,7 +145,7 @@ export default function AvailabilityGrid({ slots, onChange, readOnly = false }: 
                   />
                 );
               })}
-            </>
+            </Fragment>
           );
         })}
 

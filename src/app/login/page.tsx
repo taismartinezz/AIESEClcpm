@@ -528,12 +528,10 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Auth buttons -- only renders providers listed in NEXT_PUBLIC_AUTH_PROVIDERS */}
+        {/* OAuth buttons (Google by default). Shown on both "Sign in" and "Create your account":
+            Google creates the account the first time and signs in after that. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {enabledProviders.has("google") && (
-            // Wrapper: our button is visible; GIS iframe sits on top at near-zero opacity.
-            // The iframe intercepts clicks for the ID-token flow.
-            // Keyboard fallback: AuthButton remains focusable and Enter/Space use redirect flow.
             <div
               ref={googleWrapperRef}
               style={{ position: "relative" }}
@@ -543,7 +541,7 @@ export default function LoginPage() {
               <AuthButton
                 icon={<GoogleIcon />}
                 label="Continue with Google"
-                ariaLabel="Sign in with Google"
+                ariaLabel={mode === "signup" ? "Sign up with Google" : "Sign in with Google"}
                 loading={oAuthLoading === "google"}
                 disabled={oAuthLoading !== null && oAuthLoading !== "google"}
                 forceHovered={googleButtonHovered && oAuthLoading === null}

@@ -15,6 +15,7 @@ import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
 import McLinkSettings from "@/components/lc/McLinkSettings";
+import GoogleCalendarSettings from "@/components/scheduling/GoogleCalendarSettings";
 import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
 import CategoriesManager from "@/components/finance/CategoriesManager";
 import type { UserRole } from "@/types";
@@ -1028,6 +1029,11 @@ export default function SettingsPage() {
             Save notification preferences
           </button>
         </div>
+      </section>
+
+      {/* Google Calendar — everyone */}
+      <section id="google-calendar" aria-label="Google Calendar settings" style={{ marginBottom: 24 }}>
+        <GoogleCalendarSettings />
       </section>
 
       {/* Focus / DND section */}

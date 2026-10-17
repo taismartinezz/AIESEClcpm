@@ -126,3 +126,10 @@ test('Scheduling is back, with Connect Google Calendar', async ({ page }) => {
   await expect(card.getByRole('button', { name: 'Connect Google Calendar' })).toBeVisible()
   await expect(card.getByText(/Read-only. Only you see your Google events/)).toBeVisible()
 })
+
+test('Google sign-in: the /auth/callback?code=… return lands in the app, not on a login error', async ({ page }) => {
+  await setupAuthMocks(page, 'member')
+  await page.goto('/auth/callback?code=test-code')
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 })
+  await expect(page).toHaveURL(/localhost:3000\/(\?.*)?$/)
+})
