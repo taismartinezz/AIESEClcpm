@@ -254,6 +254,7 @@ export function formatRelativeTime(isoString: string): string {
   const now = Date.now();
   const diff = now - new Date(isoString).getTime();
   const minutes = Math.floor(diff / (1000 * 60));
+  if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;

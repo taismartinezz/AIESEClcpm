@@ -9,10 +9,14 @@ import type { Department, Partner, PartnerActivity, PartnerContact, PartnerStage
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
 
 /** Add a partner, or edit one with its contacts and activity log. */
-export default function PartnerModal({ projectId, userId, departments, allowedDepartmentIds, roster, partner, onClose, onSaved }: {
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export default function PartnerModal({ projectId, userId, departments, allowedDepartmentIds, allowNoDepartment = false, roster, partner, onClose, onSaved }: {
   projectId: string; userId: string; departments: Department[];
   /** Departments this person may file a new partner under. */
   allowedDepartmentIds: string[];
+  /** The exec board may leave the department empty (e.g. before departments exist). */
+  allowNoDepartment?: boolean;
   roster: LcMember[]; partner?: Partner; onClose: () => void; onSaved: () => void;
 }) {
   const [name, setName] = useState(partner?.name ?? "");
@@ -26,6 +30,8 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
   const [contacts, setContacts] = useState<PartnerContact[]>([]);
   const [activities, setActivities] = useState<PartnerActivity[]>([]);
   const [newContact, setNewContact] = useState({ name: "", roleTitle: "", email: "", phone: "" });
+  // The person at the organisation you're talking to, captured when adding the partner.
+  const [firstContact, setFirstContact] = useState({ name: "", roleTitle: "", email: "", phone: "" });
   const [newActivity, setNewActivity] = useState<{ kind: PartnerActivity["kind"]; body: string }>({ kind: "call", body: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,13 +71,25 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
   function save() {
     if (!name.trim()) { setError("Add the organisation's name."); return; }
     if (website && !/^https?:\/\//i.test(website.trim())) { setError("The website must start with http:// or https://"); return; }
+    if (!partner && firstContact.email.trim() && !EMAIL.test(firstContact.email.trim())) { setError("The contact's email doesn't look right."); return; }
+    if (!partner && (firstContact.email.trim() || firstContact.phone.trim()) && !firstContact.name.trim()) { setError("Add the contact's name."); return; }
     const fields = {
       name: name.trim(), industry: industry.trim() || null, website: website.trim() || null, stage,
       department_id: departmentId || null, owner_id: ownerId || null, next_follow_up: nextFollowUp || null, notes: notes.trim() || null,
     };
-    void run("save", () => partner
-      ? supabase.from("partners").update(fields).eq("id", partner.id)
-      : supabase.from("partners").insert({ ...fields, project_id: projectId, created_by: userId }), onSaved);
+    void run("save", async () => {
+      if (partner) return supabase.from("partners").update(fields).eq("id", partner.id);
+      const { data, error: err } = await supabase.from("partners").insert({ ...fields, project_id: projectId, created_by: userId }).select("id").single();
+      if (err || !data) return { error: err ?? { message: "no partner returned" } };
+      if (firstContact.name.trim()) {
+        const { error: cErr } = await supabase.from("partner_contacts").insert({
+          partner_id: data.id, name: firstContact.name.trim(), role_title: firstContact.roleTitle.trim() || null,
+          email: firstContact.email.trim() || null, phone: firstContact.phone.trim() || null,
+        });
+        if (cErr) return { error: { message: `the partner was added, but not the contact: ${cErr.message}` } };
+      }
+      return { error: null };
+    }, onSaved);
   }
 
   function remove() {
@@ -106,7 +124,8 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Field label="Department" htmlFor="p-dept">
-          <select id="p-dept" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} style={selectStyle} disabled={!!partner && !allowedDepartmentIds.includes(departmentId)}>
+          <select id="p-dept" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} style={selectStyle} disabled={!!partner && !!departmentId && !allowedDepartmentIds.includes(departmentId)}>
+            {(allowNoDepartment || !departmentId) && <option value="">No department</option>}
             {departments.filter((d) => allowedDepartmentIds.includes(d.id) || d.id === departmentId).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </Field>
@@ -119,6 +138,18 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
         <Field label="Next follow-up" htmlFor="p-follow"><input id="p-follow" type="date" value={nextFollowUp} onChange={(e) => setNextFollowUp(e.target.value)} style={inputStyle} /></Field>
       </div>
       <Field label="Notes" htmlFor="p-notes"><textarea id="p-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, height: "auto", padding: 10 }} /></Field>
+
+      {!partner && (
+        <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "10px 12px 2px", margin: "0 0 12px" }}>
+          <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--color-body)", padding: "0 4px" }}>Contact person (optional)</legend>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Field label="Name" htmlFor="p-c-name"><input id="p-c-name" value={firstContact.name} onChange={(e) => setFirstContact({ ...firstContact, name: e.target.value })} placeholder="Rita Silva" style={inputStyle} /></Field>
+            <Field label="Role" htmlFor="p-c-role"><input id="p-c-role" value={firstContact.roleTitle} onChange={(e) => setFirstContact({ ...firstContact, roleTitle: e.target.value })} placeholder="Head of HR" style={inputStyle} /></Field>
+            <Field label="Email" htmlFor="p-c-email"><input id="p-c-email" type="email" value={firstContact.email} onChange={(e) => setFirstContact({ ...firstContact, email: e.target.value })} placeholder="rita@company.com" style={inputStyle} /></Field>
+            <Field label="Phone" htmlFor="p-c-phone"><input id="p-c-phone" type="tel" value={firstContact.phone} onChange={(e) => setFirstContact({ ...firstContact, phone: e.target.value })} style={inputStyle} /></Field>
+          </div>
+        </fieldset>
+      )}
 
       {partner && (
         <>
@@ -141,7 +172,7 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
             <input aria-label="Contact email" placeholder="Email" type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} style={{ ...inputStyle, height: 32 }} />
             <input aria-label="Contact phone" placeholder="Phone" value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} style={{ ...inputStyle, height: 32 }} />
             <Button disabled={!newContact.name.trim() || busy === "contact"} style={{ height: 32 }} aria-label="Add contact"
-              onClick={() => run("contact", () => supabase.from("partner_contacts").insert({
+              onClick={() => newContact.email.trim() && !EMAIL.test(newContact.email.trim()) ? setError("The contact's email doesn't look right.") : run("contact", () => supabase.from("partner_contacts").insert({
                 partner_id: partner.id, name: newContact.name.trim(), role_title: newContact.roleTitle.trim() || null,
                 email: newContact.email.trim() || null, phone: newContact.phone.trim() || null,
               }), () => { setNewContact({ name: "", roleTitle: "", email: "", phone: "" }); setVersion((v) => v + 1); })}>

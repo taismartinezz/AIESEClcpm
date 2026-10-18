@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { useViewportFit, type FloatPos } from "@/components/ui/useViewportFit";
 import { ChevronLeft, ChevronRight, CalendarDays, Clock } from "lucide-react";
 
 // ── Constants (internal) ──────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ export function formatDateLabel(date: string): string {
 // ── CalendarPicker ────────────────────────────────────────────────────────────
 
 export function CalendarPicker({ value, accentColor, pos, onSelect, onClear, onClose }: {
-  value: string | undefined; accentColor: string; pos: { top: number; left: number };
+  value: string | undefined; accentColor: string; pos: FloatPos;
   onSelect: (date: string) => void; onClear: () => void; onClose: () => void;
 }) {
   const todayDate = new Date(); todayDate.setHours(0,0,0,0);
@@ -48,6 +50,7 @@ export function CalendarPicker({ value, accentColor, pos, onSelect, onClear, onC
     return { year: todayDate.getFullYear(), month: todayDate.getMonth() };
   });
   const ref = useRef<HTMLDivElement>(null);
+  const fit = useViewportFit(ref, pos);
   useEffect(() => {
     function down(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); }
     function key(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -64,8 +67,9 @@ export function CalendarPicker({ value, accentColor, pos, onSelect, onClear, onC
   const firstDow = new Date(cursor.year, cursor.month, 1).getDay();
   function ds(d: number) { return `${cursor.year}-${String(cursor.month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
   const btnBase: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
-  return (
-    <div ref={ref} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 500, width: 244, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", padding: "14px 12px 10px", fontFamily: "var(--font-roboto)" }}>
+  // Portalled so a transformed / scrolling parent (modal, side panel) can't shift it.
+  return createPortal((
+    <div ref={ref} style={{ position: "fixed", top: fit.top, left: fit.left, zIndex: 500, width: 244, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", padding: "14px 12px 10px", fontFamily: "var(--font-roboto)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <button onClick={prevMonth} style={{ ...btnBase, width: 28, height: 28, borderRadius: 8 }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--color-canvas)"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}><ChevronLeft size={14} color="var(--color-secondary)" /></button>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>{MONTH_NAMES[cursor.month]} {cursor.year}</span>
@@ -92,13 +96,13 @@ export function CalendarPicker({ value, accentColor, pos, onSelect, onClear, onC
         <button onClick={() => onSelect(todayStr)} style={{ ...btnBase, fontSize: 12, fontWeight: 600, color: accentColor, padding: "4px 6px", borderRadius: 6 }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${accentColor}12`; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>Today</button>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 // ── TimePicker ────────────────────────────────────────────────────────────────
 
 export function TimePicker({ value, accentColor, pos, onChange, onClear, onClose }: {
-  value: string; accentColor: string; pos: { top: number; left: number };
+  value: string; accentColor: string; pos: FloatPos;
   onChange: (time: string) => void; onClear: () => void; onClose: () => void;
 }) {
   const parsed = useMemo(() => {
@@ -110,6 +114,7 @@ export function TimePicker({ value, accentColor, pos, onChange, onClear, onClose
   const [selM, setSelM] = useState(parsed.m);
   const [selAP, setSelAP] = useState<"AM"|"PM">(parsed.ampm);
   const ref = useRef<HTMLDivElement>(null);
+  const fit = useViewportFit(ref, pos);
   const hourRef = useRef<HTMLDivElement>(null);
   const minRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -128,8 +133,9 @@ export function TimePicker({ value, accentColor, pos, onChange, onClear, onClose
   }
   const itemStyle = (active: boolean): React.CSSProperties => ({ height: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: active ? 700 : 400, cursor: "pointer", borderRadius: 8, color: active ? "#fff" : "var(--color-body)", margin: "1px 2px", backgroundColor: active ? accentColor : "transparent", transition: "background-color 0.1s", userSelect: "none" });
   const colStyle: React.CSSProperties = { height: ITEM_H*4, overflowY: "auto", scrollbarWidth: "none" };
-  return (
-    <div ref={ref} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 501, width: 200, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", padding: "12px 10px 10px", fontFamily: "var(--font-roboto)" }}>
+  // Portalled so a transformed / scrolling parent (modal, side panel) can't shift it.
+  return createPortal((
+    <div ref={ref} style={{ position: "fixed", top: fit.top, left: fit.left, zIndex: 501, width: 200, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", padding: "12px 10px 10px", fontFamily: "var(--font-roboto)" }}>
       <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
         <div ref={hourRef} style={{ flex: 1, ...colStyle }}>
           {HOURS.map(h => <div key={h} onClick={() => { setSelH(h); emit(h, selM, selAP); }} style={itemStyle(h === selH)} onMouseEnter={e => { if (h !== selH) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${accentColor}18`; }} onMouseLeave={e => { if (h !== selH) (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}>{h}</div>)}
@@ -149,7 +155,7 @@ export function TimePicker({ value, accentColor, pos, onChange, onClear, onClose
         <button onClick={onClose} style={{ background: `${accentColor}18`, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: accentColor, padding: "4px 10px", borderRadius: 6, fontFamily: "var(--font-roboto)" }}>Done</button>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 // ── DateTimeFields ────────────────────────────────────────────────────────────
@@ -160,21 +166,21 @@ export function DateTimeFields({ selDate, selTime, showTime, accentColor, onDate
   onToggleTime: () => void; onRefocus?: () => void;
 }) {
   const [showCal, setShowCal] = useState(false);
-  const [calPos, setCalPos] = useState<{ top: number; left: number } | null>(null);
+  const [calPos, setCalPos] = useState<FloatPos | null>(null);
   const [showTP, setShowTP] = useState(false);
-  const [tpPos, setTpPos] = useState<{ top: number; left: number } | null>(null);
+  const [tpPos, setTpPos] = useState<FloatPos | null>(null);
   const dateRef = useRef<HTMLButtonElement>(null);
   const timeRef = useRef<HTMLButtonElement>(null);
 
   function openCal() {
     if (!dateRef.current) return;
     const r = dateRef.current.getBoundingClientRect();
-    setCalPos({ top: r.bottom+6, left: r.left }); setShowCal(v => !v); setShowTP(false);
+    setCalPos({ top: r.bottom+6, left: r.left, anchorTop: r.top }); setShowCal(v => !v); setShowTP(false);
   }
   function openTP() {
     if (!timeRef.current) return;
     const r = timeRef.current.getBoundingClientRect();
-    setTpPos({ top: r.bottom+6, left: r.left }); setShowTP(v => !v); setShowCal(false);
+    setTpPos({ top: r.bottom+6, left: r.left, anchorTop: r.top }); setShowTP(v => !v); setShowCal(false);
     if (!showTime) onToggleTime();
   }
 

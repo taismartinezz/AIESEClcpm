@@ -426,7 +426,8 @@ export default function ChatPage() {
     return results;
   }
 
-  async function sendMessage(text: string, capturedMentionIds: string[]) {
+  async function sendMessage(rawText: string, capturedMentionIds: string[]) {
+    const text = rawText.trim();
     if (!text && !pendingAttachments.length || sending || !currentUserId || !projectId) return;
     setSending(true);
     setSendError(null);
@@ -445,6 +446,8 @@ export default function ChatPage() {
 
     try {
       const attachments = await uploadAttachments();
+      // Never post an empty message (e.g. the only attachment failed to upload).
+      if (!text && attachments.length === 0) { setSendError("Nothing to send."); return; }
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       const { error } = await supabase.from("chat_messages").insert({
@@ -705,7 +708,7 @@ export default function ChatPage() {
             ) : (
               <>
                 {!isDm && <Hash size={14} style={{ color: "var(--color-secondary)", flexShrink: 0 }} />}
-                <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>{memberCount} members</span>
+                <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>{memberCount} {memberCount === 1 ? "member" : "members"}</span>
               </>
             )}
             <div className="flex items-center gap-1 ml-auto">
@@ -791,7 +794,7 @@ export default function ChatPage() {
                       <p style={{ fontSize: 16, fontWeight: 700, color: "var(--color-body)", margin: 0 }}>{dmPeer.name}</p>
                       <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: "6px 0 0" }}>This is the start of your conversation with {dmPeer.name}.</p>
                     </div>
-                    <button onClick={() => {}} style={{ marginTop: 4, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Say hello</button>
+                    <button onClick={() => (document.querySelector("[data-chat-composer]") as HTMLTextAreaElement | null)?.focus()} style={{ marginTop: 4, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Say hello</button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center flex-1 px-6 py-12 text-center gap-3">

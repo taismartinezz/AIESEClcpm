@@ -33,6 +33,8 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   async function save() {
     if (!personName.trim()) { setError("Add the person's name."); return; }
     if (expaUrl && !/^https:\/\//i.test(expaUrl.trim())) { setError("The EXPA link must start with https://"); return; }
+    if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError("That email doesn't look right (e.g. name@example.com)."); return; }
+    if (expaId.trim() && !/^\d+$/.test(expaId.trim())) { setError("The EXPA ID is a number (the digits in the application's EXPA link)."); return; }
     setSaving(true);
     setError(null);
     try {
@@ -104,7 +106,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
         <Field label={incoming ? "Home LC / country" : "Host LC / country"} htmlFor="ex-host"><input id="ex-host" value={hostEntity} onChange={(e) => setHostEntity(e.target.value)} style={inputStyle} /></Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
-        <Field label="EXPA ID" htmlFor="ex-expa-id"><input id="ex-expa-id" value={expaId} onChange={(e) => setExpaId(e.target.value)} style={inputStyle} /></Field>
+        <Field label="EXPA ID" htmlFor="ex-expa-id"><input id="ex-expa-id" inputMode="numeric" pattern="[0-9]*" placeholder="e.g. 1234567" value={expaId} onChange={(e) => setExpaId(e.target.value)} style={inputStyle} /></Field>
         <Field label="EXPA link" htmlFor="ex-expa-url"><input id="ex-expa-url" type="url" placeholder="https://expa.aiesec.org/…" value={expaUrl} onChange={(e) => setExpaUrl(e.target.value)} style={inputStyle} /></Field>
       </div>
       <Field label="Responsible member" htmlFor="ex-owner">

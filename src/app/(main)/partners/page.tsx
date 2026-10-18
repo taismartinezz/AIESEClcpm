@@ -81,8 +81,8 @@ export default function PartnersPage() {
         subtitle="Companies and organisations your LC works with: stage, contacts and follow-ups."
         action={<>
           <Button variant="secondary" onClick={exportCsv} disabled={shown.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
-          {allowedDepartments.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import</Button>}
-          {allowedDepartments.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add partner</Button>}
+          {(exec || allowedDepartments.length > 0) && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import</Button>}
+          {(exec || allowedDepartments.length > 0) && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add partner</Button>}
         </>}
       />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
@@ -91,7 +91,7 @@ export default function PartnersPage() {
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !enabled || !projectId || !userId ? (
           <NeedsDatabase what="Partners">Companies and organisations your LC works with: stage, contacts, history and the next follow-up.</NeedsDatabase>
-        ) : partners.length === 0 && allowedDepartments.length > 0 ? (
+        ) : partners.length === 0 && (exec || allowedDepartments.length > 0) ? (
           <TeachingEmpty title="Your partners in one place" actions={<>
             <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import from Google Sheets</Button>
             <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add a partner</Button>
@@ -177,7 +177,7 @@ export default function PartnersPage() {
       )}
       {editing && projectId && userId && (
         <PartnerModal
-          projectId={projectId} userId={userId} departments={departments} allowedDepartmentIds={allowedDepartments} roster={roster}
+          projectId={projectId} userId={userId} departments={departments} allowedDepartmentIds={allowedDepartments} allowNoDepartment={exec} roster={roster}
           partner={editing === "new" ? undefined : editing}
           onClose={() => { setEditing(null); setVersion((v) => v + 1); }} onSaved={() => { setEditing(null); setVersion((v) => v + 1); }}
         />

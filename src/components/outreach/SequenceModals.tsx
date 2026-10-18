@@ -15,7 +15,7 @@ export interface Sequence {
 export function mapSequence(r: Record<string, unknown>): Sequence {
   const steps = ((r.outreach_steps as Record<string, unknown>[] | null) ?? [])
     .map((s) => ({ stepNo: s.step_no as number, delayDays: s.delay_days as number, templateId: s.template_id as string }))
-    .sort((a, b) => a.stepNo - b.stepNo);
+    .sort((a, b) => a.delayDays - b.delayDays || a.stepNo - b.stepNo);
   return { id: r.id as string, name: r.name as string, product: r.product as ProductCode, triggerStage: r.trigger_stage as Sequence["triggerStage"], active: Boolean(r.active), departmentId: (r.department_id as string | null) ?? null, steps };
 }
 
@@ -33,9 +33,27 @@ export function SequenceModal({ projectId, userId, products, templates, sequence
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function remove() {
+    if (!sequence || !window.confirm(`Delete the sequence "${sequence.name}"? Emails already sent stay in each person's history.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error: err } = await supabase.from("outreach_sequences").delete().eq("id", sequence.id).select("id");
+      if (err) throw new Error(err.message);
+      if (!data?.length) throw new Error("only the LCP or the department's VP can delete it.");
+      onSaved();
+    } catch (e) {
+      setError(`Couldn't delete: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save() {
     if (!name.trim()) { setError("Name the sequence."); return; }
     if (steps.some((s) => !s.templateId)) { setError("Choose a template for every step."); return; }
+    if (new Set(steps.map((s) => s.templateId)).size !== steps.length) { setError("Each step needs a different template; people would get the same email twice."); return; }
+    if (new Set(steps.map((s) => s.delayDays)).size !== steps.length) { setError("Two steps are on the same day. Give each step its own day."); return; }
     setBusy(true);
     setError(null);
     try {
@@ -50,7 +68,9 @@ export function SequenceModal({ projectId, userId, products, templates, sequence
         if (err) throw new Error(err.message);
         id = data.id as string;
       }
-      const { error: stepErr } = await supabase.from("outreach_steps").insert(steps.map((s, i) => ({ sequence_id: id, step_no: i + 1, delay_days: s.delayDays, template_id: s.templateId })));
+      // Steps are saved in day order, whatever order they were entered in.
+      const ordered = [...steps].sort((a, b) => a.delayDays - b.delayDays);
+      const { error: stepErr } = await supabase.from("outreach_steps").insert(ordered.map((s, i) => ({ sequence_id: id, step_no: i + 1, delay_days: s.delayDays, template_id: s.templateId })));
       if (stepErr) throw new Error(stepErr.message);
       onSaved();
     } catch (e) {
@@ -63,6 +83,7 @@ export function SequenceModal({ projectId, userId, products, templates, sequence
   const usable = templates.filter((t) => t.status !== "rejected");
   return (
     <Modal title={sequence ? `Edit ${sequence.name}` : "New sequence"} onClose={onClose} width={560} footer={<>
+      {sequence && <Button variant="danger" onClick={remove} disabled={busy} style={{ marginRight: "auto" }}>Delete</Button>}
       <Button variant="ghost" onClick={onClose}>Cancel</Button>
       <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save (paused)"}</Button>
     </>}>
@@ -83,7 +104,7 @@ export function SequenceModal({ projectId, userId, products, templates, sequence
       {steps.map((s, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 12, width: 34, color: "var(--color-secondary)" }}>Day</span>
-          <input aria-label={`Day for step ${i + 1}`} type="number" min={0} max={60} value={s.delayDays}
+          <input aria-label={`Day for step ${i + 1}`} type="number" min={0} max={60} value={String(s.delayDays)}
             onChange={(e) => setSteps(steps.map((x, j) => (j === i ? { ...x, delayDays: Math.max(0, Math.min(60, Number(e.target.value) || 0)) } : x)))}
             style={{ ...inputStyle, width: 64, height: 32 }} />
           <select aria-label={`Template for step ${i + 1}`} value={s.templateId} onChange={(e) => setSteps(steps.map((x, j) => (j === i ? { ...x, templateId: e.target.value } : x)))}

@@ -928,8 +928,8 @@ export default function JournalPage() {
       const today = new Date().toISOString().split("T")[0];
       const { count } = await supabase
         .from("tasks")
-        .select("id", { count: "exact", head: true })
-        .contains("assignee_ids", [uid])
+        .select("id, task_assignees!inner(user_id)", { count: "exact", head: true })
+        .eq("task_assignees.user_id", uid)
         .lt("due_date", today)
         .not("status", "eq", "done");
       setOverdueCount(count ?? 0);

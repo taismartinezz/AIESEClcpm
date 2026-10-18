@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useViewportFit } from "@/components/ui/useViewportFit";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { MoreHorizontal, ChevronDown, ChevronRight, Clock } from "lucide-react";
@@ -50,10 +51,16 @@ export function TaskCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
+
   const [subtaskExpanded, setSubtaskExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Keep the menu on screen: flip above the card near the bottom, shift in from the edges.
+  const menuWidth = deleteConfirm ? 200 : 180;
+  const menuFit = useViewportFit(menuRef, menuAnchor
+    ? { top: menuAnchor.bottom + 4, left: menuAnchor.right - menuWidth, anchorTop: menuAnchor.top }
+    : { top: 0, left: 0 });
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
 
   useEffect(() => {
@@ -122,7 +129,7 @@ export function TaskCard({
         </p>
 
         {/* Bottom row: date + badges/avatars */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2" style={{ flexWrap: "wrap", rowGap: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flexShrink: 0 }}>
             {overdue && <Clock size={11} color="var(--color-secondary)" aria-label="Overdue" />}
             <span style={{
@@ -134,7 +141,7 @@ export function TaskCard({
               {task.dueDate ? formatDate(task.dueDate) : "-"}
             </span>
           </div>
-          <div className="flex items-center gap-1.5" style={{ overflow: "hidden" }}>
+          <div className="flex items-center gap-1.5" style={{ flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto", minWidth: 0 }}>
             {showLabBadge && task.scope === "lab" && (
               <span style={{ fontSize: 10, fontWeight: 700, backgroundColor: "rgba(2,99,196,0.08)", color: "var(--color-navy)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
                 LC
@@ -248,8 +255,8 @@ export function TaskCard({
           className="animate-fade-in"
           style={{
             position: "fixed",
-            top: menuAnchor.bottom + 4,
-            right: Math.max(8, window.innerWidth - menuAnchor.right),
+            top: menuFit.top,
+            left: menuFit.left,
             zIndex: 9999,
             width: deleteConfirm ? 200 : 180,
             backgroundColor: "var(--color-surface)",

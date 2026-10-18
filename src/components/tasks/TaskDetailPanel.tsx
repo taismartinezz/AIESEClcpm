@@ -414,7 +414,7 @@ export default function TaskDetailPanel({
   const descRef = useRef<HTMLTextAreaElement>(null);
   const [localDueDate, setLocalDueDate] = useState(task.dueDate ?? "");
   const [showCal, setShowCal] = useState(false);
-  const [calPos, setCalPos] = useState<{ top: number; left: number } | null>(null);
+  const [calPos, setCalPos] = useState<{ top: number; left: number; anchorTop?: number } | null>(null);
   const dueDateBtnRef = useRef<HTMLButtonElement>(null);
 
   // Local copies - initialized from task, mutated locally & pushed to parent
@@ -830,8 +830,9 @@ export default function TaskDetailPanel({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop (also tells the floating Messaging button to step aside) */}
       <div
+        data-hides-chat-launcher
         className="fixed inset-0 z-30"
         style={{ backgroundColor: "var(--color-navy-scrim)" }}
         onClick={onClose}
@@ -1002,7 +1003,7 @@ export default function TaskDetailPanel({
                   ref={dueDateBtnRef}
                   onClick={(e) => {
                     const r = e.currentTarget.getBoundingClientRect();
-                    setCalPos({ top: r.bottom + 6, left: r.left });
+                    setCalPos({ top: r.bottom + 6, left: r.left, anchorTop: r.top });
                     setShowCal(v => !v);
                   }}
                   style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: localDueDate ? "var(--color-body)" : "var(--color-secondary)", backgroundColor: "transparent", border: "1px solid transparent", borderRadius: 4, padding: "2px 4px", cursor: "pointer", fontFamily: "var(--font-roboto)", userSelect: "none" }}
