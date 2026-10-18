@@ -54,8 +54,25 @@ export default function TemplateModal({ projectId, userId, departments, defaultD
 
   const insert = (key: string) => setBody((b) => `${b}{${key}}`);
 
+  async function remove() {
+    if (!template || !window.confirm(`Delete the template "${template.name}"?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error: err } = await supabase.from("outreach_templates").delete().eq("id", template.id).select("id");
+      if (err) throw new Error(err.code === "23503" ? "it's used in a sequence. Remove it from the sequence (or delete the sequence) first." : err.message);
+      if (!data?.length) throw new Error("only its author, the department's VP or the LCP can delete it.");
+      onSaved();
+    } catch (e) {
+      setError(`Couldn't delete: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Modal title={template ? `Template: ${template.name}` : "New template"} onClose={onClose} width={720} footer={<>
+      {template && <Button variant="danger" onClick={remove} disabled={busy} style={{ marginRight: "auto" }}>Delete</Button>}
       <Button variant="ghost" onClick={onClose}>Cancel</Button>
       {canApprove && template?.status === "pending" && <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save("rejected")}>Ask for changes</Button>}
       <Button variant="secondary" disabled={busy} onClick={() => save("draft")}>Save draft</Button>

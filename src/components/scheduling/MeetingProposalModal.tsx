@@ -291,7 +291,7 @@ export default function MeetingProposalModal({
               autoFocus
               value={title}
               onChange={e => { setTitle(e.target.value); setError(""); }}
-              placeholder="e.g. Consent Form Review"
+              placeholder="e.g. Plan the info session"
               style={inputStyle}
               onFocus={e => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "var(--color-border)"; }}

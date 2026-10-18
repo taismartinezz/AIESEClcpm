@@ -58,6 +58,17 @@ export default function ChatDock() {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
 
+  // The round launcher sits bottom-right, on top of other buttons (a task's
+  // comment "Add", a dialog's "Approve"); hide it while a dialog or side panel is open.
+  const [covered, setCovered] = useState(false);
+  useEffect(() => {
+    const check = () => setCovered(Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [data-hides-chat-launcher]')));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+
   // Escape closes the panel (an open @mention list closes first).
   useEffect(() => {
     if (!dockOpen) return;
@@ -324,6 +335,7 @@ export default function ChatDock() {
 
   if (hidden) return null;
 
+  if (covered && !dockOpen) return null;
   return (
     <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
       {/* Expanded dock panel */}

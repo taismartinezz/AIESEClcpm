@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
@@ -19,7 +19,6 @@ export default function GoalsPage() {
   const { goals, error, loading } = useGoals(isLoading ? null : projectId, version);
   const [editing, setEditing] = useState<GoalWithProgress | "new" | null>(null);
   const [termStart, setTermStart] = useState(() => `${new Date().getFullYear()}-02-01`);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,19 +28,35 @@ export default function GoalsPage() {
     return () => { cancelled = true; };
   }, [projectId]);
 
-  async function setManualValue(goal: GoalWithProgress, value: number) {
-    setSavingId(goal.id);
+  // Clicks show at once (offsets) and are written one by one as +1 / −1, so
+  // quick repeated clicks all count.
+  const [offsets, setOffsets] = useState<Record<string, number>>({});
+  const queues = useRef<Record<string, Promise<void>>>({});
+  const inFlight = useRef<Record<string, number>>({});
+
+  function bump(goal: GoalWithProgress, delta: number) {
+    if (goal.current + (offsets[goal.id] ?? 0) + delta < 0) return;
     setWriteError(null);
-    try {
-      const { error: err } = await supabase.from("goals").update({ current_value: Math.max(0, value) }).eq("id", goal.id);
-      if (err) throw new Error(err.message);
-      setVersion((v) => v + 1);
-    } catch (e) {
-      setWriteError(`Couldn't update "${goal.title}": ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSavingId(null);
-    }
+    setOffsets((o) => ({ ...o, [goal.id]: (o[goal.id] ?? 0) + delta }));
+    inFlight.current[goal.id] = (inFlight.current[goal.id] ?? 0) + 1;
+    queues.current[goal.id] = (queues.current[goal.id] ?? Promise.resolve()).then(async () => {
+      const { error: err } = await supabase.rpc("adjust_goal_value", { p_goal_id: goal.id, p_delta: delta });
+      if (err) {
+        setWriteError(`Couldn't update "${goal.title}": ${err.message}`);
+        setOffsets((o) => ({ ...o, [goal.id]: (o[goal.id] ?? 0) - delta }));
+      }
+      inFlight.current[goal.id] -= 1;
+      if (inFlight.current[goal.id] === 0) {
+        // All clicks saved: reload, then drop the local offset.
+        setVersion((v) => v + 1);
+      }
+    });
   }
+
+  useEffect(() => {
+    // A reload after the queue drained carries the saved value; clear offsets that are settled.
+    setOffsets((o) => Object.fromEntries(Object.entries(o).filter(([id]) => (inFlight.current[id] ?? 0) > 0)));
+  }, [goals]);
 
   const sections = [
     { key: "lc", title: "Whole LC", color: undefined as string | undefined, items: goals.filter((g) => !g.departmentId) },
@@ -72,14 +87,14 @@ export default function GoalsPage() {
                 <ul style={{ listStyle: "none", margin: 0, padding: "4px 14px 12px" }}>
                   {s.items.map((g) => (
                     <li key={g.id} style={{ padding: "10px 0", borderTop: "1px solid var(--color-border)" }}>
-                      <GoalBar goal={g} color={s.color} />
+                      <GoalBar goal={offsets[g.id] ? { ...g, current: g.current + offsets[g.id] } : g} color={s.color} />
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6, fontSize: 11, color: "var(--color-secondary)", flexWrap: "wrap" }}>
                         <span>{describeMetric(g)} · {g.startsOn} → {g.endsOn}</span>
                         <span style={{ flex: 1 }} />
                         {canManage(g) && g.metric === "manual" && (
                           <span style={{ display: "inline-flex", gap: 4 }}>
-                            <Button variant="secondary" disabled={savingId === g.id} onClick={() => setManualValue(g, g.currentValue - 1)} aria-label={`Decrease ${g.title}`} style={{ height: 26, padding: "0 8px" }}>−</Button>
-                            <Button variant="secondary" disabled={savingId === g.id} onClick={() => setManualValue(g, g.currentValue + 1)} aria-label={`Increase ${g.title}`} style={{ height: 26, padding: "0 8px" }}>+</Button>
+                            <Button variant="secondary" onClick={() => bump(g, -1)} aria-label={`Decrease ${g.title}`} style={{ height: 26, padding: "0 8px" }}>−</Button>
+                            <Button variant="secondary" onClick={() => bump(g, 1)} aria-label={`Increase ${g.title}`} style={{ height: 26, padding: "0 8px" }}>+</Button>
                           </span>
                         )}
                         {canManage(g) && (

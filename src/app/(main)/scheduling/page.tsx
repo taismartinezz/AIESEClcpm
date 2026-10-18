@@ -220,8 +220,9 @@ function minToTimeStr(min: number): string {
 }
 
 function CalendarTab({
-  events, proposals, googleEvents, currentUserId, projectId, onAddEvent, onDeleteEvent,
+  events, proposals, googleEvents, currentUserId, projectId, onAddEvent, onUpdateEvent, onDeleteEvent,
 }: {
+  onUpdateEvent: (id: string, changes: Pick<ScheduleEvent, "title" | "date" | "time" | "scope">) => void;
   events: ScheduleEvent[];
   googleEvents: GoogleEvent[];
   proposals: MeetingProposal[];
@@ -242,8 +243,15 @@ function CalendarTab({
   const [formScope, setFormScope] = useState<"lab" | "personal">("lab");
   const [formError, setFormError] = useState("");
   const [detailEvent, setDetailEvent] = useState<CalEvent | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const formCardRef = useRef<HTMLDivElement>(null);
+  const detailCardRef = useRef<HTMLDivElement>(null);
+  // Forms and details open below the calendar: bring them into view.
+  useEffect(() => { if (showForm) formCardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [showForm, editingId]);
+  useEffect(() => { if (detailEvent) detailCardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [detailEvent]);
   const [showTP, setShowTP] = useState(false);
-  const [tpPos, setTpPos] = useState<{ top: number; left: number } | null>(null);
+  const [tpPos, setTpPos] = useState<{ top: number; left: number; anchorTop?: number } | null>(null);
   const timeBtnRef = useRef<HTMLButtonElement>(null);
 
   const calEvents = useMemo(() => [...toCalEvents(events, proposals), ...googleToCalEvents(googleEvents, currentUserId)], [events, proposals, googleEvents, currentUserId]);
@@ -276,13 +284,24 @@ function CalendarTab({
     setFormDate(date);
     setFormTime(startMin != null ? minToTimeStr(startMin) : "");
     setFormTitle(""); setFormScope("lab"); setFormError("");
+    setEditingId(null);
     setShowForm(true); setDetailEvent(null);
+  }
+
+  function openEdit(id: string) {
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    setFormDate(ev.date); setFormTime(ev.time ?? ""); setFormTitle(ev.title);
+    setFormScope(ev.scope === "personal" ? "personal" : "lab"); setFormError("");
+    setEditingId(id); setShowForm(true); setDetailEvent(null);
   }
 
   function handleAdd() {
     if (!formTitle.trim()) { setFormError("Enter a title."); return; }
-    onAddEvent({ projectId, title: formTitle.trim(), date: formDate, time: formTime || undefined, scope: formScope, createdBy: currentUserId });
-    setShowForm(false);
+    if (!formDate) { setFormError("Pick a date."); return; }
+    if (editingId) onUpdateEvent(editingId, { title: formTitle.trim(), date: formDate, time: formTime || undefined, scope: formScope });
+    else onAddEvent({ projectId, title: formTitle.trim(), date: formDate, time: formTime || undefined, scope: formScope, createdBy: currentUserId });
+    setShowForm(false); setEditingId(null);
   }
 
   const inputStyle: React.CSSProperties = {
@@ -304,7 +323,7 @@ function CalendarTab({
     return (
       <div
         key={ev.id}
-        onClick={e => { e.stopPropagation(); setDetailEvent(ev); setShowForm(false); }}
+        onClick={e => { e.stopPropagation(); setDetailEvent(ev); setShowForm(false); setConfirmDelete(false); }}
         style={{
           position: "absolute", top, height,
           width: `calc(${widthPct}% - 2px)`,
@@ -476,7 +495,7 @@ function CalendarTab({
                       {dayNum}
                     </div>
                     {dayEvents.slice(0, MAX_CHIPS).map(ev => (
-                      <div key={ev.id} onClick={e => { e.stopPropagation(); setDetailEvent(ev); setShowForm(false); }}
+                      <div key={ev.id} onClick={e => { e.stopPropagation(); setDetailEvent(ev); setShowForm(false); setConfirmDelete(false); }}
                         style={{ fontSize: 10, fontWeight: 600, color: ev.color, backgroundColor: ev.bgColor, borderRadius: 3, padding: "1px 4px", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>
                         {ev.startMin != null && `${Math.floor(ev.startMin / 60) % 12 || 12}:${String(ev.startMin % 60).padStart(2, "0")} `}{ev.title}
                       </div>
@@ -576,22 +595,24 @@ function CalendarTab({
 
       {/* Add event form */}
       {showForm && (
+        <div ref={formCardRef}>
         <Card>
           <SectionHeader
-            title={formDate ? `New event · ${new Date(formDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}` : "New event"}
+            title={`${editingId ? "Edit event" : "New event"}${formDate ? ` · ${new Date(formDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}` : ""}`}
             action={<button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)", padding: 4 }}><X size={14} /></button>}
           />
           <div className="px-5 py-4 space-y-3">
             <div className="flex gap-1.5">
               {(["lab", "personal"] as const).map(s => (
                 <button key={s} onClick={() => setFormScope(s)} style={{ height: 27, paddingInline: 12, borderRadius: 20, border: `1.5px solid ${formScope === s ? "var(--color-navy)" : "var(--color-border)"}`, backgroundColor: formScope === s ? "var(--color-navy)" : "transparent", color: formScope === s ? "#fff" : "var(--color-secondary)", fontSize: 12, fontWeight: formScope === s ? 600 : 400, cursor: "pointer", fontFamily: "var(--font-roboto)" }}>
-                  {s === "lab" ? "Lab (visible to all)" : "Personal (only me)"}
+                  {s === "lab" ? "Whole LC (everyone)" : "Personal (only me)"}
                 </button>
               ))}
             </div>
             <input autoFocus value={formTitle} onChange={e => { setFormTitle(e.target.value); setFormError(""); }} placeholder="Event title" style={{ ...inputStyle, width: "100%" }} onFocus={e => { e.currentTarget.style.borderColor = "var(--color-navy)"; }} onBlur={e => { e.currentTarget.style.borderColor = "var(--color-border)"; }} />
             <div className="flex items-center gap-2">
-              <button ref={timeBtnRef} onClick={() => { if (!timeBtnRef.current) return; const r = timeBtnRef.current.getBoundingClientRect(); setTpPos({ top: r.bottom + 6, left: r.left }); setShowTP(v => !v); }} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: formTime ? "var(--color-body)" : "var(--color-secondary)", width: "auto", padding: "0 10px" }}>
+              <input type="date" aria-label="Date" value={formDate} onChange={(e) => setFormDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+              <button ref={timeBtnRef} onClick={() => { if (!timeBtnRef.current) return; const r = timeBtnRef.current.getBoundingClientRect(); setTpPos({ top: r.bottom + 6, left: r.left, anchorTop: r.top }); setShowTP(v => !v); }} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: formTime ? "var(--color-body)" : "var(--color-secondary)", width: "auto", padding: "0 10px" }}>
                 {formTime ? formatTimeDisplay(formTime) : "+ time"}
               </button>
               {formTime && <button onClick={() => setFormTime("")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-secondary)" }}>clear</button>}
@@ -599,15 +620,17 @@ function CalendarTab({
             {showTP && tpPos && <TimePicker value={formTime || "09:00"} accentColor="var(--color-navy)" pos={tpPos} onChange={t => setFormTime(t)} onClear={() => { setFormTime(""); setShowTP(false); }} onClose={() => setShowTP(false)} />}
             {formError && <p style={{ fontSize: 11, color: "var(--color-error)", margin: 0 }}>{formError}</p>}
             <div className="flex gap-2">
-              <button onClick={handleAdd} style={{ height: 32, paddingInline: 16, backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Add</button>
-              <button onClick={() => setShowForm(false)} style={{ height: 32, paddingInline: 12, background: "none", border: "none", fontSize: 12, color: "var(--color-secondary)", cursor: "pointer" }}>Cancel</button>
+              <button onClick={handleAdd} style={{ height: 32, paddingInline: 16, backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{editingId ? "Save" : "Add"}</button>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} style={{ height: 32, paddingInline: 12, background: "none", border: "none", fontSize: 12, color: "var(--color-secondary)", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </Card>
+        </div>
       )}
 
       {/* Event detail */}
       {detailEvent && !showForm && (
+        <div ref={detailCardRef}>
         <Card>
           <div className="px-5 py-4">
             <div className="flex items-start justify-between gap-3 mb-2">
@@ -626,12 +649,24 @@ function CalendarTab({
               <a href={detailEvent.link} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>Open in Google Calendar</a>
             )}
             {detailEvent.isScheduleEvent && detailEvent.ownerId === currentUserId && (
-              <button onClick={() => { onDeleteEvent(detailEvent.id); setDetailEvent(null); }} className="flex items-center gap-1.5" style={{ marginLeft: 15, fontSize: 12, color: "var(--color-error)", background: "none", border: "none", cursor: "pointer" }}>
-                <Trash2 size={12} /> Delete event
-              </button>
+              <div className="flex items-center gap-3" style={{ marginLeft: 15 }}>
+                <button onClick={() => openEdit(detailEvent.id)} style={{ fontSize: 12, color: "var(--color-navy)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Edit</button>
+                {confirmDelete ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                    Delete this event?
+                    <button onClick={() => { onDeleteEvent(detailEvent.id); setDetailEvent(null); }} style={{ fontSize: 12, color: "var(--color-error)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Yes, delete</button>
+                    <button onClick={() => setConfirmDelete(false)} style={{ fontSize: 12, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>No</button>
+                  </span>
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "var(--color-error)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    <Trash2 size={12} /> Delete event
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </Card>
+        </div>
       )}
 
       {/* Legend */}
@@ -1072,10 +1107,22 @@ export default function SchedulingPage() {
     if (!isSupabaseConfigured) { setLoading(false); return; }
 
     async function fetchStaticData() {
-      const { data: members } = await supabase
-        .from("team_members")
-        .select("user_id, role, user_profiles(name, avatar_color, avatar_initials, avatar_url)")
-        .eq("project_id", projectId);
+      // Independent reads go out together; only user settings waits on the member list
+      const [{ data: members }, { data: avData }, { data: propData }] = await Promise.all([
+        supabase
+          .from("team_members")
+          .select("user_id, role, user_profiles(name, avatar_color, avatar_initials, avatar_url)")
+          .eq("project_id", projectId),
+        supabase
+          .from("user_availability")
+          .select("*")
+          .eq("project_id", projectId),
+        supabase
+          .from("meeting_proposals")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false }),
+      ]);
 
       if (members) {
         setTeamMembers(
@@ -1095,11 +1142,6 @@ export default function SchedulingPage() {
           })
         );
       }
-
-      const { data: avData } = await supabase
-        .from("user_availability")
-        .select("*")
-        .eq("project_id", projectId);
 
       if (avData) {
         setAllAvailabilities(avData.map((row) => ({
@@ -1127,12 +1169,6 @@ export default function SchedulingPage() {
           })));
         }
       }
-
-      const { data: propData } = await supabase
-        .from("meeting_proposals")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
 
       if (propData) {
         setProposals(
@@ -1396,11 +1432,30 @@ export default function SchedulingPage() {
   }
 
   function handleDeleteEvent(id: string) {
+    const removed = events.find((e) => e.id === id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     if (isSupabaseConfigured) {
       supabase.from("schedule_events").delete().eq("id", id)
-        .then(({ error }) => { if (error) console.error("[Scheduling] delete event:", error); });
+        .then(({ error }) => {
+          if (!error) return;
+          console.error("[Scheduling] delete event:", error);
+          if (removed) setEvents((prev) => [...prev, removed]);
+          window.alert(`Couldn't delete the event: ${error.message}`);
+        });
     }
+  }
+
+  function handleUpdateEvent(id: string, changes: Pick<ScheduleEvent, "title" | "date" | "time" | "scope">) {
+    const before = events.find((e) => e.id === id);
+    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
+    if (!isSupabaseConfigured) return;
+    supabase.from("schedule_events").update({ title: changes.title, date: changes.date, time: changes.time ?? null, scope: changes.scope }).eq("id", id)
+      .then(({ error }) => {
+        if (!error) return;
+        console.error("[Scheduling] update event:", error);
+        if (before) setEvents((prev) => prev.map((e) => (e.id === id ? before : e)));
+        window.alert(`Couldn't save the event: ${error.message}`);
+      });
   }
 
   const pendingCount = proposals.filter(
@@ -1465,6 +1520,7 @@ export default function SchedulingPage() {
                   currentUserId={currentUserId}
                   projectId={projectId ?? ""}
                   onAddEvent={handleAddEvent}
+                  onUpdateEvent={handleUpdateEvent}
                   onDeleteEvent={handleDeleteEvent}
                 />
               )}

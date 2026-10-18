@@ -3,7 +3,7 @@
 // Small shared building blocks for the Finance, Attendance and Tabling pages.
 // Inline styles + design tokens, matching the rest of the app.
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 export const inputStyle: React.CSSProperties = {
@@ -48,9 +48,14 @@ export function Button({ children, variant = "primary", ...props }: React.Button
   );
 }
 
+/** A form error that scrolls itself into view, so it's never hidden at the bottom of a scrolling dialog. */
 export function ErrorText({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (children) ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [children]);
   if (!children) return null;
-  return <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "8px 0 0" }}>{children}</p>;
+  return <p ref={ref} role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "8px 0 0" }}>{children}</p>;
 }
 
 export function Modal({ title, onClose, children, footer, width = 460 }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: number }) {
@@ -63,7 +68,8 @@ export function Modal({ title, onClose, children, footer, width = 460 }: { title
     <div
       role="dialog" aria-modal="true" aria-label={title}
       className="animate-fade-in"
-      style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "var(--color-navy-scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      // Top-anchored (not centred) so the dialog doesn't jump when its content grows or shrinks.
+      style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "var(--color-navy-scrim)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "max(16px, 6vh) 16px 16px" }}
       onClick={onClose}
     >
       <div

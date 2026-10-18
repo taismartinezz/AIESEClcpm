@@ -85,7 +85,7 @@ export default function TaskModal({
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
   const [showCal, setShowCal] = useState(false);
-  const [calPos, setCalPos]   = useState<{ top: number; left: number } | null>(null);
+  const [calPos, setCalPos]   = useState<{ top: number; left: number; anchorTop?: number } | null>(null);
   const dueDateBtnRef = useRef<HTMLButtonElement>(null);
 
   function toggleAssignee(id: string) {
@@ -449,7 +449,7 @@ export default function TaskModal({
                 type="button"
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
-                  setCalPos({ top: r.bottom + 6, left: r.left });
+                  setCalPos({ top: r.bottom + 6, left: r.left, anchorTop: r.top });
                   setShowCal((v) => !v);
                 }}
                 style={{ display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", border: "1px solid var(--color-border)", borderRadius: 7, backgroundColor: "var(--color-canvas)", color: dueDate ? "var(--color-body)" : "var(--color-secondary)", cursor: "pointer", flex: 1, justifyContent: "flex-start" }}

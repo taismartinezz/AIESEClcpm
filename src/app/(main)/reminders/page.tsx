@@ -270,9 +270,10 @@ function ReminderRow({ reminder, currentUserId, teamMembers, isDraggable, showSc
 
 // ── CompletedReminderRow ──────────────────────────────────────────────────────
 
-function CompletedReminderRow({ reminder, currentUserId, onUncomplete }: {
-  reminder: Reminder; currentUserId: string; onUncomplete: (id: string) => void;
+function CompletedReminderRow({ reminder, currentUserId, onUncomplete, onDelete }: {
+  reminder: Reminder; currentUserId: string; onUncomplete: (id: string) => void; onDelete: (id: string) => void;
 }) {
+  const canDelete = reminder.userId === currentUserId;
   const canRestore = reminder.scope === "lab" ? true : reminder.userId === currentUserId;
   const circleColor = reminder.scope === "lab" ? LIST_COLORS.lab : LIST_COLORS.personal;
   return (
@@ -282,6 +283,12 @@ function CompletedReminderRow({ reminder, currentUserId, onUncomplete }: {
         <Check size={11} color="#fff" strokeWidth={3} />
       </button>
       <span style={{ fontSize: 14, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)", textDecoration: "line-through", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reminder.title}</span>
+      {canDelete && (
+        <button type="button" onClick={() => onDelete(reminder.id)} aria-label={`Delete ${reminder.title}`}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+          <Trash2 size={13} color="var(--color-secondary)" />
+        </button>
+      )}
     </div>
   );
 }
@@ -549,7 +556,7 @@ function ReminderCard(props: CardProps) {
             <span style={{ fontSize: 12, fontWeight: 600, color: accentColor, fontFamily: "var(--font-roboto)" }}>{showCompleted ? "Hide" : "Show"}</span>
           </button>
           {showCompleted && completedItems.map(r => (
-            <CompletedReminderRow key={r.id} reminder={r} currentUserId={currentUserId} onUncomplete={onUncomplete} />
+            <CompletedReminderRow key={r.id} reminder={r} currentUserId={currentUserId} onUncomplete={onUncomplete} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -603,7 +610,7 @@ function GroupedView({ includeNoDate, ...props }: CardProps & { includeNoDate: b
     return r;
   }, [groups, includeNoDate]);
 
-  const { accentColor, isAdding, onToggleAdd, completedItems, showCompleted, onToggleCompleted, onUncomplete, currentUserId } = props;
+  const { accentColor, isAdding, onToggleAdd, completedItems, showCompleted, onToggleCompleted, onUncomplete, onDelete, currentUserId } = props;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -720,7 +727,7 @@ function GroupedView({ includeNoDate, ...props }: CardProps & { includeNoDate: b
                 <span style={{ fontSize: 13, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>{completedItems.length} Completed</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: accentColor, fontFamily: "var(--font-roboto)" }}>{showCompleted ? "Hide" : "Show"}</span>
               </button>
-              {showCompleted && completedItems.map(r => <CompletedReminderRow key={r.id} reminder={r} currentUserId={currentUserId} onUncomplete={onUncomplete} />)}
+              {showCompleted && completedItems.map(r => <CompletedReminderRow key={r.id} reminder={r} currentUserId={currentUserId} onUncomplete={onUncomplete} onDelete={onDelete} />)}
             </div>
           )}
         </div>

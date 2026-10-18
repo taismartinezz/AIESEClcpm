@@ -345,7 +345,6 @@ export default function TasksPage() {
     if (updates.priority    !== undefined) db.priority     = updates.priority;
     if (updates.status      !== undefined) db.status       = updates.status;
     if (updates.dueDate     !== undefined) db.due_date     = updates.dueDate || null;
-    if (updates.assigneeIds !== undefined) db.assignee_ids = updates.assigneeIds;
     if (updates.comments    !== undefined) db.comments     = updates.comments;
     if (updates.files       !== undefined) db.files        = updates.files;
     if (Object.keys(db).length > 0)
@@ -353,10 +352,22 @@ export default function TasksPage() {
         .then(({ error }) => {
           if (error) {
             console.error("[Tasks] update error:", error);
-            if (updates.files !== undefined)
-              showToast(`File save failed: ${error.message}`, "error");
+            showToast(`Couldn't save the change: ${error.message}`, "error");
           }
         });
+    // Assignees live in task_assignees (there is no tasks.assignee_ids column).
+    if (updates.assigneeIds !== undefined) {
+      const wanted = updates.assigneeIds;
+      (async () => {
+        const { error: delErr } = await supabase.from("task_assignees").delete().eq("task_id", taskId)
+          .not("user_id", "in", `(${wanted.length ? wanted.join(",") : "00000000-0000-0000-0000-000000000000"})`);
+        const { error: insErr } = wanted.length
+          ? await supabase.from("task_assignees").upsert(wanted.map((user_id) => ({ task_id: taskId, user_id })), { onConflict: "task_id,user_id", ignoreDuplicates: true })
+          : { error: null };
+        const err = delErr ?? insErr;
+        if (err) showToast(`Couldn't save the assignees: ${err.message}`, "error");
+      })();
+    }
   }, []);
 
   const addTask = useCallback((task: Task) => {
@@ -369,6 +380,33 @@ export default function TasksPage() {
     setSelectedTask((prev) => prev?.id === task.id ? task : prev);
     setModalState(null);
   }, []);
+
+  /** Copy a task (title, details, priority, due date, department, assignees) as a new to-do. */
+  const duplicateTask = useCallback(async (task: Task) => {
+    if (!isSupabaseConfigured || !projectId || !currentUserId) {
+      const copy: Task = { ...task, id: crypto.randomUUID(), title: `${task.title} (copy)`, status: "todo", comments: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      setTasks((prev) => [copy, ...prev]);
+      return;
+    }
+    const { data, error } = await supabase.from("tasks").insert({
+      project_id: projectId, created_by: currentUserId, title: `${task.title} (copy)`, description: task.description ?? "",
+      status: "todo", priority: task.priority, due_date: task.dueDate || null, archived: false,
+      scope: task.scope ?? "lab", sub_project_id: task.subProjectId ?? null, department_id: task.departmentId ?? null,
+      links: task.links ?? [],
+    }).select().single();
+    if (error || !data) { showToast(`Couldn't duplicate the task: ${error?.message ?? "no task returned"}`, "error"); return; }
+    if (task.assigneeIds.length) {
+      const { error: aErr } = await supabase.from("task_assignees").insert(task.assigneeIds.map((user_id) => ({ task_id: data.id, user_id })));
+      if (aErr) showToast(`Duplicated, but the assignees weren't copied: ${aErr.message}`, "error");
+    }
+    const copy: Task = {
+      ...task, id: data.id as string, title: data.title as string, status: "todo", comments: [], files: [],
+      createdAt: data.created_at as string, updatedAt: data.updated_at as string,
+    };
+    setTasks((prev) => [copy, ...prev]);
+    setSelectedTask(copy);
+    showToast(`Duplicated "${task.title}"`, "success");
+  }, [projectId, currentUserId]);
 
   const deleteTask = useCallback((taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
@@ -461,19 +499,29 @@ export default function TasksPage() {
       .then(({ error }) => { if (error) { console.error("[Tasks] due_date update:", error); showToast("Failed to update due date.", "error"); } });
   }, []);
 
-  // Scope counts for sidebar (computed from full unfiltered task list)
+  // Search and the filter row apply to the list and to the sidebar counts alike
+  const matchesFilters = (t: Task) => {
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterMember !== "all" && !t.assigneeIds.includes(filterMember)) return false;
+    if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+    if (filterDepartment === "none" && t.departmentId) return false;
+    if (filterDepartment !== "all" && filterDepartment !== "none" && t.departmentId !== filterDepartment) return false;
+    return true;
+  };
+  const visibleTasks = tasks.filter(matchesFilters);
+
   const scopeCounts = {
-    all: tasks.length,
+    all: visibleTasks.length,
     // Personal = own personal-scoped tasks OR any task explicitly assigned to this user
-    personal: tasks.filter(t =>
+    personal: visibleTasks.filter(t =>
       t.scope === "personal" ||
       (currentUserId && t.assigneeIds.includes(currentUserId))
     ).length,
-    lab: tasks.filter(t => t.scope === "lab" || !t.scope).length,
+    lab: visibleTasks.filter(t => t.scope === "lab" || !t.scope).length,
   };
   const projectTaskCounts: Record<string, number> = {};
   for (const sp of subProjects) {
-    projectTaskCounts[sp.id] = tasks.filter(t => t.scope === "project" && t.subProjectId === sp.id).length;
+    projectTaskCounts[sp.id] = visibleTasks.filter(t => t.scope === "project" && t.subProjectId === sp.id).length;
   }
 
   const isLabHome = activeScope === "lab";
@@ -502,14 +550,7 @@ export default function TasksPage() {
     return t.scope === "project" && t.subProjectId === effectiveTaskScope;
   });
 
-  const filteredTasks = scopedTasks.filter((t) => {
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterMember !== "all" && !t.assigneeIds.includes(filterMember)) return false;
-    if (filterPriority !== "all" && t.priority !== filterPriority) return false;
-    if (filterDepartment === "none" && t.departmentId) return false;
-    if (filterDepartment !== "all" && filterDepartment !== "none" && t.departmentId !== filterDepartment) return false;
-    return true;
-  });
+  const filteredTasks = scopedTasks.filter(matchesFilters);
 
   const tasksByStatus = Object.fromEntries(
     STATUS_ORDER.map((s) => [s, filteredTasks.filter((t) => t.status === s)])
@@ -792,6 +833,7 @@ export default function TasksPage() {
           onUpdateStatus={(status) => moveTask(selectedTask.id, status)}
           onUpdateTask={(updates) => updateTask(selectedTask.id, updates)}
           onDeleteTask={deleteTask}
+          onDuplicateTask={duplicateTask}
           onOpenSubtask={handleOpenSubtask}
           onPromoteSubtask={handlePromoteSubtask}
           teamMembers={teamMembers}

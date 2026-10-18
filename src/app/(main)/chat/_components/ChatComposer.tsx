@@ -458,6 +458,7 @@ export function ChatComposer({
             )}
 
             <textarea
+              data-chat-composer
               ref={inputRef}
               value={draft}
               onChange={e => {
