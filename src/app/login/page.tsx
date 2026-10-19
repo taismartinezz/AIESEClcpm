@@ -3,11 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { getPostAuthDestination } from "@/lib/postAuthRedirect";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -194,6 +192,18 @@ export function explainAuthError(err: { message: string; code?: string }): { mes
   return { message: err.message, unconfirmed: false };
 }
 
+function initialAuthError(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const errorCode = params.get("error");
+  const errorDesc = params.get("error_description") ?? "";
+  if (errorCode) {
+    const providerDisabled = errorDesc.includes("provider is not enabled") || errorDesc.includes("Unsupported provider") || errorCode === "provider_disabled";
+    return providerDisabled ? "That sign-in method isn't available right now. Use email or try another provider." : "Sign-in failed. Please try again or use email.";
+  }
+  return params.get("reason") === "session_expired" ? "Your session expired. Please sign in again." : null;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">(() => {
@@ -212,7 +222,7 @@ export default function LoginPage() {
   // Sign-in refused because the email isn't confirmed yet: offer to resend the link.
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("notice") === "email_confirmed" ? "Your email is confirmed. Sign in with your email and password." : null);
 
   async function resendConfirmation() {
     if (!unconfirmedEmail) return;
@@ -227,14 +237,14 @@ export default function LoginPage() {
   const [formError, setFormError] = useState("");
   const [forgotError, setForgotError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(isSupabaseConfigured);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [oAuthLoading, setOAuthLoading] = useState<string | null>(null);
-  const [oAuthError, setOAuthError] = useState<string | null>(null);
+  const [oAuthError, setOAuthError] = useState<string | null>(initialAuthError);
   const hasFetched = useRef(false);
 
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
@@ -256,29 +266,6 @@ export default function LoginPage() {
     // Surface OAuth errors forwarded from /auth/callback
     const params = new URLSearchParams(window.location.search);
 
-    // Session-expired redirect from AppShell (only sent when there was a session)
-    if (params.get("reason") === "session_expired") {
-      setOAuthError("Your session expired. Please sign in again.");
-    }
-    // Confirmation link opened somewhere the sign-up didn't start (e.g. another browser)
-    if (params.get("notice") === "email_confirmed") {
-      setNotice("Your email is confirmed. Sign in with your email and password.");
-    }
-
-    const errorCode = params.get("error");
-    const errorDesc = params.get("error_description") ?? "";
-    if (errorCode) {
-      const providerDisabled =
-        errorDesc.includes("provider is not enabled") ||
-        errorDesc.includes("Unsupported provider") ||
-        errorCode === "provider_disabled";
-      setOAuthError(
-        providerDisabled
-          ? "That sign-in method isn't available right now. Use email or try another provider."
-          : "Sign-in failed. Please try again or use email."
-      );
-    }
-
     // Capture lab and project invite codes from URL before any redirect
     const inviteParam = params.get("invite");
     if (inviteParam) localStorage.setItem("pendingInviteCode", inviteParam);
@@ -287,7 +274,6 @@ export default function LoginPage() {
 
     if (!isSupabaseConfigured) {
       if (localStorage.getItem("aiesec_authed") === "true") router.replace("/");
-      else setChecking(false);
       return;
     }
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -768,7 +754,7 @@ export default function LoginPage() {
         )}
         {!passwordError && mode === "signup" && (
           <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
-            Use a unique password. Your account protects your LC's data and your private journal.
+            Use a unique password. Your account protects your LC&#39;s data and your private journal.
           </p>
         )}
 

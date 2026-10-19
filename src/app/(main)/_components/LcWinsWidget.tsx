@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { CURRENT_USER_ID, getUser } from "@/lib/mock-data";
@@ -28,7 +28,6 @@ function PostColumn({
   posts,
   type,
   projectId,
-  projectName,
   userId,
   teamMembers,
   emptyPrompt,
@@ -47,7 +46,8 @@ function PostColumn({
   const [content, setContent] = useState("");
   const table = type === "lab_win" ? "lab_wins" : "opportunities";
 
-  useEffect(() => { setItems(posts); }, [posts]);
+  const [sourcePosts, setSourcePosts] = useState(posts);
+  if (sourcePosts !== posts) { setSourcePosts(posts); setItems(posts); }
 
   async function handlePost() {
     if (!content.trim()) return;
@@ -139,7 +139,7 @@ function PostColumn({
         </div>
       ) : (
         <>
-          {filtered.map((post, i) => {
+          {filtered.map((post) => {
             const author = teamMembers.find((u) => u.id === post.authorId) ?? getUser(post.authorId);
             return (
               <div key={post.id} style={{

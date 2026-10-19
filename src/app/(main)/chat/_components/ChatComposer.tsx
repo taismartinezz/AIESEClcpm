@@ -1,5 +1,9 @@
 "use client";
 
+import Image from "next/image";
+
+import { useHydrated } from "@/lib/use-hydrated";
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bold, Italic, Strikethrough, Link2, List, ListOrdered,
@@ -163,7 +167,7 @@ export function ChatComposer({
   const [correctedText, setCorrectedText] = useState("");
 
   // Voice
-  const [micSupported, setMicSupported] = useState(false);
+  const micSupported = useHydrated() && hasSpeechSupport();
   const [micDenied, setMicDenied] = useState(false);
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
@@ -171,9 +175,6 @@ export function ChatComposer({
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    setMicSupported(hasSpeechSupport());
-  }, []);
 
   // Grammar fix
   async function handleFixGrammar() {
@@ -329,7 +330,7 @@ export function ChatComposer({
           {pendingAttachments.map((a, i) => (
             <div key={i} style={{ position: "relative", display: "inline-flex" }}>
               {a.preview ? (
-                <img src={a.preview} alt={a.file.name} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, border: "1px solid var(--color-border)" }} />
+                <Image unoptimized width={60} height={60} src={a.preview} alt={a.file.name} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, border: "1px solid var(--color-border)" }} />
               ) : (
                 <div style={{ width: 72, height: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 6, border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)", gap: 3 }}>
                   <span style={{ fontSize: 9, color: "var(--color-secondary)", maxWidth: 64, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }}>{a.file.name}</span>

@@ -80,7 +80,6 @@ When('I view my profile', async () => {
 // ── Then ──────────────────────────────────────────────────────────────────────
 
 Then('I should see my profile photo as an img element', async () => {
-  const img = page.locator('img[data-testid="avatar-img"]').first()
   // Profile page renders its own <img> for the photo section, not the Avatar component
   // Check for any img with src containing the avatar URL pattern
   const profileImg = page.locator('img[alt="Test User"]').first()

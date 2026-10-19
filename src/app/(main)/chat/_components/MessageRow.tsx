@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
+
 import { useState, useEffect, useRef } from "react";
-import type { ReactNode } from "react";
 import { SmilePlus, MessageCircle, Pin, Pencil, Trash2, FileText } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { User } from "@/types";
@@ -35,7 +36,9 @@ export function MessageRow({
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { if (editing) { setDraft(msg.content); setTimeout(() => editRef.current?.focus(), 30); } }, [editing, msg.content]);
+  useEffect(() => {
+    if (editing) editRef.current?.focus();
+  }, [editing]);
 
   function commitEdit() {
     const t = draft.trim();
@@ -101,7 +104,7 @@ export function MessageRow({
               {msg.attachments.map((att, i) =>
                 att.type.startsWith("image/") ? (
                   <a key={i} href={att.url} target="_blank" rel="noopener noreferrer">
-                    <img src={att.url} alt={att.name} style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, border: "1px solid var(--color-border)", display: "block", objectFit: "cover" }} />
+                    <Image unoptimized width={300} height={200} src={att.url} alt={att.name} style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, border: "1px solid var(--color-border)", display: "block", objectFit: "cover" }} />
                   </a>
                 ) : (
                   <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, backgroundColor: "var(--color-surface-2)", border: "1px solid var(--color-border)", fontSize: 12, color: "var(--color-body)", textDecoration: "none" }}>
@@ -144,7 +147,7 @@ export function MessageRow({
               <TBtn label={msg.isPinned ? "Unpin message" : "Pin message"} onClick={() => onPin(msg.id, !msg.isPinned)}>
                 <Pin size={14} style={{ color: msg.isPinned ? "var(--color-navy)" : undefined }} />
               </TBtn>
-              {isOwn && <TBtn label="Edit message" onClick={() => setEditing(true)}><Pencil size={14} /></TBtn>}
+              {isOwn && <TBtn label="Edit message" onClick={() => { setDraft(msg.content); setEditing(true); }}><Pencil size={14} /></TBtn>}
               {isOwn && !deleteConfirm && <TBtn label="Delete message" onClick={() => setDeleteConfirm(true)} danger><Trash2 size={14} /></TBtn>}
               {isOwn && deleteConfirm && (
                 <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "0 2px" }}>

@@ -125,7 +125,7 @@ export default function ScopeSidebar({
   );
   const handleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(width);
-  widthRef.current = width;
+  useEffect(() => { widthRef.current = width; }, [width]);
 
   const onDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

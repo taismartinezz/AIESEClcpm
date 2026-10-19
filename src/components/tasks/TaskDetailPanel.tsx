@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  X, Send, Paperclip, Download, Trash2, FileText, File, Image, Table,
-  ExternalLink, Plus, Copy, MoreHorizontal, CalendarDays, Check,
+  X, Send, Paperclip, Download, Trash2, FileText, File, Image as ImageIcon, Table,
+  ExternalLink, Plus, Copy, MoreHorizontal, CalendarDays,
   ArrowLeft, GripVertical, ChevronDown, ChevronRight,
 } from "lucide-react";
 import {
-  CURRENT_USER_ID, formatRelativeTime, formatDate, formatFileSize, getUser,
+  CURRENT_USER_ID, formatRelativeTime, formatFileSize, getUser,
 } from "@/lib/mock-data";
 import type { Task, TaskStatus, TaskPriority, User, TaskComment, TaskFile } from "@/types";
 import Avatar from "@/components/ui/Avatar";
@@ -114,7 +114,7 @@ export function AssigneeStack({ ids, size = 22, users = [] }: { ids: string[]; s
 
 export function FileIcon({ type }: { type: string }) {
   if (type === "pdf") return <FileText size={14} color="#C0392B" />;
-  if (type === "image") return <Image size={14} color="#2E7D52" />;
+  if (type === "image") return <ImageIcon size={14} color="#2E7D52" />;
   if (type === "spreadsheet") return <Table size={14} color="#0263C4" />;
   return <File size={14} color="var(--color-secondary)" />;
 }
@@ -373,7 +373,7 @@ function SortableSubtaskRow({
 
 // ── Task detail panel ─────────────────────────────────────────────────────────
 
-export default function TaskDetailPanel({
+function TaskDetailEditor({
   task,
   parentTask,
   onClose,
@@ -428,7 +428,9 @@ export default function TaskDetailPanel({
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskInput, setSubtaskInput] = useState("");
   const subtaskInputRef = useRef<HTMLInputElement>(null);
-  const [subtasksOpen, setSubtasksOpen] = useState(true);
+  const [subtasksOpen, setSubtasksOpen] = useState(() => {
+    try { return localStorage.getItem(`subtasks-open:${task.id}`) !== "false"; } catch { return true; }
+  });
   // Per-subtask menu open tracking - null means none open
   const [openSubtaskMenus, setOpenSubtaskMenus] = useState<{
     status: string | null;
@@ -444,29 +446,6 @@ export default function TaskDetailPanel({
   const subtaskSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
-
-  // Sync all local state when task changes
-  useEffect(() => {
-    setLocalTitle(task.title);
-    setEditingTitle(false);
-    setLocalDesc(task.description ?? "");
-    setLocalDueDate(task.dueDate ?? "");
-    setLocalComments(task.comments);
-    setLocalFiles(task.files);
-    setLocalAssigneeIds(task.assigneeIds);
-    setSubtasks([]);
-    setAddingSubtask(false);
-    setSubtaskInput("");
-    setOpenSubtaskMenus({ status: null, assignee: null, more: null });
-    setSubtaskCalState(null);
-    // Restore collapse state for this task
-    try {
-      const stored = localStorage.getItem(`subtasks-open:${task.id}`);
-      setSubtasksOpen(stored === null ? true : stored !== "false");
-    } catch {
-      setSubtasksOpen(true);
-    }
-  }, [task.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch subtasks for this task.
   // Use * so the query works regardless of which optional columns exist in the live DB
@@ -1416,4 +1395,8 @@ export default function TaskDetailPanel({
       </div>
     </>
   );
+}
+
+export default function TaskDetailPanel(props: React.ComponentProps<typeof TaskDetailEditor>) {
+  return <TaskDetailEditor key={props.task.id} {...props} />;
 }

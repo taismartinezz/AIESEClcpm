@@ -1,8 +1,26 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 type Theme = "light" | "dark" | "system";
+
+function storedTheme(): Theme {
+  try {
+    const value = localStorage.getItem("aiesec-theme");
+    if (value === "dark" || value === "system") return value;
+  } catch { /* Storage can be disabled by browser policy. */ }
+  return "light";
+}
+
+function subscribeSystemTheme(onChange: () => void) {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+const systemIsDark = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const serverIsDark = () => false;
 
 interface ThemeContextValue {
   theme: Theme;
@@ -19,41 +37,28 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
-
-  // Read stored preference on mount
-  useEffect(() => {
-    const stored = (typeof localStorage !== "undefined" ? localStorage.getItem("aiesec-theme") : null) as Theme | null;
-    if (stored === "light" || stored === "dark" || stored === "system") {
-      setThemeState(stored);
-    }
-  }, []);
+  const hydrated = useHydrated();
+  const [selectedTheme, setThemeState] = useState<Theme>(storedTheme);
+  const theme = hydrated ? selectedTheme : "light";
+  const dark = useSyncExternalStore(subscribeSystemTheme, systemIsDark, serverIsDark);
+  const resolvedTheme = theme === "system" ? (dark ? "dark" : "light") : theme;
 
   // Apply theme to <html> and resolve the effective theme
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "light") {
       root.setAttribute("data-theme", "light");
-      setResolvedTheme("light");
     } else if (theme === "dark") {
       root.setAttribute("data-theme", "dark");
-      setResolvedTheme("dark");
     } else {
       // system - remove attribute, let prefers-color-scheme take over
       root.removeAttribute("data-theme");
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      setResolvedTheme(mq.matches ? "dark" : "light");
-
-      const handler = (e: MediaQueryListEvent) => setResolvedTheme(e.matches ? "dark" : "light");
-      mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
     }
   }, [theme]);
 
   function setTheme(t: Theme) {
     setThemeState(t);
-    if (typeof localStorage !== "undefined") localStorage.setItem("aiesec-theme", t);
+    try { localStorage.setItem("aiesec-theme", t); } catch { /* Keep the in-memory preference. */ }
   }
 
   return (

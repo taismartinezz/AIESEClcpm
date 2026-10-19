@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatRelativeTime, getUser, CURRENT_USER_ID } from "@/lib/mock-data";
@@ -28,7 +28,8 @@ export function PostsCard({
   const [showAll, setShowAll] = useState(false);
   const [content, setContent] = useState("");
 
-  useEffect(() => { setPosts(initialPosts); }, [initialPosts]);
+  const [sourcePosts, setSourcePosts] = useState(initialPosts);
+  if (sourcePosts !== initialPosts) { setSourcePosts(initialPosts); setPosts(initialPosts); }
 
   const filtered = posts.filter((p) => p.type === type);
   const displayed = showAll ? filtered : filtered.slice(0, 5);

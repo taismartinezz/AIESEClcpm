@@ -37,7 +37,7 @@ const departments = [
   { id: OGV, project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: 'vp-2', is_finance: false, sort_order: 1 },
 ]
 
-const execRows = periodRows(undefined, [3.9, 4.0, 4.1, 3.8, 4.0, 4.2, 4.1, 4.0]).map(({ department_id: _d, ...r }) => r)
+const execRows = periodRows(undefined, [3.9, 4.0, 4.1, 3.8, 4.0, 4.2, 4.1, 4.0]).map(({ period_start, question_id, avg_score, respondent_count, suppressed }) => ({ period_start, question_id, avg_score, respondent_count, suppressed }))
 const memberRows = [
   ...periodRows(null, [3.8, 3.9, 3.9, 4.0, 3.9, 3.8, 3.9, 3.5]),
   ...periodRows(MKT, [4.0, 4.1, 4.0, 4.2, 4.1, 4.0, 4.1, 3.2]),          // noticeable drop this period
@@ -90,7 +90,7 @@ test.describe('Wellbeing on the dashboard', () => {
   test('a suppressed period shows the privacy message instead of numbers', async ({ page }) => {
     await setupAuthMocks(page, 'president', {
       departments,
-      rpc: { get_exec_pulse: periodRows(undefined, [4, 4, 4, 4, 4, 4, 4, null]).map(({ department_id: _d, ...r }) => r) },
+      rpc: { get_exec_pulse: periodRows(undefined, [4, 4, 4, 4, 4, 4, 4, null]).map(({ period_start, question_id, avg_score, respondent_count, suppressed }) => ({ period_start, question_id, avg_score, respondent_count, suppressed })) },
     })
     await page.goto('/')
     const exec = page.getByRole('region', { name: 'Exec Pulse' })

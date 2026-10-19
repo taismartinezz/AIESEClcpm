@@ -103,6 +103,10 @@ test.describe('8 · small UI bugs', () => {
 })
 
 test('sign-up accepts a name filled in by browser autofill', async ({ page }) => {
+  await page.route('**/auth/v1/signup**', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user: { id: 'signup-user', identities: [] }, session: null }),
+  }))
   await page.goto('/login')
   await page.getByRole('link', { name: /create one|sign up|create an account/i }).or(page.getByRole('button', { name: /create one|sign up|create an account/i })).first().click({ timeout: 10000 })
   await expect(page.getByLabel('Full name')).toBeVisible()

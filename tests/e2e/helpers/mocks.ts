@@ -106,9 +106,21 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
         if (url.includes('/auth/v1/token')) return ok(sessionObj)
 
         // REST endpoints
-        if (url.includes('/rest/v1/user_profiles')) return ok([profileData])
-        if (url.includes('/rest/v1/team_members'))  return ok([membershipData])
-        if (url.includes('/rest/v1/projects'))       return ok([projectData])
+        const rowResponse = (rows: unknown[]) => {
+          const accept = new Headers(init?.headers).get('accept') ?? ''
+          return ok(accept.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
+        }
+        if (url.includes('/rest/v1/user_profiles')) return rowResponse([profileData])
+        if (url.includes('/rest/v1/team_members')) {
+          const rows = tables.team_members ?? [membershipData]
+          const filter = new URL(url).searchParams.get('project_id')?.replace(/^eq\./, '')
+          return rowResponse(filter ? rows.filter(row => (row as { project_id: string }).project_id === filter) : rows)
+        }
+        if (url.includes('/rest/v1/projects')) {
+          const rows = tables.projects ?? [projectData]
+          const filter = new URL(url).searchParams.get('id')?.replace(/^eq\./, '')
+          return rowResponse(filter ? rows.filter(row => (row as { id: string }).id === filter) : rows)
+        }
         if (url.includes('/rest/v1/invite_codes'))   return ok(inviteCodes)
         if (url.includes('/rest/v1/departments'))    return ok(departments)
         const rpcMatch = url.match(/\/rest\/v1\/rpc\/([a-z_]+)/)

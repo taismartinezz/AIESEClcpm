@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquare, X, ChevronDown, Hash, Send } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import { USERS, CURRENT_USER_ID } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { computeInitials } from "@/lib/utils";
-import { resolveChannelKey, buildUser } from "@/app/(main)/chat/_components/chatUtils";
+import { resolveChannelKey } from "@/app/(main)/chat/_components/chatUtils";
 import { MessageRow } from "@/app/(main)/chat/_components/MessageRow";
 import type { ChatMessage, MessageAttachment, MessageReaction } from "@/app/(main)/chat/_components/types";
 import type { User } from "@/types";
@@ -34,10 +33,6 @@ interface ConvItem {
   isOnline?: boolean;
 }
 
-function formatHM(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
 export default function ChatDock() {
   const pathname = usePathname();
   const { projectId, subProjects, activeScope, subProjectId } = useProject();
@@ -51,7 +46,8 @@ export default function ChatDock() {
   const [dockOpen, setDockOpen] = useState(false);
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [loadedConv, setLoadedConv] = useState<string | null>(null);
+  const loadingMsgs = activeConv !== loadedConv;
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [capturedMentionIds, setCapturedMentionIds] = useState<string[]>([]);
@@ -135,12 +131,7 @@ export default function ChatDock() {
   const hidden = pathname.startsWith("/chat");
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setCurrentUserId("u1");
-      setCurrentUserName("You");
-      setTeamMembers(USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => buildUser(u.id, u.name)));
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) return;
       setCurrentUserId(session.user.id);
@@ -221,19 +212,13 @@ export default function ChatDock() {
   const activeConvInfo = activeConv ? conversations.find(c => c.id === activeConv) ?? null : null;
 
   // Fetch messages for active conversation
-  const fetchMessages = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchMessages() {
     if (!activeConv || !projectId || !currentUserId) return;
-    setLoadingMsgs(true);
     const key = resolveChannelKey(projectId, currentUserId, activeConv);
 
-    if (!isSupabaseConfigured) {
-      setMessages([
-        { id: "d1", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Good morning!", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-        { id: "d2", channel: key, senderId: "u1", senderName: "You", content: "Morning!", createdAt: new Date(Date.now() - 3600000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-      ]);
-      setLoadingMsgs(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     const { data } = await supabase.from("chat_messages")
       .select("id, channel, sender_id, content, created_at, thread_parent_id, deleted_at, is_pinned, mentioned_user_ids, attachments")
@@ -260,6 +245,7 @@ export default function ChatDock() {
       }
     }
 
+    if (cancelled) return;
     setMessages(rows.map(row => ({
       id: row.id as string, channel: row.channel as string,
       senderId: row.sender_id as string, senderName: nameMap[row.sender_id as string] ?? "Unknown",
@@ -270,14 +256,18 @@ export default function ChatDock() {
       isPinned: (row.is_pinned as boolean) ?? false,
       attachments: (row.attachments as MessageAttachment[]) ?? [],
     })));
-    setLoadingMsgs(false);
+    setLoadedConv(activeConv);
 
     // Mark as read
     supabase.from("chat_read_state").upsert({ user_id: currentUserId, channel: key, last_read_at: new Date().toISOString() });
     setUnreadCounts(prev => { const n = { ...prev }; delete n[key]; return n; });
-  }, [activeConv, projectId, currentUserId]);
 
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+    }
+    void fetchMessages().catch(error => {
+      if (!cancelled) { console.error("[Chat] fetch:", error); setLoadedConv(activeConv); }
+    });
+    return () => { cancelled = true; };
+  }, [activeConv, projectId, currentUserId]);
 
   // Scroll to bottom when messages load
   useEffect(() => {

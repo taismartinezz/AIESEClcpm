@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useId, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface TooltipProps {
   label: string;
@@ -16,9 +17,9 @@ export default function Tooltip({ label, children, delay = 450, placement = "bot
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const id = useId();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const compute = useCallback(() => {
     const el = triggerRef.current;

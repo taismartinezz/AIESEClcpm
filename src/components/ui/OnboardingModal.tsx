@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { X, ArrowRight, ArrowLeft } from "lucide-react";
 
@@ -140,19 +140,15 @@ export default function OnboardingModal({ role, onClose }: { role: TourRole; onC
     setStep((s) => s - 1);
   }
 
-  // Measure target on step change
-  const measureTarget = useCallback(() => {
-    if (!current.selector) { setTargetRect(null); return; }
-    const el = document.querySelector(current.selector);
-    if (!el) { setTargetRect(null); return; }
-    setTargetRect(el.getBoundingClientRect());
+  // The layout effect measures the actual target before the spotlight is painted.
+  const targetRef = useRef<Element | null>(null);
+  useLayoutEffect(() => {
+    targetRef.current = current.selector ? document.querySelector(current.selector) : null;
+    setTargetRect(targetRef.current?.getBoundingClientRect() ?? null);
+    function measure() { setTargetRect(targetRef.current?.getBoundingClientRect() ?? null); }
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, [current.selector]);
-
-  useEffect(() => {
-    measureTarget();
-    window.addEventListener("resize", measureTarget);
-    return () => window.removeEventListener("resize", measureTarget);
-  }, [measureTarget]);
 
   // Keyboard nav
   useEffect(() => {

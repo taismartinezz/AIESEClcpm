@@ -300,7 +300,7 @@ function rpc(name: string, args: Row): Response {
       const want = (args.p_department_id as string | null) ?? null;
       return json(previewPulseRows(periodStarts(), want ? [want] : groups).filter((r) => !want || r.department_id === want));
     }
-    case "get_exec_pulse": return json(previewPulseRows(periodStarts(), [null], 3).map(({ department_id: _d, ...r }) => r));
+    case "get_exec_pulse": return json(previewPulseRows(periodStarts(), [null], 3).map(({ period_start, question_id, avg_score, respondent_count, suppressed }) => ({ period_start, question_id, avg_score, respondent_count, suppressed })));
     case "get_area_pulse": return json(previewPulseRows(periodStarts(), ["outgoing", "incoming", "support"], 1).map(({ department_id: d, ...r }) => ({ area: d, ...r })));
     case "member_activity": return json(t.team_members.map((m) => {
       const p = t.user_profiles.find((u) => u.id === m.user_id);

@@ -2,10 +2,6 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
-import {
-  TASKS, DASHBOARD_POSTS,
-  getUser, CURRENT_USER_ID, getStoredProject,
-} from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { toUserRole } from "@/lib/permissions";
 import type { Task, CalendarEvent, DashboardPost, TaskStatus, User } from "@/types";
@@ -331,16 +327,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // Demo mode fallback (no Supabase)
-    const sp = getStoredProject();
-    setProjectName(sp.name);
-    setUserId(CURRENT_USER_ID);
-    const mockUser = getUser(CURRENT_USER_ID);
-    if (mockUser?.name) setCurrentUserFirstName(mockUser.name.trim().split(/\s+/)[0]);
-    if (!localStorage.getItem("aiesec_project")) {
-      setTasks(TASKS);
-      setDashPosts(DASHBOARD_POSTS);
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId, lcLoading]);
 

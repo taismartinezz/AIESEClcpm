@@ -33,9 +33,9 @@ export function useViewportFit(ref: RefObject<HTMLElement | null>, pos: FloatPos
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const next = fitInViewport(pos, { width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight });
+    const next = fitInViewport({ top: pos.top, left: pos.left, anchorTop: pos.anchorTop }, { width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight });
     // Measuring the rendered popover is the point of this layout effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setFitted((prev) => (prev.top === next.top && prev.left === next.left ? prev : next));
   }, [ref, pos.top, pos.left, pos.anchorTop]);
   return fitted;

@@ -11,8 +11,11 @@ const KEY_SECRET  = process.env.JOURNAL_KEY_SECRET ?? "";
 // without this server secret.
 export async function GET(request: Request) {
   if (!KEY_SECRET) {
-    // Encryption not configured — return sentinel so client skips encryption gracefully
-    return Response.json({ disabled: true });
+    // Never authorize plaintext storage when the deployment is misconfigured.
+    return Response.json(
+      { error: "Journal encryption is not configured." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const authHeader = request.headers.get("Authorization") ?? "";

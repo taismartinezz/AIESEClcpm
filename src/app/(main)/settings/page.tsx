@@ -1,5 +1,7 @@
 "use client";
 
+import type { UserProfileRecord, ProjectRecord } from "@/types/database-records";
+
 import { useState, useEffect, useCallback } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { createPortal } from "react-dom";
@@ -74,8 +76,8 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { activeScope, projectId: activeLcId, role: myRole } = useProject();
   const isPresident = myRole === "president";
-  const [profile, setProfile] = useState<any>(null);
-  const [project, setProject] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfileRecord | null>(null);
+  const [project, setProject] = useState<ProjectRecord | null>(null);
   const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; lab_role_id: string | null; invited_email: string | null; email_sent_at: string | null }[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [revealedCode, setRevealedCode] = useState<string | null>(null);
