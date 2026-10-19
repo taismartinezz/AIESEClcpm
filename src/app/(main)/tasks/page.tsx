@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors, closestCorners,
 } from "@dnd-kit/core";
 import { LayoutGrid, List, Search, Plus, User as UserIcon, Users } from "lucide-react";
-import { TASKS as MOCK_TASKS, USERS, getStoredProject } from "@/lib/mock-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
-import type { Task, TaskStatus, User, UserRole } from "@/types";
+import type { Task, TaskStatus, User } from "@/types";
 import Toast, { showToast } from "@/components/ui/Toast";
 import TaskDetailPanel, { STATUS_ORDER } from "@/components/tasks/TaskDetailPanel";
 import TaskModal from "@/components/tasks/TaskModal";
@@ -33,6 +32,7 @@ type ModalState =
 export default function TasksPage() {
   const { show: showUndoToast } = useUndoToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [view, setView] = useState<"board" | "list">("board");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,34 +67,7 @@ export default function TasksPage() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      // Demo mode - use mock data, restoring any in-session mutations from sessionStorage
-      const sp = getStoredProject();
-      setProjectId(sp.id);
-      setTeamMembers(USERS);
-      let allTasks: Task[];
-      try {
-        const saved = sessionStorage.getItem("aiesec_demo_tasks");
-        allTasks = saved ? (JSON.parse(saved) as Task[]) : MOCK_TASKS;
-      } catch {
-        allTasks = MOCK_TASKS;
-      }
-      setTasks(allTasks.filter((t) => !t.parentId));
-      // Build demo subtask data from tasks that have a parentId
-      const demoSubtaskData: Record<string, Task[]> = {};
-      const demoSubtaskCounts: Record<string, { total: number; done: number }> = {};
-      for (const t of allTasks) {
-        if (!t.parentId) continue;
-        if (!demoSubtaskData[t.parentId]) { demoSubtaskData[t.parentId] = []; demoSubtaskCounts[t.parentId] = { total: 0, done: 0 }; }
-        demoSubtaskData[t.parentId].push(t);
-        demoSubtaskCounts[t.parentId].total++;
-        if (t.status === "done") demoSubtaskCounts[t.parentId].done++;
-      }
-      setSubtaskData(demoSubtaskData);
-      setSubtaskCounts(demoSubtaskCounts);
-      setLoading(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     // Stale-fetch guard: if scope/subProjectId changes while a fetch is in flight,
     // the earlier response must not overwrite the later one.
@@ -109,15 +82,15 @@ export default function TasksPage() {
       if (!pid) { if (!lcLoading) setLoading(false); return; }
       setProjectId(pid);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const { data: members } = await (supabase
         .from("team_members")
         .select("*, user_profiles(name, avatar_initials, avatar_color, avatar_url, role)")
-        .eq("project_id", pid) as any);
+        .eq("project_id", pid));
 
       if (members) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setTeamMembers((members as any[]).map((row) => {
+
+        setTeamMembers((members).map((row) => {
           const p = Array.isArray(row.user_profiles) ? row.user_profiles[0] : row.user_profiles;
           const id = row.user_id as string;
           return {
@@ -154,8 +127,8 @@ export default function TasksPage() {
         if (!cancelled && scData) {
           const counts: Record<string, { total: number; done: number }> = {};
           const subs: Record<string, Task[]> = {};
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const r of scData as any[]) {
+
+          for (const r of scData) {
             const parentId = r.parent_id as string;
             if (!counts[parentId]) { counts[parentId] = { total: 0, done: 0 }; subs[parentId] = []; }
             counts[parentId].total++;
@@ -184,8 +157,8 @@ export default function TasksPage() {
           description: row.description as string,
           status: row.status as TaskStatus,
           priority: row.priority as Task["priority"],
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          assigneeIds: ((row.task_assignees as any[]) ?? []).map((ta) => ta.user_id as string),
+
+          assigneeIds: ((row.task_assignees as { user_id: string }[]) ?? []).map((ta) => ta.user_id as string),
           dueDate: row.due_date as string | undefined,
           scope: (row.scope as Task["scope"]) ?? "lab",
           subProjectId: (row.sub_project_id as string | null) ?? undefined,
@@ -201,17 +174,17 @@ export default function TasksPage() {
     });
 
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [lcId, lcLoading]);
 
-  // Open a specific task when navigated from global search (?openTask=<id>)
-  useEffect(() => {
-    const openTaskId = searchParams.get("openTask");
-    if (!openTaskId || loading || tasks.length === 0) return;
-    const task = tasks.find((t) => t.id === openTaskId);
-    if (task) setSelectedTask(task);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, tasks]);
+  // Consume each search navigation once; dismissing the detail panel does not reopen it.
+  const [openedTaskParam, setOpenedTaskParam] = useState<string | null>(null);
+  const requestedTaskId = searchParams.get("openTask");
+  if (!requestedTaskId && openedTaskParam !== null) setOpenedTaskParam(null);
+  if (!loading && requestedTaskId && requestedTaskId !== openedTaskParam) {
+    const requestedTask = tasks.find(t => t.id === requestedTaskId);
+    if (requestedTask) { setOpenedTaskParam(requestedTaskId); setSelectedTask(requestedTask); }
+  }
 
   // Realtime: reflect task INSERTs/UPDATEs/DELETEs from other users
   useEffect(() => {
@@ -558,13 +531,6 @@ export default function TasksPage() {
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  const filterSelectStyle: React.CSSProperties = {
-    height: 36, fontSize: 12, fontFamily: "var(--font-roboto)",
-    border: "1px solid var(--color-border)", borderRadius: 7,
-    backgroundColor: "var(--color-canvas)", color: "var(--color-secondary)",
-    outline: "none", cursor: "pointer", paddingLeft: 8, paddingRight: 8,
-  };
-
   const tasksBadgeSp = !isLabHome && activeScope === "project"
     ? subProjects.find((s) => s.id === ctxSubProjectId) ?? null
     : null;
@@ -828,7 +794,14 @@ export default function TasksPage() {
         <TaskDetailPanel
           task={selectedTask}
           parentTask={taskNavStack.length > 0 ? taskNavStack[taskNavStack.length - 1] : undefined}
-          onClose={() => { setSelectedTask(null); setTaskNavStack([]); }}
+          onClose={() => {
+            setSelectedTask(null); setTaskNavStack([]);
+            if (requestedTaskId) {
+              const params = new URLSearchParams(searchParams.toString());
+              params.delete("openTask");
+              router.replace(`/tasks${params.size ? `?${params}` : ""}`, { scroll: false });
+            }
+          }}
           onNavigateBack={taskNavStack.length > 0 ? handleNavigateBack : undefined}
           onUpdateStatus={(status) => moveTask(selectedTask.id, status)}
           onUpdateTask={(updates) => updateTask(selectedTask.id, updates)}

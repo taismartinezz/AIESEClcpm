@@ -1,5 +1,7 @@
 "use client";
 
+import { useHydrated } from "@/lib/use-hydrated";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
@@ -139,7 +141,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
   const { role: myRole, departmentId: myDepartmentId, departments } = useProject();
   const isCurrentUserPresident = myRole === "president";
   const [piInvitation, setPiInvitation] = useState<{ text: string; piName: string } | null>(null);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingData, setLoadingData] = useState(!!projectId && isSupabaseConfigured);
 
   // ── Screen ───────────────────────────────────────────────────────────────────
   const initialScreen: Screen = track === "wellbeing" ? { id: "b" } : { id: "entry" };
@@ -189,7 +191,7 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
 
   // ── Load data ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!projectId) { setLoadingData(false); return; }
+    if (!projectId) return;
 
     async function load() {
       if (!projectId) return;
@@ -243,8 +245,6 @@ export default function SupportPanel({ track, onClose, projectId, userId }: Supp
 
     if (isSupabaseConfigured) {
       void load();
-    } else {
-      setLoadingData(false);
     }
   }, [projectId, userId]);
 
@@ -627,7 +627,7 @@ function SimpleComposeScreen({ recipient, projectId, userId, onBack, onClose, on
 
 // ── Screen: Sent confirmation ─────────────────────────────────────────────────
 
-function ASentScreen({ recipientName, msgId: _msgId, onClose, onDone }: {
+function ASentScreen({ recipientName, onClose, onDone }: {
   recipientName: string;
   msgId: string;
   onClose: () => void;
@@ -685,7 +685,9 @@ function VoiceDraftTextarea({ value, onChange, rows = 8, placeholder }: {
   rows?: number;
   placeholder?: string;
 }) {
-  const [hasMic, setHasMic] = useState<boolean | null>(null);
+  const hydrated = useHydrated();
+  const speechWindow = typeof window === "undefined" ? {} : window as unknown as ISpeechRecognitionWindow;
+  const hasMic = hydrated ? !!(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition) : null;
   const [micDenied, setMicDenied] = useState(false);
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
@@ -694,8 +696,6 @@ function VoiceDraftTextarea({ value, onChange, rows = 8, placeholder }: {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const w = window as unknown as ISpeechRecognitionWindow;
-    setHasMic(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
     return () => { recognitionRef.current?.stop(); };
   }, []);
 
@@ -821,7 +821,7 @@ function BPickScreen({ filter, members, leaders, onBack, onClose, onSelect }: {
 // ── Screen: B,Support resources ─────────────────────────────────────────────
 // Track B: no analytics, no logging, no INSERT/UPDATE triggered by viewing this screen.
 
-function BScreen({ resources, institutionKey, loading, leaders, members, isCurrentUserPresident, projectId, onBack, onClose, onPickRecipient }: {
+function BScreen({ resources, institutionKey, loading, leaders, members, isCurrentUserPresident, onBack, onClose, onPickRecipient }: {
   resources: SupportResource[];
   institutionKey: string | null;
   loading: boolean;

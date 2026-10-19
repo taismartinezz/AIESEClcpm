@@ -1,5 +1,4 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { asUser } from "./harness";
 
 let counter = 0;
 

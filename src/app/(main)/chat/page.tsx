@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { USERS, CURRENT_USER_ID } from "@/lib/mock-data";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { useUndoToast } from "@/context/UndoToastContext";
@@ -13,17 +12,11 @@ import ScopeSidebar, { type ScopeSection } from "@/components/ui/ScopeSidebar";
 import PageHeader from "@/components/ui/PageHeader";
 import { computeInitials } from "@/lib/utils";
 import type { ChatMessage, ActiveChannel, MessageReaction, MessageAttachment } from "./_components/types";
-import { buildUser, resolveChannelKey, sameDay, DateDivider, TypingIndicator } from "./_components/chatUtils";
+import {  resolveChannelKey, sameDay, DateDivider, TypingIndicator } from "./_components/chatUtils";
 import { MessageRow } from "./_components/MessageRow";
 import { ThreadPanel } from "./_components/ThreadPanel";
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export default function ChatPage() {
+function ChatWorkspace() {
   const { show: showUndoToast } = useUndoToast();
   const { projectId, subProjects, activeScope, subProjectId, isLoading: projectLoading } = useProject();
   const [currentUserId, setCurrentUserId] = useState("");
@@ -32,12 +25,20 @@ export default function ChatPage() {
   const isProjectView = activeScope === "project" && !!subProjectId;
 
   const defaultChannel = isProjectView && subProjects.find(sp => sp.id === subProjectId) ? (subProjectId ?? "lab") : "lab";
-  const [activeChannel, setActiveChannel] = useState<ActiveChannel>(defaultChannel);
+  const [activeChannel, setActiveChannel] = useState<ActiveChannel>(() => {
+    if (isProjectView) return defaultChannel;
+    try {
+      const saved = localStorage.getItem(`chat_channel:${projectId}`);
+      if (saved && (saved === "lab" || saved.startsWith("dm:") || subProjects.some(p => p.id === saved))) return saved;
+    } catch { /* storage blocked */ }
+    return defaultChannel;
+  });
   const [chatSidebarCollapsed, setChatSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("chat_sidebar_collapsed") === "true"; } catch { return false; }
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadedChannel, setLoadedChannel] = useState<ActiveChannel | null>(null);
+  const loading = loadedChannel !== activeChannel;
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [threadMsg, setThreadMsg] = useState<ChatMessage | null>(null);
@@ -49,7 +50,7 @@ export default function ChatPage() {
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
   // F2: Unread
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [channelUnreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   // Read receipts: map of userId -> last_read_at for the active channel
   const [peerReadStates, setPeerReadStates] = useState<Record<string, string>>({});
@@ -66,7 +67,7 @@ export default function ChatPage() {
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
 
   // F7: Attachments
-  const [pendingAttachments, setPendingAttachments] = useState<Array<{ file: File; preview?: string }>>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{ file: File; preview?: string; uploadId: string }>>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,15 +76,11 @@ export default function ChatPage() {
   const typingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const activeChannelRef = useRef(activeChannel);
-  activeChannelRef.current = activeChannel;
+  useEffect(() => { activeChannelRef.current = activeChannel; }, [activeChannel]);
 
   // Auth
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setCurrentUserId("u1"); setCurrentUserName("You");
-      setTeamMembers(USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => buildUser(u.id, u.name)));
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) return;
       setCurrentUserId(session.user.id);
@@ -109,24 +106,10 @@ export default function ChatPage() {
     load();
   }, [projectId, currentUserId, isProjectView, subProjectId]);
 
-  // Persist active channel per project so navigating away and back restores position
-  const channelRestoredRef = useRef(false);
-  useEffect(() => {
-    if (!projectId || channelRestoredRef.current) return;
-    channelRestoredRef.current = true;
-    try {
-      const saved = localStorage.getItem(`chat_channel:${projectId}`) as ActiveChannel | null;
-      if (saved) setActiveChannel(saved);
-    } catch { /* ignore */ }
-  }, [projectId]);
-
   useEffect(() => {
     if (!projectId) return;
     try { localStorage.setItem(`chat_channel:${projectId}`, String(activeChannel)); } catch { /* ignore */ }
   }, [activeChannel, projectId]);
-
-  // Reset channel when scope changes (intentional navigation)
-  useEffect(() => { setActiveChannel(defaultChannel); setThreadMsg(null); channelRestoredRef.current = false; }, [activeScope, subProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // F1: Presence
   useEffect(() => {
@@ -182,8 +165,9 @@ export default function ChatPage() {
     if (!isSupabaseConfigured || !currentUserId || !projectId) return;
     const key = resolveChannelKey(projectId, currentUserId, activeChannel);
     supabase.from("chat_read_state").upsert({ user_id: currentUserId, channel: key, last_read_at: new Date().toISOString() });
-    setUnreadCounts(prev => { const n = { ...prev }; delete n[key]; return n; });
   }, [activeChannel, currentUserId, projectId]);
+
+  const unreadCounts = { ...channelUnreadCounts, [resolveChannelKey(projectId ?? "", currentUserId, activeChannel)]: 0 };
 
   // Read receipts: load peer read states for active channel, subscribe to realtime
   useEffect(() => {
@@ -219,28 +203,20 @@ export default function ChatPage() {
   }, [projectId, currentUserId, activeChannel]);
 
   // Fetch messages
-  const fetchMessages = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchMessages() {
     if (!projectId || !currentUserId) return;
-    setLoading(true);
     const key = resolveChannelKey(projectId, currentUserId, activeChannel);
 
-    if (!isSupabaseConfigured) {
-      setMessages([
-        { id: "d1", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Good morning! LC meeting moved to Thursday, 19:00. Bring your department updates.", createdAt: new Date(Date.now() - 7200000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 2, reactions: [{ emoji: "👍", count: 3, hasReacted: true }], mentionedUserIds: [], isPinned: false, threadLastReplierId: "u2", attachments: [] },
-        { id: "d2", channel: key, senderId: "u2", senderName: "Kwame Mensah", content: "Noted! oGV will share this week's applications and approvals.", createdAt: new Date(Date.now() - 3300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-        { id: "d3", channel: key, senderId: "u4", senderName: "Priya Nair", content: "Can we add 5 minutes for the info-session plan? Posters are almost ready.", createdAt: new Date(Date.now() - 2400000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [{ emoji: "🎉", count: 2, hasReacted: false }], mentionedUserIds: [], isPinned: true, attachments: [] },
-        { id: "d4", channel: key, senderId: "u0", senderName: "Sofia Almeida", content: "Yes! Priya, you're up first. Great work on the sign-ups this week 🙌", createdAt: new Date(Date.now() - 1800000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: ["u4"], isPinned: false, attachments: [] },
-        { id: "d5", channel: key, senderId: "u1", senderName: "You", content: "See everyone Thursday!", createdAt: new Date(Date.now() - 300000).toISOString(), threadParentId: null, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] },
-      ]);
-      setLoading(false); return;
-    }
+    if (!isSupabaseConfigured) return;
 
     const { data, error } = await supabase
       .from("chat_messages")
       .select("id, channel, sender_id, content, created_at, thread_parent_id, deleted_at, is_pinned, mentioned_user_ids, attachments")
       .eq("channel", key).is("thread_parent_id", null)
       .order("created_at", { ascending: true }).limit(200);
-    if (error) { console.error("[Chat] fetch:", error); setLoading(false); return; }
+    if (error) { if (!cancelled) { console.error("[Chat] fetch:", error); setLoadedChannel(activeChannel); } return; }
     const rows = data ?? [];
     const sids = [...new Set(rows.map(r => r.sender_id as string))];
     const mids = rows.map(r => r.id as string);
@@ -275,6 +251,7 @@ export default function ChatPage() {
       else rxMap[r.message_id].push({ emoji: r.emoji, count: 1, hasReacted: r.user_id === currentUserId });
     }
 
+    if (cancelled) return;
     setMessages(rows.map(row => ({
       id: row.id as string,
       channel: row.channel as string,
@@ -291,10 +268,14 @@ export default function ChatPage() {
       threadLastReplierId: lastReplierMap[row.id as string],
       attachments: (row.attachments as MessageAttachment[]) ?? [],
     })));
-    setLoading(false);
-  }, [projectId, currentUserId, activeChannel]);
+    setLoadedChannel(activeChannel);
 
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+    }
+    void fetchMessages().catch(error => {
+      if (!cancelled) { console.error("[Chat] fetch:", error); setLoadedChannel(activeChannel); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, currentUserId, activeChannel]);
 
   // Scroll handling
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -390,7 +371,8 @@ export default function ChatPage() {
       })
       .subscribe();
     typingChRef.current = ch;
-    return () => { supabase.removeChannel(ch); typingTimers.current.forEach(t => clearTimeout(t)); typingTimers.current.clear(); };
+    const timers = typingTimers.current;
+    return () => { supabase.removeChannel(ch); timers.forEach(t => clearTimeout(t)); timers.clear(); };
   }, [projectId, currentUserId, activeChannel]);
 
   function broadcastTyping() {
@@ -404,7 +386,8 @@ export default function ChatPage() {
     if (!files.length) return;
     for (const file of files) {
       const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
-      setPendingAttachments(prev => [...prev, { file, preview }]);
+      const uploadId = crypto.randomUUID();
+      setPendingAttachments(prev => [...prev, { file, preview, uploadId }]);
     }
     e.target.value = "";
   }
@@ -415,8 +398,8 @@ export default function ChatPage() {
       return pendingAttachments.map(a => ({ url: a.preview ?? "", name: a.file.name, type: a.file.type, size: a.file.size }));
     }
     const results: MessageAttachment[] = [];
-    for (const { file, preview } of pendingAttachments) {
-      const path = `${currentUserId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    for (const { file, preview, uploadId } of pendingAttachments) {
+      const path = `${currentUserId}/${uploadId}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error } = await supabase.storage.from("chat-attachments").upload(path, file);
       if (error) { console.error("[Chat] upload:", error); continue; }
       const { data: { publicUrl } } = supabase.storage.from("chat-attachments").getPublicUrl(path);
@@ -656,7 +639,7 @@ export default function ChatPage() {
             const chKey = resolveChannelKey(projectId ?? "", currentUserId, id);
             const unread = unreadCounts[chKey] ?? 0;
             return (
-              <button key={id} onClick={() => { setActiveChannel(id); setMessages([]); setThreadMsg(null); }}
+              <button key={id} aria-label={peer.name} onClick={() => { setActiveChannel(id); setMessages([]); setThreadMsg(null); }}
                 style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 10px 6px 11px", borderRadius: 7, border: "none", borderLeft: `3px solid ${act ? c : "transparent"}`, cursor: "pointer", backgroundColor: act ? `${c}18` : "transparent", fontFamily: "var(--font-roboto)", textAlign: "left", boxSizing: "border-box", marginBottom: 1 }}
                 onMouseEnter={e => { if (!act) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(0,0,0,0.04)"; }}
                 onMouseLeave={e => { if (!act) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
@@ -687,8 +670,6 @@ export default function ChatPage() {
         .filter(([, ts]) => ts >= lastMsg.createdAt)
         .map(([uid]) => uid)
     : [];
-  // For demo mode, simulate "seen" after 5 minutes
-  const demoSeen = !isSupabaseConfigured && lastMsg && Date.now() - new Date(lastMsg.createdAt).getTime() > 300000;
 
   return (
     <>
@@ -761,7 +742,7 @@ export default function ChatPage() {
         )}
         {searchOpen && searchQuery && !searching && searchResults.length === 0 && (
           <div style={{ padding: "10px 16px", backgroundColor: "var(--color-canvas)", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>No results for "{searchQuery}"</span>
+            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>No results for &quot;{searchQuery}&quot;</span>
           </div>
         )}
 
@@ -820,13 +801,13 @@ export default function ChatPage() {
                         {showDiv && <DateDivider iso={msg.createdAt} />}
                         <MessageRow msg={msg} prevMsg={prev} currentUserId={currentUserId} onEdit={handleEdit} onDelete={handleDelete} onReact={handleReact} onOpenThread={setThreadMsg} onPin={handlePin} teamMembers={teamMembers} />
                         {/* Read receipts under last message */}
-                        {isLastVisible && (seenPeerIds.length > 0 || demoSeen) && (
+                        {isLastVisible && seenPeerIds.length > 0 && (
                           <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 8px 4px 52px" }}>
                             {isDm ? (
                               <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>Seen</span>
                             ) : (
                               <>
-                                {(demoSeen ? teamMembers.slice(0, 2) : seenPeerIds.slice(0, 5).map(uid => teamMembers.find(m => m.id === uid)).filter(Boolean) as User[]).map((peer, idx) => (
+                                {(seenPeerIds.slice(0, 5).map(uid => teamMembers.find(m => m.id === uid)).filter(Boolean) as User[]).map((peer, idx) => (
                                   <span key={peer.id} title={`Seen by ${peer.name}`} style={{ display: "inline-flex", borderRadius: "50%", border: "1.5px solid var(--color-canvas)", marginLeft: idx > 0 ? -6 : 0 }}>
                                     <Avatar user={peer} size={14} />
                                   </span>
@@ -908,4 +889,10 @@ export default function ChatPage() {
       </div>
     </>
   );
+}
+
+export default function ChatPage() {
+  const { projectId, activeScope, subProjectId, isLoading } = useProject();
+  if (isLoading) return <PageHeader title="Chat" />;
+  return <ChatWorkspace key={`${projectId}:${activeScope}:${subProjectId}`} />;
 }

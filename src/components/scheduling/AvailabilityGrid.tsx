@@ -128,11 +128,20 @@ export default function AvailabilityGrid({ slots, onChange, readOnly = false }: 
                 const isHov = hovered === key && !readOnly;
 
                 return (
-                  <div
+                  <button
                     key={key}
+                    type="button"
+                    disabled={readOnly}
+                    aria-label={`${DAYS[day]} ${slotToLabel(slot)}`}
+                    aria-pressed={isSelected}
                     onMouseDown={() => onCellMouseDown(key)}
                     onMouseEnter={() => onCellMouseEnter(key)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(key); }
+                    }}
                     style={{
+                      padding: 0,
+                      border: "none",
                       height: 22,
                       borderTop: isHourBoundary ? "1px solid var(--color-border)" : "1px solid transparent",
                       borderLeft: day === 0 ? "1px solid var(--color-border)" : undefined,

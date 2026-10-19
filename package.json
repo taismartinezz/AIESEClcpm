@@ -6,11 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings=0",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:demo": "playwright test --config=playwright.demo.config.ts",
     "test:watch": "vitest",
-    "test:all": "npm run test:unit && npm run test:e2e",
+    "test:all": "npm run test:unit && npm run test:e2e && npm run test:demo",
     "test:cucumber": "cucumber-js",
     "prepare": "husky",
     "db:bundle": "node scripts/build-full-schema.mjs",
@@ -23,7 +24,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.107.0",
     "lucide-react": "^1.17.0",
-    "next": "16.2.7",
+    "next": "16.4.2",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -44,7 +45,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.2.7",
+    "eslint-config-next": "16.4.2",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.7",
@@ -52,6 +53,6 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   }
 }

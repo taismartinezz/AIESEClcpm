@@ -63,7 +63,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 6, display: "block",
 };
 
-export default function ProjectMembersModal({
+function ProjectMembersEditor({
   subProjectId,
   subProjectName,
   labProjectId,
@@ -91,88 +91,48 @@ export default function ProjectMembersModal({
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.trim());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-
+  const readMembers = useCallback(async () => {
     const [{ data: memberRows }, { data: labRows }] = await Promise.all([
-      supabase
-        .from("sub_project_members")
-        .select("user_id, joined_at, user_profiles(name, avatar_color, avatar_initials, avatar_url)")
-        .eq("sub_project_id", subProjectId),
-      supabase
-        .from("team_members")
-        .select("user_id, user_profiles(name, avatar_color, avatar_initials, avatar_url)")
-        .eq("project_id", labProjectId),
+      supabase.from("sub_project_members").select("user_id, joined_at, user_profiles(name, avatar_color, avatar_initials, avatar_url)").eq("sub_project_id", subProjectId),
+      supabase.from("team_members").select("user_id, user_profiles(name, avatar_color, avatar_initials, avatar_url)").eq("project_id", labProjectId),
     ]);
-
-    const labMemberIds = new Set((labRows ?? []).map((r) => r.user_id as string));
-    const currentMemberIds = new Set((memberRows ?? []).map((r) => r.user_id as string));
-
-    if (memberRows) {
-      setMembers(
-        memberRows.map((row) => {
-          const p = Array.isArray(row.user_profiles) ? row.user_profiles[0] : row.user_profiles;
-          const profile = p as Record<string, string> | null;
-          const name = profile?.name ?? "Unknown";
-          return {
-            userId: row.user_id as string,
-            name,
-            avatarColor: profile?.avatar_color ?? "#B4D4E3",
-            avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"),
-            avatarUrl: profile?.avatar_url ?? undefined,
-            isLabMember: labMemberIds.has(row.user_id as string),
-            joinedAt: row.joined_at as string,
-          };
-        })
-      );
+    const labIds = new Set((labRows ?? []).map(row => row.user_id as string));
+    const memberIds = new Set((memberRows ?? []).map(row => row.user_id as string));
+    function member(row: Record<string, unknown>, isLabMember: boolean): ProjectMember {
+      const raw = row.user_profiles;
+      const profile = (Array.isArray(raw) ? raw[0] : raw) as Record<string, string> | null;
+      const name = profile?.name ?? "Unknown";
+      return {
+        userId: row.user_id as string, name, avatarColor: profile?.avatar_color ?? "#B4D4E3",
+        avatarInitials: computeInitials(name) || profile?.avatar_initials || "??",
+        avatarUrl: profile?.avatar_url, isLabMember, joinedAt: (row.joined_at as string) ?? "",
+      };
     }
-
-    // Build list of lab members not yet in this project (for quick-add picker)
-    if (labRows) {
-      setLabMembersToAdd(
-        labRows
-          .filter((r) => !currentMemberIds.has(r.user_id as string))
-          .map((r) => {
-            const p = Array.isArray(r.user_profiles) ? r.user_profiles[0] : r.user_profiles;
-            const profile = p as Record<string, string> | null;
-            const name = profile?.name ?? "Unknown";
-            return {
-              userId: r.user_id as string,
-              name,
-              avatarColor: profile?.avatar_color ?? "#B4D4E3",
-              avatarInitials: computeInitials(name) || (profile?.avatar_initials ?? "??"),
-              avatarUrl: profile?.avatar_url ?? undefined,
-              isLabMember: true,
-              joinedAt: "",
-            };
-          })
-      );
-    }
-
+    let pending: PendingInvite[] = [];
     if (canManage) {
-      const { data: inviteRows } = await supabase
-        .from("sub_project_invite_codes")
-        .select("id, invited_email, token, created_at")
-        .eq("sub_project_id", subProjectId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (inviteRows) {
-        setPendingInvites(
-          inviteRows.map((r) => ({
-            id: r.id as string,
-            invitedEmail: r.invited_email as string,
-            token: r.token as string,
-            createdAt: r.created_at as string,
-          }))
-        );
-      }
+      const { data } = await supabase.from("sub_project_invite_codes")
+        .select("id, invited_email, token, created_at").eq("sub_project_id", subProjectId)
+        .eq("status", "pending").order("created_at", { ascending: false });
+      pending = (data ?? []).map(row => ({ id: row.id as string, invitedEmail: row.invited_email as string, token: row.token as string, createdAt: row.created_at as string }));
     }
-
-    setLoading(false);
+    return {
+      members: (memberRows ?? []).map(row => member(row, labIds.has(row.user_id as string))),
+      candidates: (labRows ?? []).filter(row => !memberIds.has(row.user_id as string)).map(row => member(row, true)),
+      pending,
+    };
   }, [subProjectId, labProjectId, canManage]);
 
-  useEffect(() => { load(); }, [load]);
+  const applyMembers = useCallback((data: Awaited<ReturnType<typeof readMembers>>) => {
+    setMembers(data.members); setLabMembersToAdd(data.candidates); setPendingInvites(data.pending); setLoading(false);
+  }, []);
+  const load = useCallback(() => readMembers().then(applyMembers), [readMembers, applyMembers]);
+  useEffect(() => {
+    let cancelled = false;
+    void readMembers().then(data => { if (!cancelled) applyMembers(data); }).catch(() => {
+      if (!cancelled) { setAddError("Couldn't load project members. Please try again."); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [readMembers, applyMembers]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -527,4 +487,8 @@ export default function ProjectMembersModal({
       </div>
     </div>
   );
+}
+
+export default function ProjectMembersModal(props: React.ComponentProps<typeof ProjectMembersEditor>) {
+  return <ProjectMembersEditor key={props.subProjectId} {...props} />;
 }

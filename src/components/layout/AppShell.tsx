@@ -1,5 +1,7 @@
 "use client";
 
+import type { UserProfileRecord, ProjectRecord } from "@/types/database-records";
+
 import { useState, useEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
@@ -88,12 +90,16 @@ function useNavItems(): NavItem[] {
   return useNavGroups().flatMap((g) => g.items);
 }
 
-const COLLAPSE_KEY = "aiesec_nav_collapsed";
+const COLLAPSE_KEY = "aiesec_nav_sections";
 /** Which sidebar sections are folded, remembered per browser. */
 function useCollapsed(): [Set<string>, (id: string) => void] {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set(["team"]);
-    try { const v = localStorage.getItem(COLLAPSE_KEY); return new Set(v ? JSON.parse(v) as string[] : ["team"]); } catch { return new Set(["team"]); }
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY) ?? localStorage.getItem("aiesec_nav_collapsed");
+      const value: unknown = raw ? JSON.parse(raw) : null;
+      return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : ["team"]);
+    } catch { return new Set(["team"]); }
   });
   const toggle = (id: string) => setCollapsed((prev) => {
     const next = new Set(prev);
@@ -146,6 +152,10 @@ function LcMenuSection({ onDone }: { onDone: () => void }) {
   );
 }
 
+function SidebarDivider() {
+  return <div style={{ width: 28, height: 1, backgroundColor: "var(--color-border)", margin: "3px 0", flexShrink: 0 }} />;
+}
+
 function NotifDot({ count }: { count: number }) {
   if (count === 0) return null;
   return (
@@ -179,7 +189,6 @@ function SidebarBody({
   collapsed = false,
   onCollapse,
   onExpand,
-  pastDueCount = 0,
   chatUnread = 0,
   subProjects = [],
   activeScope = "lab",
@@ -226,9 +235,6 @@ function SidebarBody({
     width: 36, height: 36, display: "flex", alignItems: "center",
     justifyContent: "center", borderRadius: 8, flexShrink: 0,
   } as const;
-  const Divider = () => (
-    <div style={{ width: 28, height: 1, backgroundColor: "var(--color-border)", margin: "3px 0", flexShrink: 0 }} />
-  );
   const activeSubProject = activeScope === "project" ? subProjects.find(sp => sp.id === activeSubProjectId) : null;
   const wsDisplayName = activeScope === "personal" ? "Personal" : (activeSubProject?.name ?? projectName ?? "");
   const wsBg = (activeSubProject?.color ?? projectColor) || "var(--color-navy)";
@@ -255,7 +261,7 @@ function SidebarBody({
           <ChevronRight size={15} />
         </button>
 
-        <Divider />
+        <SidebarDivider />
 
         {/* Workspace avatar - opens scope/project switcher */}
         <div style={{ position: "relative" }}>
@@ -327,7 +333,7 @@ function SidebarBody({
           )}
         </div>
 
-        <Divider />
+        <SidebarDivider />
 
         {/* Page nav icons */}
         <nav className="flex-1 flex flex-col items-center overflow-y-auto" style={{ gap: 2, scrollbarWidth: "none" }} aria-label="Main navigation">
@@ -367,7 +373,7 @@ function SidebarBody({
           })}
         </nav>
 
-        <Divider />
+        <SidebarDivider />
 
         {/* Get help — support resources, reachable from every page */}
         <Tooltip label="Get help" placement="right">
@@ -794,7 +800,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
   const { mcs: myMcs, loaded: mcsLoaded } = useMcs();
   const tourRole: TourRole | null = lcLoading ? null : lcRole ?? (mcsLoaded && myMcs.length > 0 ? "mc" : null);
-  const [navCollapsed, setNavCollapsed]   = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try { return localStorage.getItem("aiesec_nav_collapsed") === "true"; } catch { return false; }
+  });
   const [navWidth, setNavWidth]           = useState(() => {
     try {
       const s = localStorage.getItem("aiesec_nav_width");
@@ -811,8 +819,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [helpKey, setHelpKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [authed, setAuthed] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-  const [project, setProject] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfileRecord | null>(null);
+  const [project, setProject] = useState<ProjectRecord | null>(null);
   const [team, setTeam] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<SupabaseNotif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -1065,18 +1073,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => { canceled = true; };
   }, [projectId]);
 
-  useEffect(() => {
-    const collapsed = localStorage.getItem("aiesec_nav_collapsed") === "true";
-    setNavCollapsed(collapsed);
-    // Sync ref with the state value already read in useState init
-    navWidthRef.current = navWidth;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { navWidthRef.current = navWidth; }, [navWidth]);
 
-  useEffect(() => {
+  const [panelPath, setPanelPath] = useState(pathname);
+  if (panelPath !== pathname) {
+    setPanelPath(pathname);
     setMobileNavOpen(false); setNotifOpen(false); setProfileOpen(false);
+    if (pathname.startsWith("/chat")) setChatUnread(0);
+  }
+  useEffect(() => {
     if (pathname.startsWith("/chat")) {
-      setChatUnread(0);
       try { localStorage.setItem("aiesec_chat_last_read", new Date().toISOString()); } catch { /* ignore */ }
     }
   }, [pathname]);

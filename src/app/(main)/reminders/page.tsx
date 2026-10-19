@@ -12,7 +12,7 @@ import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Avatar from "@/components/ui/Avatar";
 import ClientOnly from "@/components/ui/ClientOnly";
-import type { Reminder, ReminderScope, ReminderPriority, User, SubProject } from "@/types";
+import type { Reminder, ReminderScope, ReminderPriority, User } from "@/types";
 import { useUndoToast } from "@/context/UndoToastContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ interface ReminderRowProps {
   isDragging?: boolean;
 }
 
-function ReminderRow({ reminder, currentUserId, teamMembers, isDraggable, showScopeHint, isPastDue, onComplete, onDelete, onEdit, onDragStart, onDragEnd, onDragOver, onDrop, isDragging }: ReminderRowProps) {
+function ReminderRow({ reminder, currentUserId, teamMembers, isDraggable, showScopeHint, onComplete, onDelete, onEdit, onDragStart, onDragEnd, onDragOver, onDrop, isDragging }: ReminderRowProps) {
   const [completing, setCompleting] = useState(false);
   const [hovered, setHovered] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -293,63 +293,6 @@ function CompletedReminderRow({ reminder, currentUserId, onUncomplete, onDelete 
   );
 }
 
-// ── DraggableList - wraps reminder rows with drag-and-drop ────────────────────
-
-interface DragListProps {
-  items: Reminder[]; isDraggable: boolean; accentColor: string;
-  currentUserId: string; teamMembers: User[]; editingId: string | null;
-  showScopeHint?: boolean;
-  onComplete: (id: string) => void; onDelete: (id: string) => void;
-  onEdit: (id: string) => void;
-  onSave: (id: string, u: UpdatePayload) => void;
-  onCancelEdit: () => void;
-  onReorder: (fromId: string, beforeId: string | "end", items: Reminder[]) => void;
-  projectId?: string;
-}
-
-function DraggableList({ items, isDraggable, accentColor, currentUserId, teamMembers, editingId, showScopeHint, onComplete, onDelete, onEdit, onSave, onCancelEdit, onReorder, projectId }: DragListProps) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropBeforeId, setDropBeforeId] = useState<string | "end" | null>(null);
-
-  function handleDrop(fromId: string, beforeId: string | "end") {
-    if (fromId !== beforeId) onReorder(fromId, beforeId, items);
-    setDraggingId(null); setDropBeforeId(null);
-  }
-
-  const DropLine = () => (
-    <div style={{ height: 2, margin: "0 16px", borderRadius: 1, backgroundColor: accentColor, transition: "opacity 0.1s" }} />
-  );
-
-  return (
-    <div
-      onDragOver={e => { e.preventDefault(); setDropBeforeId("end"); }}
-      onDrop={e => { e.preventDefault(); if (draggingId) handleDrop(draggingId, "end"); }}
-      onDragLeave={e => { if (!(e.currentTarget as Element).contains(e.relatedTarget as Node)) setDropBeforeId(null); }}
-    >
-      {items.map(r => (
-        <Fragment key={r.id}>
-          {dropBeforeId === r.id && draggingId && draggingId !== r.id && <DropLine />}
-          {editingId === r.id ? (
-            <ReminderEditRow reminder={r} teamMembers={teamMembers} currentUserId={currentUserId} projectId={projectId} onSave={onSave} onCancel={onCancelEdit} />
-          ) : (
-            <ReminderRow
-              reminder={r} currentUserId={currentUserId} teamMembers={teamMembers}
-              isDraggable={isDraggable} isDragging={draggingId === r.id}
-              showScopeHint={showScopeHint}
-              onComplete={onComplete} onDelete={onDelete} onEdit={() => onEdit(r.id)}
-              onDragStart={() => setDraggingId(r.id)}
-              onDragEnd={() => { setDraggingId(null); setDropBeforeId(null); }}
-              onDragOver={() => setDropBeforeId(r.id)}
-              onDrop={e => { e.preventDefault(); if (draggingId) handleDrop(draggingId, r.id); }}
-            />
-          )}
-        </Fragment>
-      ))}
-      {dropBeforeId === "end" && draggingId && <DropLine />}
-    </div>
-  );
-}
-
 // ── Update payload type ───────────────────────────────────────────────────────
 
 interface UpdatePayload {
@@ -362,7 +305,7 @@ interface UpdatePayload {
 
 // ── ReminderEditRow ───────────────────────────────────────────────────────────
 
-function ReminderEditRow({ reminder, teamMembers, currentUserId, projectId, onSave, onCancel }: {
+function ReminderEditRow({ reminder, teamMembers, onSave, onCancel }: {
   reminder: Reminder; teamMembers: User[]; currentUserId: string; projectId?: string;
   onSave: (id: string, u: UpdatePayload) => void; onCancel: () => void;
 }) {
@@ -527,41 +470,6 @@ interface CardProps {
   onReschedule?: (id: string, newDueAt: string | null) => void;
   hideAddRow?: boolean;
   showScopeHint?: boolean;
-}
-
-function ReminderCard(props: CardProps) {
-  const { items, completedItems, showCompleted, isDraggable, accentColor, currentUserId, teamMembers, editingId, isAdding, selectedList, projectId, showScopeHint, onComplete, onDelete, onEdit, onSave, onCancelEdit, onAdd, onToggleAdd, onToggleCompleted, onUncomplete, onReorder, hideAddRow } = props;
-  return (
-    <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, overflow: "hidden" }}>
-      <DraggableList items={items} isDraggable={isDraggable} accentColor={accentColor} currentUserId={currentUserId} teamMembers={teamMembers} editingId={editingId} showScopeHint={showScopeHint} onComplete={onComplete} onDelete={onDelete} onEdit={onEdit} onSave={onSave} onCancelEdit={onCancelEdit} onReorder={onReorder} projectId={projectId} />
-
-      {!hideAddRow && (
-        isAdding ? (
-          <InlineAddRow defaultScope={getDefaultScope(selectedList)} accentColor={accentColor} teamMembers={teamMembers} onAdd={onAdd} onClose={onToggleAdd} />
-        ) : (
-          <button onClick={onToggleAdd}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontFamily: "var(--font-roboto)", borderTop: items.length > 0 ? "1px solid var(--color-border)" : "none" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(0,0,0,0.02)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
-            <Plus size={15} color={accentColor} />
-            <span style={{ color: accentColor, fontWeight: 500 }}>New Reminder</span>
-          </button>
-        )
-      )}
-
-      {completedItems.length > 0 && (
-        <div style={{ borderTop: "1px solid var(--color-border)" }}>
-          <button onClick={onToggleCompleted} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 16px", background: "none", border: "none", cursor: "pointer" }}>
-            <span style={{ fontSize: 13, color: "var(--color-secondary)", fontFamily: "var(--font-roboto)" }}>{completedItems.length} Completed</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: accentColor, fontFamily: "var(--font-roboto)" }}>{showCompleted ? "Hide" : "Show"}</span>
-          </button>
-          {showCompleted && completedItems.map(r => (
-            <CompletedReminderRow key={r.id} reminder={r} currentUserId={currentUserId} onUncomplete={onUncomplete} onDelete={onDelete} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── Drag-to-reschedule components ────────────────────────────────────────────
@@ -788,10 +696,7 @@ export default function RemindersPage() {
   }
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      try { const s = localStorage.getItem("aiesec_user"); if (s) setCurrentUserId(JSON.parse(s).id ?? "demo"); } catch { /* ignore */ }
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     supabase.auth.getSession().then(({ data: { session } }) => { if (session?.user) setCurrentUserId(session.user.id); });
   }, []);
 
@@ -914,7 +819,7 @@ export default function RemindersPage() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [isSupabaseConfigured, projectId, currentUserId]);
+  }, [projectId, currentUserId]);
 
   function commitDelete(id: string) { if (isSupabaseConfigured) supabase.from("reminders").delete().eq("id", id).then(({ error }) => { if (error) console.error("[Reminders] delete:", error); }); }
   function commitComplete(id: string) { if (isSupabaseConfigured) supabase.from("reminders").update({ completed: true }).eq("id", id).then(({ error }) => { if (error) console.error("[Reminders] complete:", error); }); }

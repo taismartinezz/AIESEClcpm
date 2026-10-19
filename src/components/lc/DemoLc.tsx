@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
@@ -46,6 +48,7 @@ export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void
 
 /** Shown in a demo LC: explains it and offers to delete it. */
 export function DemoBanner() {
+  const router = useRouter();
   const { projectId, lcs, setActiveLc } = useProject();
   const [isDemo, setIsDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export function DemoBanner() {
       const { error: err } = await supabase.rpc("delete_demo_lc", { p_project_id: projectId });
       if (err) throw new Error(err.message);
       const next = lcs.find((l) => l.id !== projectId);
-      if (next) setActiveLc(next.id); else window.location.assign("/onboarding");
+      if (next) setActiveLc(next.id); else router.push("/onboarding");
     } catch (e) {
       setError(`Couldn't delete it: ${e instanceof Error ? e.message : String(e)}`);
     }

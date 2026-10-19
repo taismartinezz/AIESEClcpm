@@ -1,16 +1,18 @@
 "use client";
 
+import { useHydrated } from "@/lib/use-hydrated";
+
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useProject } from "@/context/ProjectContext";
 import {
   JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS,
 } from "@/lib/mock-data";
-import { supabase } from "@/lib/supabase";
+import { supabase, isPreview } from "@/lib/supabase";
 import type { JournalEntry } from "@/types";
 import {
-  Lock, Mic, MicOff, HelpingHand, Search, Plus, X, Phone,
-  ChevronLeft, ChevronRight, Users, Building2, Loader2, BookOpen,
+  Lock, Mic, MicOff, HelpingHand, Search, Plus, X,
+  ChevronLeft, ChevronRight, Loader2, BookOpen,
   AlertCircle, HeartPulse,
 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -40,8 +42,8 @@ interface ISpeechRecognition extends EventTarget {
 
 declare global {
   interface Window {
-    SpeechRecognition: new () => ISpeechRecognition;
-    webkitSpeechRecognition: new () => ISpeechRecognition;
+    SpeechRecognition?: new () => ISpeechRecognition;
+    webkitSpeechRecognition?: new () => ISpeechRecognition;
   }
 }
 
@@ -89,7 +91,8 @@ function PromptCard({
   readOnly?: boolean;
 }) {
   const [isRecording, setIsRecording]               = useState(false);
-  const [hasSpeechSupport, setHasSpeechSupport] = useState<boolean | null>(null);
+  const hydrated = useHydrated();
+  const hasSpeechSupport = hydrated ? !!(window.SpeechRecognition || window.webkitSpeechRecognition) : null;
   const [interimText, setInterimText]         = useState("");
   const [grammarState, setGrammarState]       = useState<"idle" | "loading" | "preview">("idle");
   const [correctedText, setCorrectedText]     = useState("");
@@ -100,10 +103,6 @@ function PromptCard({
   const baseResponseRef      = useRef("");   // response at time recording started
   const sessionTranscriptRef = useRef("");   // finals accumulated this session
 
-  // Detect Web Speech API support client-side only (null = not yet checked)
-  useEffect(() => {
-    setHasSpeechSupport(!!(window.SpeechRecognition || window.webkitSpeechRecognition));
-  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -305,82 +304,6 @@ function PromptCard({
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── Support modal ─────────────────────────────────────────────────────────────
-
-function SupportModal({ onClose, userId, projectId }: { onClose: () => void; userId: string; projectId: string | null }) {
-  const [checkinState, setCheckinState] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle');
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  async function requestCheckin() {
-    if (!projectId || checkinState === 'loading' || checkinState === 'sent') return;
-    setCheckinState('loading');
-    const { error } = await supabase.from('reminders').insert({
-      user_id: userId,
-      project_id: projectId,
-      scope: 'lab',
-      title: 'Anonymous check-in requested',
-      priority: 'high',
-    });
-    setCheckinState(error ? 'error' : 'sent');
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" style={{ backgroundColor: "rgba(2,99,196,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-md" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "28px 24px", boxShadow: "0 8px 40px rgba(2,99,196,0.18)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 20, color: "var(--color-navy)", margin: 0 }}>Support is available.</h2>
-            <p style={{ fontSize: 13, color: "var(--color-secondary)", marginTop: 6, lineHeight: 1.5 }}>You don't have to navigate this alone.</p>
-          </div>
-          <button onClick={onClose} className="flex items-center justify-center rounded-lg hover:bg-[rgba(2,99,196,0.06)]" style={{ width: 44, height: 44 }} aria-label="Close"><X size={16} color="var(--color-secondary)" /></button>
-        </div>
-        <div className="space-y-3">
-          <button onClick={requestCheckin} disabled={checkinState === 'loading' || checkinState === 'sent'} className="w-full text-left px-4 py-3.5 rounded-lg" style={{ backgroundColor: checkinState === 'sent' ? "rgba(34,197,94,0.08)" : "var(--color-canvas)", border: `1px solid ${checkinState === 'sent' ? "#22c55e" : checkinState === 'error' ? "var(--color-error)" : "var(--color-border)"}`, borderRadius: 10, cursor: checkinState === 'sent' ? "default" : "pointer" }}>
-            <div className="flex items-start gap-3">
-              {checkinState === 'loading' ? <Loader2 size={18} color="var(--color-navy)" style={{ marginTop: 2, flexShrink: 0 }} className="animate-spin" /> : <Users size={18} color={checkinState === 'sent' ? "#22c55e" : "var(--color-navy)"} style={{ marginTop: 2, flexShrink: 0 }} />}
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: checkinState === 'sent' ? "#22c55e" : checkinState === 'error' ? "var(--color-error)" : "var(--color-body)" }}>
-                  {checkinState === 'sent' ? 'Check-in request sent' : checkinState === 'error' ? 'Failed to send. Tap to retry.' : 'Request a check-in with your supervisor'}
-                </p>
-                <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3, lineHeight: 1.4 }}>
-                  {checkinState === 'sent' ? 'Your LCP will be notified anonymously.' : 'Sends an anonymous notification to your LCP. Your identity is never shared.'}
-                </p>
-              </div>
-            </div>
-          </button>
-          <button className="w-full text-left px-4 py-3.5 rounded-lg" style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
-            <div className="flex items-start gap-3">
-              <Building2 size={18} color="var(--color-navy)" style={{ marginTop: 2, flexShrink: 0 }} />
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>Counseling & Psychological Services (CAPS)</p>
-                <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3 }}>Check with your institution's counseling services</p>
-              </div>
-            </div>
-          </button>
-          <a href="tel:988" className="block px-4 py-3.5 rounded-lg" style={{ backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 10, textDecoration: "none" }}>
-            <div className="flex items-start gap-3">
-              <Phone size={18} color="var(--color-navy)" style={{ marginTop: 2 }} />
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>Crisis Support Line</p>
-                <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3 }}>Call or text 988 · Available 24/7</p>
-              </div>
-            </div>
-          </a>
-        </div>
-        <div className="flex items-center gap-2 mt-5 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
-          <Lock size={13} color="var(--color-secondary)" />
-          <p style={{ fontSize: 11, color: "var(--color-secondary)", lineHeight: 1.4 }}>Your journal and individual check-in answers are completely private. Your VP, LCP and team cannot see them under any circumstances.</p>
-        </div>
       </div>
     </div>
   );
@@ -599,11 +522,9 @@ export default function JournalPage() {
   const { projectId } = useProject();
 
   const [entries, setEntries]               = useState<JournalEntry[]>([]);
-  const [loadingEntries, setLoadingEntries] = useState(true);
   const [authUserId, setAuthUserId]         = useState("local");
   const [projectPrompts, setProjectPrompts] = useState<string[]>([]);
   const [cryptoKey, setCryptoKey]           = useState<CryptoKey | null>(null);
-  const [encryptionDisabled, setEncryptionDisabled] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | "new">("new");
   // New entry state
   const [defaultResponse, setDefaultResponse] = useState("");
@@ -647,27 +568,33 @@ export default function JournalPage() {
   const isViewingEntry = selectedEntryId !== "new";
   const viewedEntry    = isViewingEntry ? entries.find((e) => e.id === selectedEntryId) : null;
 
-  // Restore draft from localStorage on first mount
+  const draftKey = `${DRAFT_KEY}:${authUserId}`;
+
+  // Drafts belong to one authenticated user and use the same encryption as entries.
+  // Do not auto-restore the old unscoped plaintext key on a shared browser.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        defaultResponse?: string;
-        addedPrompts?: AddedPrompt[];
-      };
-      if (draft.defaultResponse) setDefaultResponse(draft.defaultResponse);
-      if (Array.isArray(draft.addedPrompts)) setAddedPrompts(draft.addedPrompts);
-    } catch {
-      // corrupt draft — ignore
+    if (authUserId === "local" || (!isPreview && !cryptoKey)) return;
+    let cancelled = false;
+    async function restore() {
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (!raw) return;
+        const stored: unknown = JSON.parse(raw);
+        const draft = (isEncryptedContent(stored) && cryptoKey
+          ? await decryptJournalContent(cryptoKey, stored)
+          : isPreview ? stored : null) as { defaultResponse?: string; addedPrompts?: AddedPrompt[] } | null;
+        if (cancelled || !draft) return;
+        if (typeof draft.defaultResponse === "string") setDefaultResponse(draft.defaultResponse);
+        if (Array.isArray(draft.addedPrompts)) setAddedPrompts(draft.addedPrompts);
+      } catch { /* Preserve unreadable drafts for recovery; never display another user's draft. */ }
     }
-  // runs once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void restore();
+    return () => { cancelled = true; };
+  }, [authUserId, cryptoKey, draftKey]);
 
   function hasDraft() {
     if (typeof window === "undefined") return false;
-    try { return !!localStorage.getItem(DRAFT_KEY); } catch { return false; }
+    try { return !!localStorage.getItem(draftKey); } catch { return false; }
   }
 
   function handleSelectEntry(id: string | "new") {
@@ -692,14 +619,19 @@ export default function JournalPage() {
     setAddedPrompts([]);
     setSelectedEntryId("new");
     setSaveMsg(null);
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     setDiscardModalOpen(false);
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
+    if (authUserId === "local" || (!isPreview && !cryptoKey)) {
+      setSaveMsg({ text: "Encryption key unavailable — please reload and try again.", color: "var(--color-error)" });
+      return;
+    }
     const draft = { defaultResponse, addedPrompts, timestamp: Date.now() };
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      const stored = cryptoKey ? await encryptJournalContent(cryptoKey, draft) : draft;
+      localStorage.setItem(draftKey, JSON.stringify(stored));
       setSaveMsg({ text: "Draft saved.", color: "var(--color-secondary)" });
     } catch {
       setSaveMsg({ text: "Draft couldn't be saved (storage full or blocked).", color: "var(--color-error, #dc2626)" });
@@ -748,6 +680,10 @@ export default function JournalPage() {
 
       const sessionResult = await supabase.auth.getSession();
       const resolvedUserId = sessionResult?.data?.session?.user?.id ?? authUserId;
+      if (isSupabaseConfigured && (!sessionResult?.data?.session?.user || resolvedUserId !== authUserId)) {
+        setSaveMsg({ text: "Your session changed — reload before saving your entry.", color: "var(--color-error)" });
+        return;
+      }
 
       // Encrypt content before storing. If encryption is expected but fails, block the save.
       let storedContent: unknown = content;
@@ -760,8 +696,8 @@ export default function JournalPage() {
           setTimeout(() => setSaveMsg(null), 5000);
           return;
         }
-      } else if (isSupabaseConfigured && !encryptionDisabled) {
-        // Key fetch failed (not explicitly disabled) — block save to avoid silently storing plaintext
+      } else if (isSupabaseConfigured && !isPreview) {
+        // Missing or failed encryption always blocks persistence to a real database.
         setSaveMsg({ text: "Encryption key unavailable — please reload and try again.", color: "var(--color-error)" });
         setTimeout(() => setSaveMsg(null), 5000);
         return;
@@ -805,7 +741,7 @@ export default function JournalPage() {
       setDefaultResponse("");
       setAddedPrompts([]);
       setSelectedEntryId(newEntry.id);
-      try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
 
       setSaveMsg({ text: "✓ Entry saved.", color: "var(--color-success)" });
       setTimeout(() => setSaveMsg(null), 3000);
@@ -824,19 +760,20 @@ export default function JournalPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null;
-      if (!user) { setLoadingEntries(false); return; }
+      if (!user) {  return; }
       setAuthUserId(user.id);
 
       // Fetch per-user encryption key from server
       let encKey: CryptoKey | null = null;
       try {
-        const keyRes = await fetch("/api/journal/key", {
-          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
-        });
-        if (keyRes.ok) {
-          const keyData = await keyRes.json() as { key?: string; disabled?: boolean };
-          if (keyData.disabled) setEncryptionDisabled(true);
-          else if (keyData.key) encKey = await importJournalKey(keyData.key);
+        if (!isPreview) {
+          const keyRes = await fetch("/api/journal/key", {
+            headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+          });
+          if (keyRes.ok) {
+            const keyData = await keyRes.json() as { key?: string };
+            if (keyData.key) encKey = await importJournalKey(keyData.key);
+          }
         }
       } catch (e) {
         console.warn("[Journal] could not fetch encryption key:", e);
@@ -890,9 +827,9 @@ export default function JournalPage() {
         }
         setEntries(parsed);
       }
-      setLoadingEntries(false);
+
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
   // Load the LC's journal prompt configuration (set by the president)
@@ -1115,10 +1052,20 @@ export default function JournalPage() {
 
         </div>
 
+        {isViewingEntry && saveMsg && (
+          <div role="status" className="sticky bottom-0 px-4 py-3" style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)", color: saveMsg.color, fontSize: 12 }}>
+            {saveMsg.text}
+          </div>
+        )}
+
         {/* Save bar */}
         {!isViewingEntry && (
-          <div className="sticky bottom-0 flex items-center justify-between px-4 md:px-6 py-3 gap-3" style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)", paddingRight: "max(24px, 88px)" }}>
-            <span style={{ fontSize: 12, color: "var(--color-secondary)" }} className="hidden sm:block">Your entry is private and encrypted.</span>
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-between px-4 md:px-6 py-3 gap-3" style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)", paddingRight: "max(24px, 88px)" }}>
+            <span style={{ flex: "1 1 240px", fontSize: 12, color: "var(--color-secondary)" }}>
+              {isPreview ? "Demo only — do not enter private information. Entries reset on reload; saved drafts stay in this browser."
+                : cryptoKey ? "Your entry is private and encrypted."
+                : "Encryption unavailable. Entries and drafts cannot be saved until it is restored."}
+            </span>
             <div className="flex items-center gap-2 ml-auto">
               {saveMsg && (
                 <span style={{ fontSize: 12, color: saveMsg.color, fontWeight: 600 }} role="status">{saveMsg.text}</span>

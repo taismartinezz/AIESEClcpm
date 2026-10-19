@@ -6,6 +6,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Undo2 } from "lucide-react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const DURATION = 10_000;
 
@@ -24,14 +25,12 @@ interface ActiveToast { id: number; message: string; }
 export function UndoToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ActiveToast | null>(null);
   const [progress, setProgress] = useState(1);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const idRef       = useRef(0);
   const undoRef     = useRef<(() => void) | null>(null);
   const confirmRef  = useRef<(() => void) | null>(null);
   const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const frameRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => { setMounted(true); }, []);
 
   const clear = useCallback(() => {
     if (timerRef.current)  clearTimeout(timerRef.current);
@@ -69,7 +68,7 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
       confirmRef.current?.();
       setToast(null);
     }, DURATION);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [toast, clear]);
 
   const handleUndo = useCallback(() => {

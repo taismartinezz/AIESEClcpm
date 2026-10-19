@@ -22,10 +22,7 @@ export function ThreadPanel({ parent, currentUserId, currentUserName, projectId,
   const avUser = buildUser(parent.senderId, parent.senderName, parent.senderColor);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setReplies([{ id: "tr-1", channel: parent.channel, senderId: "u0", senderName: "Sofia Almeida", content: "Great idea, let's confirm the room at the meeting.", createdAt: new Date(Date.now() - 60000 * 3).toISOString(), threadParentId: parent.id, deletedAt: null, threadCount: 0, reactions: [], mentionedUserIds: [], isPinned: false, attachments: [] }]);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     supabase.from("chat_messages").select("id, channel, sender_id, content, created_at, deleted_at").eq("thread_parent_id", parent.id).order("created_at", { ascending: true })
       .then(async ({ data }) => {
         if (!data) return;

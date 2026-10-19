@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle, Clock, Check, MoreHorizontal } from "lucide-react";
+import { CheckCircle, Clock, Check } from "lucide-react";
 import type { Task, User } from "@/types";
 import Avatar from "@/components/ui/Avatar";
 import { Card, CardHeader } from "./DashboardCard";

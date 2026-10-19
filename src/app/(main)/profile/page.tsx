@@ -1,5 +1,9 @@
 "use client";
 
+import Image from "next/image";
+
+import type { UserProfileRecord, ProjectRecord } from "@/types/database-records";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -149,8 +153,8 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Source of truth: Supabase ─────────────────────────────────────────────
-  const [profile, setProfile] = useState<any>(null);
-  const [project, setProject] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfileRecord | null>(null);
+  const [project, setProject] = useState<ProjectRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   // ── Photo (local only - needs Supabase Storage to persist) ───────────────
@@ -577,7 +581,7 @@ export default function ProfilePage() {
           <div style={{ width: isMobile ? "auto" : 140, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             {photo ? (
               <div style={{ width: 96, height: 96, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                <img
+                <Image unoptimized width={96} height={96}
                   src={photo}
                   alt={displayName}
                   style={{ width: 96, height: 96, objectFit: "cover", display: "block" }}

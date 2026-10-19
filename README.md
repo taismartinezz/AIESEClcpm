@@ -59,6 +59,9 @@ Everyone can belong to several LCs and has a role **in each one**:
 
 ## Development
 
+Use Node.js 24 (`nvm use`; the version is recorded in `.nvmrc`). The installed
+`lint-staged` release requires Node 22.22.1 or later; CI also uses Node 24.
+
 ```bash
 npm install
 cp .env.example .env.local   # fill in your own project's values
@@ -73,6 +76,7 @@ Without Supabase env vars the app runs in **demo mode** with a fictional LC (`sr
 | `npx tsc --noEmit` | type-check |
 | `npm run test:unit` | unit tests + database tests (migrations and RLS in PGlite) |
 | `npm run test:e2e` | Playwright |
+| `npm run test:demo` | Browser workflows against the actual in-memory demo backend |
 | `npm run db:bundle` | regenerate `supabase/full_schema.sql` from the migrations |
 | `SEED_PASSWORD=… npm run db:seed` | create a demo LC (members, departments, check-ins, finance, events, tabling) with fictional `@example.com` accounts in your **development** project |
 | `npm run db:seed:reset` | delete those demo accounts again |
@@ -88,6 +92,38 @@ This app must run on its **own** Supabase project. Never point it at another app
 5. **Storage.** The finance migration creates a private `receipts` bucket (10 MB, images and PDF) with its access policies. Nothing else to configure: receipts are only ever opened through short-lived signed URLs.
 
 `npm run test:unit` builds a throwaway database from the same migrations (in-process, via PGlite) to check that the chain and the bundle still apply cleanly.
+
+### Browser testing
+
+Stop any app using port 3000 before running browser tests. Each suite starts its
+own server so a demo server cannot accidentally be reused by the mocked tests.
+`npm run test:e2e` supplies dummy public Supabase settings and intercepts backend
+responses in the browser fixtures; no real project or credentials are needed.
+`npm run test:demo` clears those public settings and exercises the real demo
+backend. With `CI=1`, each suite first builds and then tests the production app.
+Otherwise it starts the development server. Install Chromium with
+`npx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
+to an existing Chromium executable (this cloud machine uses `/usr/bin/chromium`).
+
+`npm run lint` fails on warnings as well as errors. For a fresh checkout, run
+`npx next typegen` before `npx tsc --noEmit` to generate Next.js route types.
+See [the QA report](docs/QA_REPORT.md) for verified behavior and outstanding
+dependency-advisory details.
+
+### Journal encryption and drafts
+
+For a real database, `JOURNAL_KEY_SECRET` is required for saving journal entries
+and drafts. Missing or unavailable encryption blocks saves; it never enables a
+plaintext fallback. Browser drafts are encrypted and scoped to the signed-in user.
+Existing encrypted entries keep their original key derivation and remain readable.
+
+Older versions wrote plaintext drafts to the unscoped browser key
+`aiesec_journal_draft`. Those drafts are no longer restored automatically because
+their owner cannot be established. They are left untouched for manual recovery
+by the original author on a trusted browser. After recovery, remove that legacy
+key from that browser; do not copy its contents into logs or bug reports.
+Demo entries use sample data in browser memory, and demo drafts stay in that
+browser without encryption. Do not enter private information in demo mode.
 
 ## Removed modules
 

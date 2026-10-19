@@ -1,20 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { decryptJournalContent, importJournalKey } from '@/lib/journal-crypto'
 
 // ── Mock infrastructure ───────────────────────────────────────────────────────
 
 // Stable mock insert fn so tests can assert call counts
 const mockInsert = vi.fn()
 const mockSingle = vi.fn()
+const mockAuthUser = vi.hoisted(() => ({ id: 'user-123' }))
 
 vi.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,
+  isPreview: false,
   supabase: {
     auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { user: { id: 'user-123' }, access_token: 'tok' } },
-      }),
+      getSession: vi.fn(async () => ({
+        data: { session: { user: { id: mockAuthUser.id }, access_token: 'tok' } },
+      })),
     },
     from: vi.fn((table: string) => {
       if (table === 'journal_entries') {
@@ -28,7 +31,7 @@ vi.mock('@/lib/supabase', () => ({
       if (table === 'tasks') {
         return {
           select: vi.fn().mockReturnThis(),
-          contains: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
           lt: vi.fn().mockReturnThis(),
           not: vi.fn().mockResolvedValue({ count: 0, error: null }),
         }
@@ -62,10 +65,11 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/journal',
 }))
 
-// Key route: return disabled so encryption is skipped
+// Exercise actual WebCrypto encryption with a deterministic test-only key.
+const testKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)))
 global.fetch = vi.fn().mockResolvedValue({
   ok: true,
-  json: async () => ({ disabled: true }),
+  json: async () => ({ key: testKey }),
 } as Response)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,10 +109,12 @@ async function typeInDefaultPrompt(text: string) {
 describe('Journal save — duplicate-submit & editor reset', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAuthUser.id = 'user-123'
     // Reset module cache so component state starts fresh each test
     vi.resetModules()
     // Clear draft from localStorage
-    try { localStorage.removeItem('aiesec_journal_draft') } catch { /* ignore */ }
+    localStorage.clear()
+    vi.mocked(global.fetch).mockResolvedValue({ ok: true, json: async () => ({ key: testKey }) } as Response)
   })
 
   it('clears the editor after a successful save', async () => {
@@ -124,6 +130,8 @@ describe('Journal save — duplicate-submit & editor reset', () => {
     await waitFor(() => {
       expect(mockInsert).toHaveBeenCalledTimes(1)
     })
+
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Entry saved.')
 
     // Textarea should now be empty
     const textarea = screen.queryByPlaceholderText(/take a moment/i)
@@ -152,6 +160,53 @@ describe('Journal save — duplicate-submit & editor reset', () => {
     await waitFor(() => {
       expect(mockInsert).toHaveBeenCalledTimes(1)
     })
+    const stored = mockInsert.mock.calls[0][0].content
+    expect(stored.enc).toBe('aes-gcm-v1')
+    expect(JSON.stringify(stored)).not.toContain('Some reflection text.')
+    const decrypted = await decryptJournalContent(await importJournalKey(testKey), stored)
+    expect(decrypted).toMatchObject({ prompts: [{ response: 'Some reflection text.' }] })
+  })
+
+  it.each([
+    { ok: false, json: async () => ({ error: 'Not configured' }) },
+    { ok: true, json: async () => ({ disabled: true }) },
+  ])('blocks entry and draft persistence when encryption is unavailable: %j', async (response) => {
+    vi.mocked(global.fetch).mockResolvedValue(response as Response)
+    await renderJournal()
+    await typeInDefaultPrompt('Never store this as plaintext.')
+    await userEvent.click(screen.getByRole('button', { name: /save entry/i }))
+    await waitFor(() => expect(screen.getByText(/Encryption key unavailable/)).toBeVisible())
+    expect(mockInsert).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: /save draft/i }))
+    expect(localStorage.getItem('aiesec_journal_draft:user-123')).toBeNull()
+    expect(screen.queryByText('Your entry is private and encrypted.')).not.toBeInTheDocument()
+  })
+
+  it('blocks a save after the authenticated account changes', async () => {
+    await renderJournal()
+    await typeInDefaultPrompt('This belongs to the first account.')
+    mockAuthUser.id = 'different-user'
+    await userEvent.click(screen.getByRole('button', { name: /save entry/i }))
+    await waitFor(() => expect(screen.getByText(/Your session changed/)).toBeVisible())
+    expect(mockInsert).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText(/take a moment/i)).toHaveValue('This belongs to the first account.')
+  })
+
+  it('encrypts a scoped draft, restores it, and ignores legacy and other-account drafts', async () => {
+    localStorage.setItem('aiesec_journal_draft', JSON.stringify({ defaultResponse: 'Legacy private text' }))
+    localStorage.setItem('aiesec_journal_draft:someone-else', JSON.stringify({ defaultResponse: 'Someone else’s private text' }))
+    await renderJournal()
+    expect(screen.getByPlaceholderText(/take a moment/i)).toHaveValue('')
+    await typeInDefaultPrompt('My encrypted draft.')
+    await userEvent.click(screen.getByRole('button', { name: /save draft/i }))
+    await waitFor(() => expect(screen.getByText('Draft saved.')).toBeVisible())
+    const raw = localStorage.getItem('aiesec_journal_draft:user-123')!
+    expect(raw).not.toContain('My encrypted draft.')
+    const draft = await decryptJournalContent(await importJournalKey(testKey), JSON.parse(raw))
+    expect(draft).toMatchObject({ defaultResponse: 'My encrypted draft.' })
+    cleanup()
+    await renderJournal()
+    await waitFor(() => expect(screen.getByPlaceholderText(/take a moment/i)).toHaveValue('My encrypted draft.'))
   })
 
   it('leaves text in the editor and re-enables Save after an insert error', async () => {

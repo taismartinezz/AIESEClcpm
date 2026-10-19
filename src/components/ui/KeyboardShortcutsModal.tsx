@@ -1,8 +1,9 @@
 "use client";
 
+import { useHydrated } from "@/lib/use-hydrated";
+
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useState, useEffect } from "react";
 
 export interface Shortcut {
   keys: string[];
@@ -49,8 +50,7 @@ interface Props {
 }
 
 export default function KeyboardShortcutsModal({ open, onClose }: Props) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useHydrated();
 
   if (!mounted || !open) return null;
 

@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-18",
+  "toolchain": {
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "next": "16.4.2",
+    "eslint-config-next": "16.4.2",
+    "vitest": "4.1.12"
+  },
+  "verification": {
+    "unit_tests": {
+      "passed": 301,
+      "files": 46,
+      "failed": 0,
+      "skipped": 0,
+      "unhandled_errors": 0
+    },
+    "mocked_browser_tests": {
+      "passed": 72,
+      "failed": 0,
+      "skipped": 0
+    },
+    "demo_browser_tests": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "route_viewport_combinations": 48
+    },
+    "production_build": "passed",
+    "typecheck": "passed",
+    "route_type_generation": "passed"
+  },
+  "lint": {
+    "baseline": {
+      "errors": 90,
+      "warnings": 54
+    },
+    "errors": 0,
+    "warnings": 0,
+    "findings": [],
+    "previous_pass": {
+      "errors": 47,
+      "warnings": 55
+    },
+    "warnings_fail_check": true
+  },
+  "dependency_audit": {
+    "production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "all_dependencies": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 5,
+      "critical": 0,
+      "total": 5
+    },
+    "remaining": [
+      {
+        "package": "@next/eslint-plugin-next",
+        "severity": "high",
+        "direct": false,
+        "range": ">=14.3.0-canary.0",
+        "via": [
+          "fast-glob"
+        ],
+        "suggested_fix": {
+          "name": "eslint-config-next",
+          "version": "14.2.35",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "braces",
+        "severity": "high",
+        "direct": false,
+        "range": "*",
+        "via": [
+          {
+            "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+            "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+          }
+        ],
+        "suggested_fix": {
+          "name": "eslint-config-next",
+          "version": "14.2.35",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "eslint-config-next",
+        "severity": "high",
+        "direct": true,
+        "range": ">=14.3.0-canary.0",
+        "via": [
+          "@next/eslint-plugin-next"
+        ],
+        "suggested_fix": {
+          "name": "eslint-config-next",
+          "version": "14.2.35",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "fast-glob",
+        "severity": "high",
+        "direct": false,
+        "range": "*",
+        "via": [
+          "micromatch"
+        ],
+        "suggested_fix": {
+          "name": "eslint-config-next",
+          "version": "14.2.35",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "package": "micromatch",
+        "severity": "high",
+        "direct": false,
+        "range": ">=0.2.0",
+        "via": [
+          "braces"
+        ],
+        "suggested_fix": {
+          "name": "eslint-config-next",
+          "version": "14.2.35",
+          "isSemVerMajor": true
+        }
+      }
+    ],
+    "remaining_fix_status": "No compatible upstream fix: braces latest remains 3.0.3; npm proposes a breaking downgrade of eslint-config-next to 14.2.35. That downgrade was not applied."
+  },
+  "followup_regressions": [
+    "global-search schema, stale responses and client navigation",
+    "API proxy authentication and bypass boundaries",
+    "LC role refresh without document reload",
+    "task search close/reopen",
+    "chat channel restoration",
+    "availability keyboard autosave and tab restoration",
+    "independent navigation preference storage"
+  ]
+}

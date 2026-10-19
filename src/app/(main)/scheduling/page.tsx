@@ -704,44 +704,37 @@ function AvailabilityTab({
   subProjects: SubProject[];
 }) {
   const [scope, setScope] = useState<AvailScope>("mine");
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => teamMembers.map(m => m.id));
-  const [availSubProjectId, setAvailSubProjectId] = useState<string | null>(null); // null = Lab
-  const [slots, setSlots] = useState<string[]>([]);
-  const [saved, setSaved] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFirstMount = useRef(true);
-  const skipSaveRef = useRef(false);
-
-  // Sync slots when sub-project selection or loaded availabilities change
-  useEffect(() => {
-    skipSaveRef.current = true;
-    const entry = allAvailabilities.find(
-      a => a.userId === currentUserId && (a.subProjectId ?? null) === availSubProjectId
-    );
-    setSlots(entry?.slots ?? []);
-  }, [availSubProjectId, allAvailabilities, currentUserId]);
-
-  useEffect(() => {
-    if (scope === "all") setSelectedIds(teamMembers.map(m => m.id));
-  }, [scope, teamMembers]);
-
-  // Auto-save 800ms after the user stops dragging
-  useEffect(() => {
-    if (isFirstMount.current) { isFirstMount.current = false; return; }
-    if (skipSaveRef.current) { skipSaveRef.current = false; return; }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      onSave(slots, availSubProjectId);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }, 800);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots]);
-
-  const derivedSavedSlots = allAvailabilities.find(
+  const [memberSelection, setSelectedIds] = useState<string[] | null>(null);
+  const selectedIds = memberSelection ?? teamMembers.map(m => m.id);
+  const [availSubProjectId, setAvailSubProjectId] = useState<string | null>(null);
+  const entry = allAvailabilities.find(
     a => a.userId === currentUserId && (a.subProjectId ?? null) === availSubProjectId
-  )?.slots ?? [];
+  );
+  const [draft, setDraft] = useState<{ entry: WeeklyAvailability | undefined; project: string | null; slots: string[] } | null>(null);
+  const slots = draft?.entry === entry && draft?.project === availSubProjectId ? draft.slots : entry?.slots ?? [];
+  const [saved, setSaved] = useState(false);
+
+  // Only user edits schedule writes. Loaded data and scope switches never autosave.
+  useEffect(() => {
+    if (!draft || draft.entry !== entry || draft.project !== availSubProjectId) return;
+    const timer = setTimeout(() => {
+      onSave(draft.slots, availSubProjectId);
+      setSaved(true);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [draft, entry, availSubProjectId, onSave]);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
+  function setSlots(next: string[]) {
+    setSaved(false);
+    setDraft({ entry, project: availSubProjectId, slots: next });
+  }
+  const derivedSavedSlots = entry?.slots ?? [];
   const hasChanges = JSON.stringify([...slots].sort()) !== JSON.stringify([...derivedSavedSlots].sort());
 
   const filteredAvailabilities = scope === "mine"
@@ -765,7 +758,7 @@ function AvailabilityTab({
         {([["mine", "Mine"], ["all", "My Team"]] as [AvailScope, string][]).map(([s, label]) => (
           <button
             key={s}
-            onClick={() => setScope(s)}
+            onClick={() => { setScope(s); if (s === "all") setSelectedIds(null); }}
             style={{
               height: 32, paddingInline: 14, borderRadius: 20,
               border: `1.5px solid ${scope === s ? "var(--color-navy)" : "var(--color-border)"}`,
@@ -788,7 +781,7 @@ function AvailabilityTab({
               <button
                 key={m.id}
                 onClick={() => setSelectedIds(prev =>
-                  checked ? prev.filter(id => id !== m.id) : [...prev, m.id]
+                  checked ? (prev ?? selectedIds).filter(id => id !== m.id) : [...(prev ?? selectedIds), m.id]
                 )}
                 className="flex items-center gap-1.5"
                 style={{
@@ -1088,14 +1081,7 @@ export default function SchedulingPage() {
 
   // Auth effect - resolve currentUserId once
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      try {
-        const stored = localStorage.getItem("canopy_user");
-        if (stored) { const u = JSON.parse(stored) as { id?: string }; setCurrentUserId(u.id ?? "demo"); }
-        else setCurrentUserId("demo");
-      } catch { setCurrentUserId("demo"); }
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) setCurrentUserId(session.user.id);
     });
@@ -1104,7 +1090,7 @@ export default function SchedulingPage() {
   // Team + availability + proposals - re-run when projectId or currentUserId resolves
   useEffect(() => {
     if (!projectId || !currentUserId) return;
-    if (!isSupabaseConfigured) { setLoading(false); return; }
+    if (!isSupabaseConfigured) return;
 
     async function fetchStaticData() {
       // Independent reads go out together; only user settings waits on the member list

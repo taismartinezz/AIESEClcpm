@@ -50,9 +50,6 @@ function inputStyle(large: boolean): React.CSSProperties {
   };
 }
 
-// Keep the static constant for uses that don't have access to isLarge
-const INPUT_STYLE: React.CSSProperties = inputStyle(false);
-
 const PAGE_WRAP: React.CSSProperties = {
   minHeight: "100dvh",
   backgroundColor: "var(--color-canvas)",
@@ -75,9 +72,6 @@ function cardStyle(large: boolean): React.CSSProperties {
     boxShadow: "0 4px 24px rgba(2,99,196,0.08)",
   };
 }
-
-// Keep static constant for non-large default uses
-const CARD_STYLE: React.CSSProperties = cardStyle(false);
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -479,7 +473,7 @@ export default function OnboardingPage() {
   const [piProjectName, setPiProjectName] = useState("");
   const [piInstitution, setPiInstitution] = useState("");
   const [piUserName, setPiUserName] = useState("");
-  const [piRoleTitle, setPiRoleTitle] = useState("");
+  const piRoleTitle = "";
 
   // Join-LC step 2
   const [inviteCode, setInviteCode] = useState("");
@@ -510,7 +504,7 @@ export default function OnboardingPage() {
   const [emailCodes, setEmailCodes] = useState<Record<string, string>>({});
   const [emailRoles, setEmailRoles] = useState<Record<string, string>>({});
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
-  const [generatedCode, setGeneratedCode] = useState("");
+  const generatedCode = "";
   const [copied, setCopied] = useState(false);
   const [revealLink, setRevealLink] = useState(false);
   const [piShowAdvancedInvites, setPiShowAdvancedInvites] = useState(false);
@@ -521,7 +515,8 @@ export default function OnboardingPage() {
   const [piPromptInput, setPiPromptInput] = useState("");
 
   // Join-LC step 3 - profile
-  const [profileName, setProfileName] = useState("");
+  const [profileNameInput, setProfileName] = useState<string | null>(null);
+  const profileName = profileNameInput ?? resUserName;
   const [profileBio, setProfileBio] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -588,14 +583,6 @@ export default function OnboardingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pre-fill profile name when entering join step 3
-  useEffect(() => {
-    if (step === 3 && role === "member" && resUserName && !profileName) {
-      setProfileName(resUserName);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, role]);
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   function handleStep1Continue() {
@@ -648,8 +635,6 @@ export default function OnboardingPage() {
   async function completeOnboarding() {
     if (submitting || !role) return;
     setSubmitting(true);
-
-    const usedInvite = inviteCode.length >= 6;
 
     let projectName: string;
     let institution: string;

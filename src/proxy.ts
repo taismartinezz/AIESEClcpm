@@ -15,13 +15,13 @@ const BYPASS_PREFIXES = [
  * prevents completely unauthenticated access without the per-route overhead on
  * every call.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!pathname.startsWith("/api/")) return NextResponse.next();
 
   // Let bypass routes through unconditionally
-  if (BYPASS_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (BYPASS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p.endsWith("/") ? p : `${p}/`))) {
     return NextResponse.next();
   }
 

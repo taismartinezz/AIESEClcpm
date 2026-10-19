@@ -82,6 +82,8 @@ export function TaskRow({
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [statusPos, setStatusPos] = useState({ top: 0, left: 0 });
+  const [assigneePos, setAssigneePos] = useState({ top: 0, left: 0 });
   const [calOpen, setCalOpen] = useState(false);
   const [calPos, setCalPos] = useState({ top: 0, left: 0 });
   const [subtaskExpanded, setSubtaskExpanded] = useState(false);
@@ -155,7 +157,12 @@ export function TaskRow({
         <td className="pr-3" style={{ position: "relative" }}>
           <button
             ref={statusBtnRef}
-            onClick={(e) => { e.stopPropagation(); setStatusOpen((o) => !o); setAssigneeOpen(false); setCalOpen(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setStatusPos({ top: rect.bottom + 4, left: rect.left });
+              setStatusOpen((o) => !o); setAssigneeOpen(false); setCalOpen(false);
+            }}
             className="inline-flex items-center gap-1.5 px-2 py-0.5 hover:opacity-80 transition-opacity"
             style={{
               backgroundColor: `${cfg.dot}18`, color: cfg.dot,
@@ -173,8 +180,8 @@ export function TaskRow({
               className="animate-fade-in"
               style={{
                 position: "fixed",
-                top: (statusBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                left: statusBtnRef.current?.getBoundingClientRect().left ?? 0,
+                top: statusPos.top,
+                left: statusPos.left,
                 zIndex: 9999,
                 backgroundColor: "var(--color-surface)",
                 border: "1px solid var(--color-border)",
@@ -210,7 +217,12 @@ export function TaskRow({
         <td className="pr-3" style={{ position: "relative" }}>
           <button
             ref={assigneeBtnRef}
-            onClick={(e) => { e.stopPropagation(); setAssigneeOpen((o) => !o); setStatusOpen(false); setCalOpen(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setAssigneePos({ top: rect.bottom + 4, left: rect.left });
+              setAssigneeOpen((o) => !o); setStatusOpen(false); setCalOpen(false);
+            }}
             style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
             aria-label="Edit assignees"
           >
@@ -224,8 +236,8 @@ export function TaskRow({
               className="animate-fade-in"
               style={{
                 position: "fixed",
-                top: (assigneeBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                left: assigneeBtnRef.current?.getBoundingClientRect().left ?? 0,
+                top: assigneePos.top,
+                left: assigneePos.left,
                 zIndex: 9999,
                 backgroundColor: "var(--color-surface)",
                 border: "1px solid var(--color-border)",

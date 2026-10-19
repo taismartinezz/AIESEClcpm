@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode, useState, useRef, useCallback } from "react";
+import { Fragment, type ReactNode, useState, useRef, useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { SubProject } from "@/types";
 
@@ -114,7 +114,7 @@ export default function ScopeSidebar({
   );
   const handleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(width);
-  widthRef.current = width;
+  useEffect(() => { widthRef.current = width; }, [width]);
 
   const onDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

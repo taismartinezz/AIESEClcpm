@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CURRENT_USER_ID, TEAM_MEMBERS, withDemoUser, formatRelativeTime, getStoredUser, getStoredProject } from "@/lib/mock-data";
+import { CURRENT_USER_ID, formatRelativeTime, getStoredProject } from "@/lib/mock-data";
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/tasks";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
-import type { TeamMember, TaskStatus, LabRole, Department, UserRole } from "@/types";
+import type { TeamMember, TaskStatus, LabRole, Department } from "@/types";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, toUserRole } from "@/lib/permissions";
 import { groupDirectory } from "@/lib/team";
 import Avatar from "@/components/ui/Avatar";
-import { Video, X, Edit3, Check, Users, Plus, Phone, Globe, Lock, ChevronDown, ChevronRight } from "lucide-react";
+import { Video, X, Edit3, Check, Users, Plus, Phone, Globe, ChevronDown, ChevronRight } from "lucide-react";
 import {
   getRegistryResources, getInstitutionName, hasNoCounselingResources, INSTITUTION_OPTIONS,
 } from "@/lib/support/institutions";
@@ -213,7 +213,6 @@ function MemberPanel({
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({ member, onClick, isCurrentUser, department }: { member: TeamMember; onClick: () => void; isCurrentUser: boolean; department?: Department | null }) {
-  const totalTasks = Object.values(member.taskCounts).reduce((a, b) => a + b, 0);
 
   return (
     <button onClick={onClick} className="text-left w-full"
@@ -320,7 +319,7 @@ const CATEGORY_OPTIONS = ["urgent", "counseling", "academic", "workplace", "heal
 const CONTACT_TYPE_OPTIONS = ["phone", "url", "email", "in_person"] as const;
 
 function SupportResourcesAdmin({
-  projectId, piRows, institutionKey, savingInstitution,
+  piRows, institutionKey, savingInstitution,
   showAddResource, newResource, savingResource, resourceError,
   onSetInstitution, onOverride, onSetNewResource, onToggleAddResource, onSaveResource, onDeleteResource,
 }: {
@@ -493,20 +492,18 @@ function SupportResourcesAdmin({
 
 // ── Team page ─────────────────────────────────────────────────────────────────
 
-export default function TeamPage() {
+function TeamWorkspace() {
   const { activeScope, subProjectId, subProjects, projectId, role: myRole, departments } = useProject();
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [weeklyUpdate, setWeeklyUpdate] = useState<string | undefined>(undefined);
-  const [demoRole, setDemoRole] = useState<UserRole | null>(null);
-  const isPresident = (isSupabaseConfigured ? myRole : demoRole) === "president";
-  const [storedProjectName, setStoredProjectName] = useState("");
+  const isPresident = myRole === "president";
+  const [storedProjectName, setStoredProjectName] = useState(() => getStoredProject().name);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(
     isSupabaseConfigured ? null : CURRENT_USER_ID
   );
-  const [subProjectMemberIds, setSubProjectMemberIds] = useState<Set<string> | null>(null);
   const [projectTeam, setProjectTeam] = useState<TeamMember[]>([]);
   const [projectScopedCounts, setProjectScopedCounts] = useState<Record<string, Record<TaskStatus, number>>>({});
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -523,16 +520,7 @@ export default function TeamPage() {
 
   // Initialize UI state and resolve userId from auth session.
   useEffect(() => {
-    const sp = getStoredProject();
-    setStoredProjectName(sp.name);
-
-    if (!isSupabaseConfigured) {
-      const su = getStoredUser();
-      setDemoRole(su.role);
-      setTeam(withDemoUser(TEAM_MEMBERS, su));
-      setLoading(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) { setLoading(false); return; }
@@ -589,16 +577,16 @@ export default function TeamPage() {
       const countMap: Record<string, Record<TaskStatus, number>> = {};
 
       if (memberIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         const { data: assigneeWithTasks, error: joinError } = await (supabase
           .from("task_assignees")
           .select("user_id, task_id, tasks(id, status, archived)")
-          .in("user_id", memberIds) as any);
+          .in("user_id", memberIds));
 
         if (joinError) console.error("[Team] assignee+task join error:", joinError);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const row of (assigneeWithTasks ?? []) as any[]) {
+
+        for (const row of (assigneeWithTasks ?? [])) {
           const taskArr = row.tasks;
           const task = Array.isArray(taskArr) ? taskArr[0] : taskArr;
           if (!task) continue;           // task deleted or RLS-hidden
@@ -687,9 +675,6 @@ export default function TeamPage() {
   // Also fetch task counts scoped to this sub-project so member cards show accurate counts.
   useEffect(() => {
     if (activeScope !== "project" || !subProjectId || !isSupabaseConfigured) {
-      setSubProjectMemberIds(null);
-      setProjectTeam([]);
-      setProjectScopedCounts({});
       return;
     }
     (async () => {
@@ -699,7 +684,6 @@ export default function TeamPage() {
         .eq("sub_project_id", subProjectId);
 
       if (!data) return;
-      setSubProjectMemberIds(new Set(data.map((r) => r.user_id as string)));
       setProjectTeam(data.map((row) => {
         const p = Array.isArray(row.user_profiles) ? row.user_profiles[0] : row.user_profiles;
         const prof = p as Record<string, string> | null;
@@ -718,12 +702,12 @@ export default function TeamPage() {
       }));
 
       // Fetch task counts scoped to this sub-project only
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const { data: scopedTasks } = await (supabase
         .from("tasks")
         .select("id, status, archived, task_assignees(user_id)")
         .eq("sub_project_id", subProjectId)
-        .eq("archived", false) as any);
+        .eq("archived", false));
 
       const newCounts: Record<string, Record<TaskStatus, number>> = {};
       for (const task of (scopedTasks ?? []) as { status: string; task_assignees: { user_id: string }[] }[]) {
@@ -940,4 +924,9 @@ export default function TeamPage() {
       })()}
     </div>
   );
+}
+
+export default function TeamPage() {
+  const { projectId, activeScope, subProjectId } = useProject();
+  return <TeamWorkspace key={`${projectId}:${activeScope}:${subProjectId}`} />;
 }

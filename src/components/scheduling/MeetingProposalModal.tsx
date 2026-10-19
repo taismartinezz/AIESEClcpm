@@ -62,8 +62,6 @@ function minToLabel(mins: number): string {
   const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
-
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const FULL_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

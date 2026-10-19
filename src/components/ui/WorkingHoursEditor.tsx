@@ -69,23 +69,14 @@ function TimezoneCombobox({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const allZones = useRef<string[]>([]);
+  const [allZones] = useState(getAllTimezones);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    allZones.current = getAllTimezones();
-  }, []);
-
-  // Show current value label when closed
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
-
   const filtered = query.length > 0
-    ? allZones.current.filter((tz) =>
+    ? allZones.filter((tz) =>
         tz.toLowerCase().includes(query.toLowerCase())
       ).slice(0, 40)
-    : allZones.current.slice(0, 40);
+    : allZones.slice(0, 40);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -111,7 +102,7 @@ function TimezoneCombobox({
           backgroundColor: "var(--color-canvas)",
           cursor: "text",
         }}
-        onClick={() => { setOpen(true); }}
+        onClick={() => { setQuery(""); setOpen(true); }}
       >
         <Search size={13} color="var(--color-secondary)" style={{ flexShrink: 0 }} />
         {open ? (
@@ -215,7 +206,7 @@ export function WorkingHoursEditor({
   showDetectedBanner = false,
 }: WorkingHoursEditorProps) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const detectedTz = useRef(detectTimezone());
+  const [detectedTz] = useState(detectTimezone);
 
   const inputStyle: React.CSSProperties = {
     height: 34,
@@ -245,11 +236,11 @@ export function WorkingHoursEditor({
           fontSize: 13,
         }}>
           <span style={{ color: "var(--color-body)" }}>
-            Detected: <strong style={{ color: "var(--color-navy)" }}>{detectedTz.current}</strong>. Looks right?
+            Detected: <strong style={{ color: "var(--color-navy)" }}>{detectedTz}</strong>. Looks right?
           </span>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
             <button
-              onClick={() => { onTimezoneChange(detectedTz.current); setBannerDismissed(true); }}
+              onClick={() => { onTimezoneChange(detectedTz); setBannerDismissed(true); }}
               style={{
                 fontSize: 12, fontWeight: 700, color: "var(--color-navy)",
                 background: "none", border: "none", cursor: "pointer", padding: "2px 8px",

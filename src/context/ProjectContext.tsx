@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   createContext,
   useCallback,
@@ -9,7 +11,6 @@ import {
 } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ledDepartmentIds, toUserRole } from "@/lib/permissions";
-import { CURRENT_USER_ID, DEPARTMENTS, MEMBER_DEPARTMENTS, getStoredProject, getStoredUser } from "@/lib/mock-data";
 import type { Department, SubProject, UserRole } from "@/types";
 
 // ── Context shape ─────────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ function mapDepartment(row: Record<string, unknown>): Department {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-export function ProjectProvider({ children }: { children: React.ReactNode }) {
+function ProjectProviderState({ children, onSwitch }: { children: React.ReactNode; onSwitch: () => void }) {
   const [userId, setUserId]               = useState<string | null>(null);
   const [lcs, setLcs]                     = useState<LcMembership[]>([]);
   const [projectId, setProjectId]         = useState<string | null>(null);
@@ -128,17 +129,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      // Demo mode: one fictional LC with the default departments.
-      const demoLc = getStoredProject();
-      const demoUser = getStoredUser();
-      setUserId(CURRENT_USER_ID);
-      setLcs([{ id: demoLc.id, name: demoLc.name, role: demoUser.role, departmentId: MEMBER_DEPARTMENTS[CURRENT_USER_ID] ?? null }]);
-      setProjectId(demoLc.id);
-      setDepartments(DEPARTMENTS);
-      setIsLoading(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     async function load() {
       try {
@@ -243,8 +234,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(SCOPE_STORAGE_KEY);
     } catch { /* ignore */ }
-    window.location.assign("/");
-  }, []);
+    onSwitch();
+  }, [onSwitch]);
 
   const refreshDepartments = useCallback(async () => {
     if (projectId) await loadDepartments(projectId);
@@ -300,4 +291,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
 export function useProject(): ProjectContextValue {
   return useContext(ProjectContext);
+}
+
+export function ProjectProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [revision, setRevision] = useState(0);
+  const onSwitch = useCallback(() => {
+    setRevision(value => value + 1);
+    router.push("/");
+  }, [router]);
+  return <ProjectProviderState key={revision} onSwitch={onSwitch}>{children}</ProjectProviderState>;
 }
