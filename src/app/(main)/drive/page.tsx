@@ -11,6 +11,7 @@ import { DRIVE_BUCKET, TYPE_CONFIG, formatBytes, hostname, itemType, mapDriveIte
 import { useLcMembers } from "@/hooks/useLcMembers";
 import { Button, ErrorText, inputStyle } from "@/components/lc/ui";
 import DriveItemModal, { type DriveFolder } from "@/components/drive/DriveItemModal";
+import { askConfirm } from "@/components/ui/confirm";
 
 type View = { kind: "all" } | { kind: "folder"; id: string | null } | { kind: "personal" } | { kind: "group"; id: string };
 
@@ -91,8 +92,8 @@ export default function DrivePage() {
     });
   }
 
-  function remove(it: DriveItem) {
-    if (!window.confirm(`Delete "${it.title}"?`)) return;
+  async function remove(it: DriveItem) {
+    if (!(await askConfirm(`Delete "${it.title}"?`))) return;
     void act(it.id, "delete", async () => {
       const { data, error: err } = await supabase.from("bookmarks").delete().eq("id", it.id).select("id");
       if (err) throw new Error(err.message);
@@ -119,8 +120,8 @@ export default function DrivePage() {
     });
   }
 
-  function deleteFolder(f: DriveFolder) {
-    if (!window.confirm(`Delete the folder "${f.name}"? Its items stay in the Drive, without a folder.`)) return;
+  async function deleteFolder(f: DriveFolder) {
+    if (!(await askConfirm(`Delete the folder "${f.name}"? Its items stay in the Drive, without a folder.`))) return;
     void act(f.id, "delete the folder", async () => {
       const { error: err } = await supabase.from("drive_folders").delete().eq("id", f.id);
       if (err) throw new Error(err.message);

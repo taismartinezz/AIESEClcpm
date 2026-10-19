@@ -7,6 +7,7 @@ import { PARTNER_STAGES, mapActivity, mapContact } from "@/lib/partners";
 import type { LcMember } from "@/hooks/useLcMembers";
 import type { Department, Partner, PartnerActivity, PartnerContact, PartnerStage } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 /** Add a partner, or edit one with its contacts and activity log. */
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -92,8 +93,8 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
     }, onSaved);
   }
 
-  function remove() {
-    if (!partner || !window.confirm(`Delete ${partner.name} and its contacts and history?`)) return;
+  async function remove() {
+    if (!partner || !(await askConfirm(`Delete ${partner.name} and its contacts and history?`))) return;
     void run("delete", async () => {
       const { data, error: err } = await supabase.from("partners").delete().eq("id", partner.id).select("id");
       if (!err && !data?.length) return { error: { message: "only the LCP, the department's VP or whoever added it can delete a partner" } };

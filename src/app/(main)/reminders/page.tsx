@@ -14,6 +14,8 @@ import Avatar from "@/components/ui/Avatar";
 import ClientOnly from "@/components/ui/ClientOnly";
 import type { Reminder, ReminderScope, ReminderPriority, User, SubProject } from "@/types";
 import { useUndoToast } from "@/context/UndoToastContext";
+import { showToast } from "@/components/ui/Toast";
+import { askConfirm } from "@/components/ui/confirm";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -744,24 +746,8 @@ function GroupedView({ includeNoDate, ...props }: CardProps & { includeNoDate: b
   );
 }
 
-// ── UndoToast ─────────────────────────────────────────────────────────────────
-
-function UndoToast({ title, onUndo }: { title: string; onUndo: () => void }) {
-  return (
-    <>
-      <style>{`@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
-      <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", backgroundColor: "#0263C4", color: "#fff", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.22)", zIndex: 200, fontSize: 13, fontFamily: "var(--font-roboto)", whiteSpace: "nowrap", animation: "toastIn 0.18s ease" }}>
-        <Check size={13} color="rgba(255,255,255,0.7)" />
-        <span style={{ color: "rgba(255,255,255,0.85)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
-        <button onClick={onUndo} style={{ background: "rgba(255,255,255,0.18)", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-roboto)" }}>Undo</button>
-      </div>
-    </>
-  );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-interface PendingUndo { reminder: Reminder; timerId: ReturnType<typeof setTimeout>; }
 
 export default function RemindersPage() {
   const { show: showUndoToast } = useUndoToast();
@@ -775,7 +761,6 @@ export default function RemindersPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem("reminders_sidebar_collapsed") === "true"; } catch { return false; }
   });
@@ -916,22 +901,26 @@ export default function RemindersPage() {
     return () => { supabase.removeChannel(channel); };
   }, [isSupabaseConfigured, projectId, currentUserId]);
 
-  function commitDelete(id: string) { if (isSupabaseConfigured) supabase.from("reminders").delete().eq("id", id).then(({ error }) => { if (error) console.error("[Reminders] delete:", error); }); }
-  function commitComplete(id: string) { if (isSupabaseConfigured) supabase.from("reminders").update({ completed: true }).eq("id", id).then(({ error }) => { if (error) console.error("[Reminders] complete:", error); }); }
+  function commitDelete(id: string, reminder: Reminder) {
+    if (!isSupabaseConfigured) return;
+    supabase.from("reminders").delete().eq("id", id).then(({ error }) => {
+      if (error) { setReminders((prev) => [...prev, reminder]); showToast(`Couldn't delete: ${error.message}`, "error"); }
+    });
+  }
+  function commitComplete(id: string) {
+    if (!isSupabaseConfigured) return;
+    supabase.from("reminders").update({ completed: true }).eq("id", id).then(({ error }) => {
+      if (error) { setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: false } : r)); showToast(`Couldn't save: ${error.message}`, "error"); }
+    });
+  }
 
+  // Saved straight away (so leaving the page can't lose it); Undo marks it open again.
   function handleComplete(id: string) {
     const reminder = reminders.find(r => r.id === id);
     if (!reminder) return;
-    if (pendingUndo) { clearTimeout(pendingUndo.timerId); commitComplete(pendingUndo.reminder.id); }
     setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: true } : r));
-    const timerId = setTimeout(() => { commitComplete(id); setPendingUndo(null); }, 4000);
-    setPendingUndo({ reminder, timerId });
-  }
-  function handleUndo() {
-    if (!pendingUndo) return;
-    clearTimeout(pendingUndo.timerId);
-    setReminders(prev => prev.map(r => r.id === pendingUndo!.reminder.id ? { ...r, completed: false } : r));
-    setPendingUndo(null);
+    commitComplete(id);
+    showUndoToast(`Completed "${reminder.title}"`, () => { void handleUncomplete(id); });
   }
   async function handleUncomplete(id: string) {
     setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: false } : r));
@@ -972,15 +961,12 @@ export default function RemindersPage() {
     }
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     const reminder = reminders.find((r) => r.id === id);
     if (!reminder) return;
+    if (!(await askConfirm(`Delete "${reminder.title}"? This can't be undone.`))) return;
     setReminders((prev) => prev.filter((r) => r.id !== id));
-    showUndoToast(
-      `"${reminder.title}" deleted`,
-      () => setReminders((prev) => [...prev, reminder]),
-      () => commitDelete(id),
-    );
+    commitDelete(id, reminder);
   }
 
   async function handleUpdate(id: string, updates: UpdatePayload) {
@@ -1182,7 +1168,6 @@ export default function RemindersPage() {
         </div>
       </div>
 
-      {pendingUndo && <UndoToast title={pendingUndo.reminder.title} onUndo={handleUndo} />}
     </ClientOnly>
   );
 }

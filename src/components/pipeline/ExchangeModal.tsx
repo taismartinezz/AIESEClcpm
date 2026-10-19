@@ -7,6 +7,7 @@ import type { LcMember } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
 import OutreachPanel from "@/components/pipeline/OutreachPanel";
+import { askConfirm } from "@/components/ui/confirm";
 
 /** Add or edit one exchange participant. */
 export default function ExchangeModal({ projectId, userId, products, roster, exchange, defaultProduct, onClose, onSaved }: {
@@ -58,7 +59,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   }
 
   async function remove() {
-    if (!exchange || !window.confirm(`Remove ${exchange.personName} from the pipeline?`)) return;
+    if (!exchange || !(await askConfirm(`Remove ${exchange.personName} from the pipeline?`, { confirmLabel: "Remove" }))) return;
     setDeleting(true);
     setError(null);
     try {

@@ -8,6 +8,7 @@ import { AIESEC_PALETTE } from "@/lib/brand";
 import { PRODUCTS } from "@/lib/products";
 import { SUGGESTED_DEPARTMENTS, type SuggestedDepartment } from "@/lib/departments";
 import type { Department } from "@/types";
+import { askConfirm } from "@/components/ui/confirm";
 
 interface ExecOption { id: string; name: string }
 
@@ -93,8 +94,8 @@ export default function DepartmentsManager() {
 
   const suggestions = SUGGESTED_DEPARTMENTS.filter((s) => !departments.some((d) => d.name.toLowerCase() === s.name.toLowerCase()));
 
-  function remove(dep: Department) {
-    if (!window.confirm(`Delete "${dep.name}"? Its members will have no department until you reassign them.`)) return;
+  async function remove(dep: Department) {
+    if (!(await askConfirm(`Delete "${dep.name}"? Its members will have no department until you reassign them.`))) return;
     return run(dep.id, () => supabase.from("departments").delete().eq("id", dep.id));
   }
 

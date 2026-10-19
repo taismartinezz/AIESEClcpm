@@ -253,20 +253,38 @@ export default function DashboardPage() {
           })));
         }
 
-        // Upcoming LC events (next 30 days) for the agenda
-        const todayIso = new Date().toISOString().slice(0, 10);
-        const in30 = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-        const { data: evRows, error: evError } = await supabase
-          .from("lc_events")
-          .select("id, name, starts_on, project_id")
-          .eq("project_id", pid)
-          .gte("starts_on", todayIso)
-          .lte("starts_on", in30)
-          .order("starts_on");
+        // Upcoming events (next 30 days) for the agenda: LC events from the Events page
+        // and calendar events from Scheduling (the LC's, plus your own personal ones).
+        const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const todayIso = localDay(new Date());
+        const in30 = localDay(new Date(Date.now() + 30 * 86_400_000));
+        const [{ data: evRows, error: evError }, { data: schedRows, error: schedError }] = await Promise.all([
+          supabase
+            .from("lc_events")
+            .select("id, name, starts_on, project_id")
+            .eq("project_id", pid)
+            .gte("starts_on", todayIso)
+            .lte("starts_on", in30)
+            .order("starts_on"),
+          supabase
+            .from("schedule_events")
+            .select("id, title, date, time, project_id")
+            .eq("project_id", pid)
+            .or(`scope.neq.personal,created_by.eq.${user.id}`)
+            .gte("date", todayIso)
+            .lte("date", in30)
+            .order("date"),
+        ]);
         if (evError) console.error("[Dashboard] events error:", evError);
-        setDashEvents((evRows ?? []).map((row) => ({
-          id: row.id as string, title: row.name as string, date: row.starts_on as string, projectId: row.project_id as string,
-        })));
+        if (schedError) console.error("[Dashboard] schedule events error:", schedError);
+        setDashEvents([
+          ...(evRows ?? []).map((row) => ({
+            id: row.id as string, title: row.name as string, date: row.starts_on as string, projectId: row.project_id as string, href: "/attendance",
+          })),
+          ...(schedRows ?? []).map((row) => ({
+            id: row.id as string, title: row.title as string, date: row.date as string, time: (row.time as string | null) ?? undefined, projectId: row.project_id as string, href: "/scheduling",
+          })),
+        ]);
 
         // Fetch lab wins
         const { data: winsData, error: winsError } = await supabase

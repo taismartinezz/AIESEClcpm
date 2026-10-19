@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { MERGE_FIELDS, SAMPLE_VALUES, TEMPLATE_STATUS_LABEL, renderTemplate, unknownFields } from "@/lib/outreach";
 import type { Department } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 export interface OutreachTemplate {
   id: string; projectId: string; departmentId: string | null; name: string; subject: string; body: string;
@@ -55,7 +56,7 @@ export default function TemplateModal({ projectId, userId, departments, defaultD
   const insert = (key: string) => setBody((b) => `${b}{${key}}`);
 
   async function remove() {
-    if (!template || !window.confirm(`Delete the template "${template.name}"?`)) return;
+    if (!template || !(await askConfirm(`Delete the template "${template.name}"?`))) return;
     setBusy(true);
     setError(null);
     try {
