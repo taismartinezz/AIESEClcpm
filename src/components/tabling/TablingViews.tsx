@@ -8,6 +8,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import type { LcMember } from "@/hooks/useLcMembers";
 import type { Department, TablingReportRow, TablingSignup, TablingSlot } from "@/types";
 import { Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 // ── Slot card ─────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export function WeekView({ slots, mySignups, canCreate, canManage, departments, 
                   onSignUp={() => act(s, () => supabase.rpc("tabling_sign_up", { p_slot_id: s.id }), "sign up")}
                   onWithdraw={() => act(s, () => supabase.rpc("tabling_withdraw", { p_slot_id: s.id }), "withdraw")}
                   onMark={() => onMark(s)}
-                  onDelete={() => { if (window.confirm("Delete this slot? Anyone signed up loses their place.")) void act(s, () => supabase.from("tabling_slots").delete().eq("id", s.id), "delete the slot"); }}
+                  onDelete={() => { void askConfirm("Delete this slot? Anyone signed up loses their place.").then((ok) => { if (ok) void act(s, () => supabase.from("tabling_slots").delete().eq("id", s.id), "delete the slot"); }); }}
                 />
               ))}
             </div>

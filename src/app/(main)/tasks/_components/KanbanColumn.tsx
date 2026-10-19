@@ -28,7 +28,7 @@ export function KanbanColumn({
   onTaskClick: (task: Task) => void;
   onMoveTask: (taskId: string, status: TaskStatus) => void;
   onEditTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
+  onDeleteTask: (taskId: string, confirmed?: boolean) => void;
   onAddTask: (status: TaskStatus) => void;
   onArchiveDone?: () => void;
   teamMembers?: User[];
@@ -89,7 +89,7 @@ export function KanbanColumn({
                 onClick={() => onTaskClick(task)}
                 onMoveStatus={(s) => onMoveTask(task.id, s)}
                 onEdit={() => onEditTask(task)}
-                onDelete={() => onDeleteTask(task.id)}
+                onDelete={() => onDeleteTask(task.id, true)}
                 rowMode
                 teamMembers={teamMembers}
                 subtaskProgress={subtaskCounts[task.id]}

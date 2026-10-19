@@ -327,10 +327,10 @@ export default function ChatDock() {
 
   if (covered && !dockOpen) return null;
   return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
+    <div style={{ position: "fixed", bottom: "clamp(12px, 3vw, 24px)", right: "clamp(12px, 3vw, 24px)", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
       {/* Expanded dock panel */}
       {dockOpen && (
-        <div style={{ width: 340, height: activeConv ? 460 : 320, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px 12px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "visible" }}>
+        <div style={{ width: "min(340px, calc(100vw - 24px))", height: activeConv ? "min(460px, calc(100dvh - 120px))" : 320, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px 12px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "visible" }}>
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", flexShrink: 0, borderRadius: "12px 12px 0 0", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

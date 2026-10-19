@@ -37,8 +37,11 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
     if (frameRef.current)  clearInterval(frameRef.current);
   }, []);
 
+  // Closing the toast keeps the action (it used to throw a pending one away).
   const dismiss = useCallback(() => {
     clear();
+    confirmRef.current?.();
+    confirmRef.current = null;
     setToast(null);
   }, [clear]);
 
@@ -72,9 +75,11 @@ export function UndoToastProvider({ children }: { children: ReactNode }) {
   }, [toast, clear]);
 
   const handleUndo = useCallback(() => {
-    dismiss();
+    clear();
+    confirmRef.current = null;
+    setToast(null);
     undoRef.current?.();
-  }, [dismiss]);
+  }, [clear]);
 
   // Cmd/Ctrl+Z triggers undo while a toast is visible
   useEffect(() => {

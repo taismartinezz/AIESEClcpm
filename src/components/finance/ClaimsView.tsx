@@ -8,6 +8,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import type { ClaimStatus, Department, ExpenseClaim } from "@/types";
 import { Button, ErrorText, Field, Modal, Panel, selectStyle } from "@/components/lc/ui";
 import ReceiptButton from "./ReceiptButton";
+import { askConfirm } from "@/components/ui/confirm";
 
 const STATUS_STYLE: Record<ClaimStatus, { label: string; color: string; bg: string }> = {
   pending:  { label: "Pending",  color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
@@ -60,7 +61,7 @@ export default function ClaimsView({ claims, userId, departments, memberNames, i
   }
 
   async function withdraw(claim: ExpenseClaim) {
-    if (!window.confirm("Withdraw this claim?")) return;
+    if (!(await askConfirm("Withdraw this claim?", { confirmLabel: "Withdraw" }))) return;
     setBusyId(claim.id);
     setError(null);
     try {

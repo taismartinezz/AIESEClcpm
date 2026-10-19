@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode, useState, useRef, useCallback, useEffect } from "react";
+import { Fragment, type ReactNode, useState, useRef, useCallback, useEffect, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { SubProject } from "@/types";
 
@@ -40,6 +40,17 @@ function readStoredWidth(key: string): number {
     if (s) return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parseInt(s, 10)));
   } catch { /* ignore */ }
   return DEFAULT_WIDTH;
+}
+
+/** Phone-width screens get the sidebar as a drawer over the content instead of a column beside it. */
+const NARROW_QUERY = "(max-width: 640px)";
+function useNarrowScreen(): boolean {
+  const media = () => (typeof window.matchMedia === "function" ? window.matchMedia(NARROW_QUERY) : null);
+  return useSyncExternalStore(
+    (cb) => { const m = media(); m?.addEventListener("change", cb); return () => m?.removeEventListener("change", cb); },
+    () => media()?.matches ?? false,
+    () => false,
+  );
 }
 
 function NavRow({ color, label, count, selected, onClick }: {
@@ -171,16 +182,26 @@ export default function ScopeSidebar({
     }
   }
 
+  const narrow = useNarrowScreen();
+  // Start closed on a phone, so the page content gets the screen.
+  const autoClosed = useRef(false);
+  useEffect(() => {
+    if (narrow && !collapsed && !autoClosed.current) onToggleCollapse();
+    if (narrow) autoClosed.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrow]);
+  const drawer = narrow && !collapsed;
+
   const effectiveWidth = collapsed ? 52 : width;
 
   // Suppress unused-variable warnings for dead props that remain in interface for compatibility
   void subProjects; void selectedSubProjectId; void projectCounts; void onSelectSubProject;
 
-  return (
+  const panel = (
     <div
       className="group/scopesidebar group/litpanel flex flex-col h-full"
       style={{
-        width: effectiveWidth,
+        width: drawer ? "100%" : effectiveWidth,
         flexShrink: 0,
         backgroundColor: fullContent ? "transparent" : "var(--color-canvas)",
         borderRight: "1px solid var(--color-border)",
@@ -194,6 +215,7 @@ export default function ScopeSidebar({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
           <button
             onClick={onToggleCollapse}
+            data-sidebar-toggle
             className="flex items-center justify-center rounded-lg"
             style={{ width: 32, height: 32, backgroundColor: "transparent", border: "none", cursor: "pointer", flexShrink: 0 }}
             aria-label="Expand sidebar"
@@ -214,6 +236,7 @@ export default function ScopeSidebar({
           </span>
           <button
             onClick={onToggleCollapse}
+            data-sidebar-toggle
             className="flex items-center justify-center rounded-lg"
             style={{ width: 32, height: 32, backgroundColor: "transparent", border: "none", cursor: "pointer", flexShrink: 0 }}
             aria-label="Collapse sidebar"
@@ -253,7 +276,7 @@ export default function ScopeSidebar({
       )}
 
       {/* Resize handle - only in expanded state, not used by fullContent pages */}
-      {!fullContent && !collapsed && (
+      {!fullContent && !collapsed && !drawer && (
         <div
           ref={handleRef}
           role="separator"
@@ -275,6 +298,21 @@ export default function ScopeSidebar({
           onBlur={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}
         />
       )}
+    </div>
+  );
+
+  if (!drawer) return panel;
+  // Drawer: keep the collapsed rail's space in the layout, slide the full list over the content,
+  // and close it once something in it is picked.
+  return (
+    <div style={{ width: 52, flexShrink: 0, position: "relative", height: "100%" }}>
+      <div aria-hidden="true" onClick={onToggleCollapse} style={{ position: "fixed", inset: 0, zIndex: 40, backgroundColor: "rgba(0,0,0,0.3)" }} />
+      <div
+        onClick={(e) => { const el = (e.target as HTMLElement).closest("button, a"); if (el && !el.hasAttribute("data-sidebar-toggle")) onToggleCollapse(); }}
+        style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 41, width: "min(280px, 85vw)", backgroundColor: "var(--color-surface)", boxShadow: "4px 0 24px rgba(0,0,0,0.18)" }}
+      >
+        {panel}
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import type { LcMember } from "@/hooks/useLcMembers";
 import type { AttendanceRecord, Department, LcEvent, LcEventType } from "@/types";
 import { Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 // ── By event ──────────────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ export function EventsView({ events, records, rsvps, userId, roster, departments
   const dept = (id: string | null) => departments.find((d) => d.id === id);
 
   async function remove(event: LcEvent) {
-    if (!window.confirm(`Delete "${event.name}" and its attendance list?`)) return;
+    if (!(await askConfirm(`Delete "${event.name}" and its attendance list?`))) return;
     setBusy(true);
     setError(null);
     try {

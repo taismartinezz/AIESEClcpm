@@ -14,6 +14,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: (table: string) => {
     select: (columns: string) => { read.select = columns; return query },
     eq: (column: string, value: string) => { read.filters.push([column, value]); return query },
     is: () => query,
+    or: (filter: string) => { read.filters.push(["or", filter]); return query },
+    order: () => query,
     ilike: (_column: string, term: string) => { read.term = term; return query },
     limit: () => {
       backend.reads.push(read)
@@ -39,6 +41,7 @@ it('uses real schema columns, rejects stale results and navigates without a docu
   await act(async () => backend.resolve.get('%older%')!({ data: [{ id: 'old', title: 'Older result', status: 'todo' }] }))
   expect(screen.queryByText('Older result')).not.toBeInTheDocument()
   expect(backend.reads.find(read => read.table === 'reminders')?.select).toContain('due_at')
+  expect(backend.reads.find(read => read.table === 'reminders')?.filters).toContainEqual(['or', 'project_id.eq.lc-1,project_id.is.null'])
   expect(backend.reads.find(read => read.table === 'chat_messages')?.filters).toContainEqual(['channel', 'lab:lc-1'])
   expect(backend.reads.some(read => read.table === 'journal_entries')).toBe(false)
   fireEvent.keyDown(input, { key: 'Enter' })

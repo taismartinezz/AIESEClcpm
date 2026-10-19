@@ -7,8 +7,7 @@ import type { UserProfileRecord, ProjectRecord } from "@/types/database-records"
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, GraduationCap, BookOpen, Globe,
-  Link as LinkIcon, Lock, X, Pencil,
+  ChevronLeft, Lock, X, Pencil,
 } from "lucide-react";
 
 function LinkedinIcon() {
@@ -21,10 +20,10 @@ function LinkedinIcon() {
   );
 }
 
-function TwitterIcon() {
+function GitHubIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="#000000"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="var(--color-body)" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/>
     </svg>
   );
 }
@@ -136,14 +135,9 @@ function StatCard({ label, count }: { label: string; count: number }) {
 
 // ── Profile Page ──────────────────────────────────────────────────────────────
 
-type LinkFields = {
-  scholar: string; linkedin: string; researchgate: string;
-  twitter: string; website: string; orcid: string;
-};
+type LinkFields = { linkedin: string; github: string };
 
-const EMPTY_LINKS: LinkFields = {
-  scholar: "", linkedin: "", researchgate: "", twitter: "", website: "", orcid: "",
-};
+const EMPTY_LINKS: LinkFields = { linkedin: "", github: "" };
 
 type TabId = "about" | "links" | "activity";
 
@@ -175,7 +169,7 @@ export default function ProfilePage() {
   const [editingInstitution, setEditingInstitution] = useState(false);
   const [institutionInput, setInstitutionInput] = useState("");
 
-  // ── Links & interests (UI-only until added to Supabase schema) ───────────
+  // ── Links (saved on the profile) & interests (UI-only) ───────────────────
   const [interests, setInterests] = useState<string[]>([]);
   const [links, setLinks] = useState<LinkFields>(EMPTY_LINKS);
 
@@ -238,6 +232,7 @@ export default function ProfilePage() {
       }
 
       setProfile(prof);
+      setLinks({ linkedin: prof?.linkedin_url ?? "", github: prof?.github_url ?? "" });
       if (prof?.avatar_url) setPhoto(prof.avatar_url);
       setLoading(false);
     };
@@ -401,8 +396,14 @@ export default function ProfilePage() {
   }, [profile, interests, links, myDepartmentId]);
 
   const handleSaveProfile = useCallback(async () => {
+    const linkedin = draftLinks.linkedin.trim();
+    const github = draftLinks.github.trim();
+    if ([linkedin, github].some((u) => u && !/^https:\/\//i.test(u))) {
+      showToast("Links must start with https://", "error");
+      return;
+    }
     setInterests(draftInterests);
-    setLinks(draftLinks);
+    setLinks({ linkedin, github });
 
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user ?? null;
@@ -410,6 +411,8 @@ export default function ProfilePage() {
       const updatePayload: Record<string, string | null> = {
         bio: draftBio || null,
         institution: draftInstitution || null,
+        linkedin_url: linkedin || null,
+        github_url: github || null,
       };
       try {
         const { data: updated, error } = await supabase
@@ -474,34 +477,14 @@ export default function ProfilePage() {
     placeholder: string;
   }[] = [
     {
-      key: "scholar", label: "Google Scholar",
-      icon: <GraduationCap size={16} color="#4285F4" />,
-      placeholder: "https://scholar.google.com/citations?user=...",
-    },
-    {
       key: "linkedin", label: "LinkedIn",
       icon: <LinkedinIcon />,
       placeholder: "https://linkedin.com/in/yourname",
     },
     {
-      key: "researchgate", label: "ResearchGate",
-      icon: <BookOpen size={16} color="#00CCBB" />,
-      placeholder: "https://researchgate.net/profile/...",
-    },
-    {
-      key: "twitter", label: "Twitter / X",
-      icon: <TwitterIcon />,
-      placeholder: "https://twitter.com/yourhandle",
-    },
-    {
-      key: "website", label: "Personal website",
-      icon: <Globe size={16} color="var(--color-secondary)" />,
-      placeholder: "https://yourname.com",
-    },
-    {
-      key: "orcid", label: "ORCID",
-      icon: <LinkIcon size={16} color="#A6CE39" />,
-      placeholder: "https://orcid.org/0000-0000-0000-0000",
+      key: "github", label: "GitHub",
+      icon: <GitHubIcon />,
+      placeholder: "https://github.com/yourname",
     },
   ];
 

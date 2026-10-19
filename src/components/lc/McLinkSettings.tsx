@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { Button, ErrorText, inputStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 /** President: link the LC to its MC so the national team sees its numbers (counts only). */
 export default function McLinkSettings() {
@@ -48,7 +49,7 @@ export default function McLinkSettings() {
       {mcName ? (
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--color-body)" }}>
           <span style={{ flex: 1 }}>Linked to <strong>{mcName}</strong></span>
-          <Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm(`Stop sharing numbers with ${mcName}?`)) link(null); }}>Unlink</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => { void askConfirm(`Stop sharing numbers with ${mcName}?`, { confirmLabel: "Unlink" }).then((ok) => { if (ok) link(null); }); }}>Unlink</Button>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
