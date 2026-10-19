@@ -22,6 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, TASK_STATUS_ORDER } from "@/lib/tasks";
+import { askConfirm } from "@/components/ui/confirm";
 
 // ── Shared config ─────────────────────────────────────────────────────────────
 
@@ -774,7 +775,7 @@ function TaskDetailEditor({
   }
 
   async function handleDeleteFile(id: string) {
-    if (!window.confirm("Remove this file?")) return;
+    if (!(await askConfirm("Remove this file?", { confirmLabel: "Remove" }))) return;
     const target = localFiles.find(f => f.id === id);
     const updated = localFiles.filter((f) => f.id !== id);
     setLocalFiles(updated);
@@ -912,7 +913,7 @@ function TaskDetailEditor({
                       <>
                         <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "4px 0" }} />
                         <button
-                          onClick={() => { setMenuOpen(false); onDeleteTask(task.id); onClose(); }}
+                          onClick={() => { setMenuOpen(false); onDeleteTask(task.id); }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(2,99,196,0.06)] transition-colors"
                           style={{ fontSize: 13, color: "var(--color-error)", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-roboto)" }}
                           role="menuitem"

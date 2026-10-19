@@ -10,6 +10,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
+import { askConfirm } from "@/components/ui/confirm";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
 interface Row { project_id: string; lc_name: string; members: number; product: string; applied: number; approved: number; realized: number; completed: number }
@@ -150,7 +151,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const conv = sum("applied") ? `${Math.round((sum("approved") / sum("applied")) * 100)}%` : "—";
 
   async function removeLc(id: string, name: string) {
-    if (!window.confirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`)) return;
+    if (!(await askConfirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`, { confirmLabel: "Remove" }))) return;
     setError(null);
     try {
       const { error: err } = await supabase.rpc("unlink_lc_from_mc", { p_project_id: id });

@@ -136,7 +136,7 @@ export default function TaskModal({
         project_id: projectId,
         created_by: userId,
         title: title.trim(),
-        description: description.trim() || null,
+        description: description.trim(),
         status,
         priority,
         due_date: dueDate || null,
@@ -228,7 +228,7 @@ export default function TaskModal({
         .from("tasks")
         .update({
           title: title.trim(),
-          description: description.trim() || null,
+          description: description.trim(),
           priority,
           due_date: dueDate || null,
           status,

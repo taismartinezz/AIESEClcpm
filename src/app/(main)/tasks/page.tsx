@@ -21,6 +21,7 @@ import { useUndoToast } from "@/context/UndoToastContext";
 import { TaskCard } from "./_components/TaskCard";
 import { KanbanColumn } from "./_components/KanbanColumn";
 import { TaskRow, FilterSelect, avatarColorFromId } from "./_components/TaskRow";
+import { askConfirm } from "@/components/ui/confirm";
 
 // ── Modal state ───────────────────────────────────────────────────────────────
 
@@ -354,7 +355,7 @@ export default function TasksPage() {
     setModalState(null);
   }, []);
 
-  /** Copy a task (title, details, priority, due date, department, assignees) as a new to-do. */
+  /** Copy a task (title, details, priority, due date, department, assignees, subtasks) as a new to-do. */
   const duplicateTask = useCallback(async (task: Task) => {
     if (!isSupabaseConfigured || !projectId || !currentUserId) {
       const copy: Task = { ...task, id: crypto.randomUUID(), title: `${task.title} (copy)`, status: "todo", comments: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -372,6 +373,34 @@ export default function TasksPage() {
       const { error: aErr } = await supabase.from("task_assignees").insert(task.assigneeIds.map((user_id) => ({ task_id: data.id, user_id })));
       if (aErr) showToast(`Duplicated, but the assignees weren't copied: ${aErr.message}`, "error");
     }
+    // Subtasks come along as fresh to-dos, with their assignees.
+    const { data: subs } = await supabase.from("tasks")
+      .select("title, description, priority, due_date, display_order, task_assignees(user_id)")
+      .eq("parent_id", task.id).or("archived.is.null,archived.eq.false").order("display_order");
+    if (subs?.length) {
+      const { data: newSubs, error: sErr } = await supabase.from("tasks").insert(subs.map((r) => ({
+        project_id: projectId, created_by: currentUserId, parent_id: data.id, title: r.title, description: r.description ?? "",
+        status: "todo", priority: r.priority, due_date: r.due_date, display_order: r.display_order, archived: false,
+        scope: task.scope ?? "lab", sub_project_id: task.subProjectId ?? null, department_id: task.departmentId ?? null,
+      }))).select("id, title, priority, due_date");
+      if (sErr || !newSubs) {
+        showToast(`Duplicated, but the subtasks weren't copied: ${sErr?.message ?? "no rows returned"}`, "error");
+      } else {
+        const subAssignees = newSubs.flatMap((ns, i) =>
+          ((subs[i].task_assignees as { user_id: string }[] | null) ?? []).map((a) => ({ task_id: ns.id as string, user_id: a.user_id })));
+        if (subAssignees.length) await supabase.from("task_assignees").insert(subAssignees);
+        setSubtaskCounts((prev) => ({ ...prev, [data.id as string]: { total: newSubs.length, done: 0 } }));
+        setSubtaskData((prev) => ({
+          ...prev,
+          [data.id as string]: newSubs.map((ns, i) => ({
+            id: ns.id as string, projectId, parentId: data.id as string, title: ns.title as string, status: "todo" as TaskStatus,
+            priority: ns.priority as Task["priority"], dueDate: (ns.due_date as string | null) ?? undefined,
+            assigneeIds: ((subs[i].task_assignees as { user_id: string }[] | null) ?? []).map((a) => a.user_id),
+            createdAt: "", updatedAt: "", comments: [], files: [], links: [],
+          })),
+        }));
+      }
+    }
     const copy: Task = {
       ...task, id: data.id as string, title: data.title as string, status: "todo", comments: [], files: [],
       createdAt: data.created_at as string, updatedAt: data.updated_at as string,
@@ -381,18 +410,22 @@ export default function TasksPage() {
     showToast(`Duplicated "${task.title}"`, "success");
   }, [projectId, currentUserId]);
 
-  const deleteTask = useCallback((taskId: string) => {
+  // Ask first, then delete for real straight away (a delayed delete was lost when you left the page).
+  const deleteTask = useCallback(async (taskId: string, confirmed = false) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
+    if (!confirmed && !(await askConfirm(`Delete "${task.title}"${subtaskCounts[taskId]?.total ? " and its subtasks" : ""}? This can't be undone.`))) return;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     setSelectedTask((prev) => prev?.id === taskId ? null : prev);
-    showUndoToast(
-      `"${task.title}" deleted`,
-      () => setTasks((prev) => [...prev, task]),
-      () => supabase.from("tasks").delete().eq("id", taskId)
-        .then(({ error }) => { if (error) console.error("[Tasks] deleteTask error:", error); }),
-    );
-  }, [tasks, showUndoToast]);
+    if (!isSupabaseConfigured) return;
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    if (error) {
+      setTasks((prev) => [...prev, task]);
+      showToast(`Couldn't delete the task: ${error.message}`, "error");
+    } else {
+      showToast(`Deleted "${task.title}"`, "success");
+    }
+  }, [tasks, subtaskCounts]);
 
   const archiveDoneTasks = useCallback(() => {
     setTasks((prev) => {
@@ -485,11 +518,8 @@ export default function TasksPage() {
 
   const scopeCounts = {
     all: visibleTasks.length,
-    // Personal = own personal-scoped tasks OR any task explicitly assigned to this user
-    personal: visibleTasks.filter(t =>
-      t.scope === "personal" ||
-      (currentUserId && t.assigneeIds.includes(currentUserId))
-    ).length,
+    // Each task counts under exactly one scope, so All = Personal + Whole LC + projects
+    personal: visibleTasks.filter(t => t.scope === "personal").length,
     lab: visibleTasks.filter(t => t.scope === "lab" || !t.scope).length,
   };
   const projectTaskCounts: Record<string, number> = {};
@@ -516,9 +546,7 @@ export default function TasksPage() {
 
   const scopedTasks = tasks.filter(t => {
     if (effectiveTaskScope === "all") return true;
-    if (effectiveTaskScope === "personal")
-      return t.scope === "personal" ||
-        (currentUserId ? t.assigneeIds.includes(currentUserId) : false);
+    if (effectiveTaskScope === "personal") return t.scope === "personal";
     if (effectiveTaskScope === "lab") return t.scope === "lab" || !t.scope;
     return t.scope === "project" && t.subProjectId === effectiveTaskScope;
   });

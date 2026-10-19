@@ -76,16 +76,18 @@ export default function GlobalSearch({ projectId }: { projectId: string }) {
 
     const [tasksRes, remindersRes, bookmarksRes, chatRes] = await Promise.all([
       supabase.from("tasks").select("id, title, status").eq("project_id", projectId).ilike("title", term).limit(5),
-      supabase.from("reminders").select("id, title, due_at").eq("project_id", projectId).ilike("title", term).limit(5),
+      // The LC's reminders plus your personal ones (which have no LC); RLS limits personal ones to yours.
+      supabase.from("reminders").select("id, title, due_at, completed").or(`project_id.eq.${projectId},project_id.is.null`).ilike("title", term).order("completed").limit(5),
       supabase.from("bookmarks").select("id, title, url, kind, file_name").eq("project_id", projectId).ilike("title", term).limit(5),
-      supabase.from("chat_messages").select("id, content, created_at").eq("channel", `lab:${projectId}`).is("deleted_at", null).ilike("content", term).limit(5),
+      // chat_messages has no LC column: RLS returns only channels you're in.
+      supabase.from("chat_messages").select("id, content, created_at").is("deleted_at", null).ilike("content", term).order("created_at", { ascending: false }).limit(5),
     ]);
 
     for (const t of tasksRes.data ?? []) {
       hits.push({ id: t.id as string, type: "task", title: t.title as string, subtitle: formatTaskStatus(t.status as string), url: `/tasks?openTask=${t.id as string}` });
     }
     for (const r of remindersRes.data ?? []) {
-      hits.push({ id: r.id as string, type: "reminder", title: r.title as string, subtitle: r.due_at ? new Date(r.due_at as string).toLocaleDateString() : undefined, url: "/reminders" });
+      hits.push({ id: r.id as string, type: "reminder", title: r.title as string, subtitle: r.completed ? "Completed" : r.due_at ? new Date(r.due_at as string).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined, url: "/reminders" });
     }
     for (const b of bookmarksRes.data ?? []) {
       const isFile = b.kind === "file";

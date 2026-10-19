@@ -6,8 +6,11 @@ import { setupAuthMocks } from './helpers/mocks'
 
 const FL = { id: 'dep-fl', project_id: 'project-abc', name: 'Finance & Legality', color: '#037EF3', vp_user_id: 'someone-else', is_finance: true, sort_order: 7 }
 
-// Later today, so the shift is in this week's view whatever day the test runs.
-const future = new Date(Date.now() + 2 * 3_600_000)
+// The page's clock is pinned to a Wednesday morning, and the shift is later that day,
+// so it's in the week's view whatever day and hour the test runs (late on a Sunday,
+// "2 hours from now" used to land in next week).
+const NOW = new Date(2030, 0, 9, 10, 0)
+const future = new Date(NOW.getTime() + 2 * 3_600_000)
 const slot = {
   id: 'slot-1', project_id: 'project-abc', starts_at: future.toISOString(),
   ends_at: new Date(future.getTime() + 2 * 3_600_000).toISOString(),
@@ -58,6 +61,7 @@ test.describe('Attendance page', () => {
 
 test.describe('Tabling page', () => {
   test('a full slot shows as full and offers no sign-up', async ({ page }) => {
+    await page.clock.setFixedTime(NOW)
     await setupAuthMocks(page, 'member', { tables: { tabling_slots: [slot], tabling_signups: [] } })
     await page.goto('/tabling')
     await expect(page.getByText('oGV recruitment')).toBeVisible({ timeout: 10000 })

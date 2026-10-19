@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { Button } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 /** Creates a private LC full of sample data and switches to it. */
 export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void; variant?: "menu" | "button" }) {
@@ -72,7 +73,7 @@ export function DemoBanner() {
   if (!isDemo || !projectId) return null;
 
   async function remove() {
-    if (!window.confirm("Delete this demo LC and all its sample data?")) return;
+    if (!(await askConfirm("Delete this demo LC and all its sample data?"))) return;
     setError(null);
     try {
       const { error: err } = await supabase.rpc("delete_demo_lc", { p_project_id: projectId });
