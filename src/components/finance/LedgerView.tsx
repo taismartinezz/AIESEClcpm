@@ -9,6 +9,7 @@ import type { Department, FinanceCategory, FinanceEntry } from "@/types";
 import { BarList, Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/components/lc/ui";
 import ReceiptButton from "./ReceiptButton";
 import EntryModal from "./EntryModal";
+import { askConfirm } from "@/components/ui/confirm";
 
 interface Props {
   projectId: string;
@@ -76,7 +77,7 @@ export default function LedgerView({ projectId, userId, currency, entries, categ
   }
 
   async function remove(entry: FinanceEntry) {
-    if (!window.confirm(`Delete "${entry.description || "this entry"}"?`)) return;
+    if (!(await askConfirm(`Delete "${entry.description || "this entry"}"?`))) return;
     setError(null);
     setDeletingId(entry.id);
     try {

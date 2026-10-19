@@ -7,6 +7,7 @@ import type { Task, CalendarEvent, User } from "@/types";
 import Avatar from "@/components/ui/Avatar";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useUndoToast } from "@/context/UndoToastContext";
+import { showToast } from "@/components/ui/Toast";
 import type { OverdueReminder } from "./NeedsAttentionWidget";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,6 +17,8 @@ type AgendaItem = {
   title: string;
   kind: "task" | "reminder" | "event";
   dateIso: string;
+  /** Shown next to the date: a reminder's or event's start time. */
+  time?: string;
   href: string;
   assigneeIds: string[];
   canComplete: boolean;
@@ -42,6 +45,12 @@ const SECTION_CFG = {
 /** "2026-10-15" is a calendar date: read it in the viewer's time zone, not as UTC midnight. */
 export function parseDue(iso: string): Date {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + "T00:00:00") : new Date(iso);
+}
+
+/** "15:00" → "3:00 PM". */
+function timeLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 function overdueLabel(iso: string): string {
@@ -86,7 +95,9 @@ export function categorize(
 
   for (const r of reminders) {
     const due = new Date(r.dueAt);
-    const item: AgendaItem = { id: r.id, title: r.title, kind: "reminder", dateIso: r.dueAt, href: "/reminders", assigneeIds: r.assigneeId ? [r.assigneeId] : [], canComplete: true };
+    const hasTime = !/^\d{4}-\d{2}-\d{2}$/.test(r.dueAt);
+    const time = hasTime ? `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}` : undefined;
+    const item: AgendaItem = { id: r.id, title: r.title, kind: "reminder", dateIso: r.dueAt, time, href: "/reminders", assigneeIds: r.assigneeId ? [r.assigneeId] : [], canComplete: true };
     if (due < todayStart)    overdue.push(item);
     else if (due <= todayEnd) today.push(item);
     else if (due <= weekEnd)  upcoming.push(item);
@@ -95,7 +106,8 @@ export function categorize(
   for (const ev of events) {
     const evDate = new Date(ev.date + "T00:00:00");
     if (evDate < todayStart) continue;
-    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: ev.date, href: "/attendance", assigneeIds: [], canComplete: false };
+    const time = ev.time?.slice(0, 5);
+    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: time ? `${ev.date}T${time}:00` : ev.date, time, href: ev.href ?? "/attendance", assigneeIds: [], canComplete: false };
     if (evDate <= todayEnd) today.push(item);
     else if (evDate <= weekEnd) upcoming.push(item);
   }
@@ -119,9 +131,10 @@ function ItemRow({
   const assignees = item.assigneeIds
     .map((id) => teamMembers.find((u) => u.id === id))
     .filter(Boolean) as User[];
-  const dateLabel = sectionKey === "overdue" ? overdueLabel(item.dateIso)
+  const dayLabel = sectionKey === "overdue" ? overdueLabel(item.dateIso)
     : sectionKey === "upcoming" ? upcomingLabel(item.dateIso)
     : "";
+  const dateLabel = [dayLabel, item.time ? timeLabel(item.time) : ""].filter(Boolean).join(", ");
 
   return (
     <div style={{
@@ -283,18 +296,28 @@ export function TodayWidget({
   const todayItems    = today.filter((i) => !dismissed.has(i.id));
   const upcomingItems = upcoming.filter((i) => !dismissed.has(i.id));
 
+  // Saved straight away (so leaving the page can't lose it); Undo writes the old value back.
+  async function setDone(item: AgendaItem, done: boolean, prevStatus: string) {
+    if (!isSupabaseConfigured) return;
+    const { error } = item.kind === "reminder"
+      ? await supabase.from("reminders").update({ completed: done }).eq("id", item.id)
+      : await supabase.from("tasks").update({ status: done ? "done" : prevStatus }).eq("id", item.id);
+    if (error) {
+      setDismissed((prev) => { const s = new Set(prev); if (done) s.delete(item.id); else s.add(item.id); return s; });
+      showToast(`Couldn't save: ${error.message}`, "error");
+    }
+  }
+
   function markDone(item: AgendaItem) {
+    if (item.kind === "event") return;
+    const prevStatus = tasks.find((t) => t.id === item.id)?.status ?? "todo";
     setDismissed((prev) => new Set(prev).add(item.id));
+    void setDone(item, true, prevStatus);
     showUndo(
       `Marked "${item.title}" as done`,
-      () => setDismissed((prev) => { const s = new Set(prev); s.delete(item.id); return s; }),
-      async () => {
-        if (!isSupabaseConfigured) return;
-        if (item.kind === "reminder") {
-          await supabase.from("reminders").update({ completed: true }).eq("id", item.id);
-        } else if (item.kind === "task") {
-          await supabase.from("tasks").update({ status: "done" }).eq("id", item.id);
-        }
+      () => {
+        setDismissed((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+        void setDone(item, false, prevStatus);
       },
     );
   }

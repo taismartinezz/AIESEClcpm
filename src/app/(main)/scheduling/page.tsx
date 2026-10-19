@@ -133,7 +133,7 @@ interface CalEvent {
   endMin: number | null;
   color: string;
   bgColor: string;
-  type: "lab" | "personal" | "meeting" | "google";
+  type: "lab" | "personal" | "meeting" | "google" | "lc";
   link?: string | null;
   isScheduleEvent: boolean;
   ownerId: string;
@@ -176,6 +176,23 @@ function toCalEvents(events: ScheduleEvent[], proposals: MeetingProposal[]): Cal
 }
 
 /** Your own Google Calendar events, shown read-only in your Calendar view. */
+/** LC events from the Events page (all-day, possibly several days), shown read-only. */
+interface LcEventLite { id: string; name: string; startsOn: string; endsOn: string }
+function lcToCalEvents(events: LcEventLite[], currentUserId: string): CalEvent[] {
+  const result: CalEvent[] = [];
+  for (const e of events) {
+    const day = new Date(e.startsOn + "T00:00:00");
+    const last = new Date(e.endsOn + "T00:00:00");
+    for (let i = 0; day <= last && i < 60; i++, day.setDate(day.getDate() + 1)) {
+      result.push({
+        id: `lc:${e.id}:${i}`, title: e.name, date: makeDateStr(day), startMin: null, endMin: null,
+        color: "var(--color-navy)", bgColor: "var(--color-navy-dim)", type: "lc", isScheduleEvent: false, ownerId: currentUserId, link: "/attendance",
+      });
+    }
+  }
+  return result;
+}
+
 function googleToCalEvents(events: GoogleEvent[], currentUserId: string): CalEvent[] {
   return events.map((g) => {
     const start = new Date(g.allDay ? g.start + "T00:00:00" : g.start);
@@ -220,8 +237,9 @@ function minToTimeStr(min: number): string {
 }
 
 function CalendarTab({
-  events, proposals, googleEvents, currentUserId, projectId, onAddEvent, onUpdateEvent, onDeleteEvent,
+  events, lcEvents, proposals, googleEvents, currentUserId, projectId, onAddEvent, onUpdateEvent, onDeleteEvent,
 }: {
+  lcEvents: LcEventLite[];
   onUpdateEvent: (id: string, changes: Pick<ScheduleEvent, "title" | "date" | "time" | "scope">) => void;
   events: ScheduleEvent[];
   googleEvents: GoogleEvent[];
@@ -254,7 +272,7 @@ function CalendarTab({
   const [tpPos, setTpPos] = useState<{ top: number; left: number; anchorTop?: number } | null>(null);
   const timeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const calEvents = useMemo(() => [...toCalEvents(events, proposals), ...googleToCalEvents(googleEvents, currentUserId)], [events, proposals, googleEvents, currentUserId]);
+  const calEvents = useMemo(() => [...toCalEvents(events, proposals), ...lcToCalEvents(lcEvents, currentUserId), ...googleToCalEvents(googleEvents, currentUserId)], [events, lcEvents, proposals, googleEvents, currentUserId]);
 
   function navigate(dir: 1 | -1) {
     const d = new Date(anchor);
@@ -647,6 +665,9 @@ function CalendarTab({
             </p>
             {detailEvent.type === "google" && detailEvent.link && (
               <a href={detailEvent.link} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>Open in Google Calendar</a>
+            )}
+            {detailEvent.type === "lc" && (
+              <a href="/attendance" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>LC event · open in Events</a>
             )}
             {detailEvent.isScheduleEvent && detailEvent.ownerId === currentUserId && (
               <div className="flex items-center gap-3" style={{ marginLeft: 15 }}>
@@ -1057,6 +1078,7 @@ export default function SchedulingPage() {
   const [allUserSettings, setAllUserSettings] = useState<UserSettings[]>([]);
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [lcEvents, setLcEvents] = useState<LcEventLite[]>([]);
   const [google, setGoogle] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([]);
   const [googleVersion, setGoogleVersion] = useState(0);
@@ -1247,12 +1269,20 @@ export default function SchedulingPage() {
     if (!projectId || !currentUserId || !isSupabaseConfigured) return;
 
     async function fetchEvents() {
-      const { data: evData } = await supabase
-        .from("schedule_events")
-        .select("*")
-        .eq("project_id", projectId)
-        .or(`scope.neq.personal,and(scope.eq.personal,created_by.eq.${currentUserId})`)
-        .order("date", { ascending: true });
+      const [{ data: evData }, { data: lcData }] = await Promise.all([
+        supabase
+          .from("schedule_events")
+          .select("*")
+          .eq("project_id", projectId)
+          .or(`scope.neq.personal,and(scope.eq.personal,created_by.eq.${currentUserId})`)
+          .order("date", { ascending: true }),
+        // Events made on the Events page show on the calendar too
+        supabase
+          .from("lc_events")
+          .select("id, name, starts_on, ends_on")
+          .eq("project_id", projectId),
+      ]);
+      setLcEvents((lcData ?? []).map((r) => ({ id: r.id as string, name: r.name as string, startsOn: r.starts_on as string, endsOn: r.ends_on as string })));
 
       if (evData) {
         setEvents(
@@ -1515,6 +1545,7 @@ export default function SchedulingPage() {
               {tab === "calendar" && (
                 <CalendarTab
                   events={events}
+                  lcEvents={lcEvents}
                   proposals={proposals}
                   googleEvents={googleEvents}
                   currentUserId={currentUserId}

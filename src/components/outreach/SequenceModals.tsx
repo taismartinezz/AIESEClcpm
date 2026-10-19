@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { PRODUCTS, STAGE_LABEL, type ProductCode } from "@/lib/products";
 import type { OutreachTemplate } from "@/components/outreach/TemplateModal";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 export interface Sequence {
   id: string; name: string; product: ProductCode; triggerStage: "signed_up" | "applied" | "accepted"; active: boolean; departmentId: string | null;
@@ -34,7 +35,7 @@ export function SequenceModal({ projectId, userId, products, templates, sequence
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
-    if (!sequence || !window.confirm(`Delete the sequence "${sequence.name}"? Emails already sent stay in each person's history.`)) return;
+    if (!sequence || !(await askConfirm(`Delete the sequence "${sequence.name}"? Emails already sent stay in each person's history.`))) return;
     setBusy(true);
     setError(null);
     try {

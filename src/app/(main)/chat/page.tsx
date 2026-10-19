@@ -679,6 +679,9 @@ export default function ChatPage() {
 
   const memberCount = teamMembers.length + 1;
   const pinnedCount = messages.filter(m => m.isPinned && !m.deletedAt).length;
+  // Hide blank messages (sent before empty sends were blocked) and deleted ones,
+  // unless a deleted message still has replies in its thread.
+  const shownMessages = messages.filter(m => m.deletedAt ? m.threadCount > 0 : (m.content.trim() !== "" || (m.attachments?.length ?? 0) > 0));
 
   // Read receipt: which peers have seen the last visible message
   const lastMsg = messages.filter(m => !m.deletedAt).at(-1);
@@ -783,7 +786,7 @@ export default function ChatPage() {
               onScroll={handleScroll}
             >
               {loading && <div className="flex items-center justify-center py-10" style={{ color: "var(--color-secondary)", fontSize: 13 }}>Loading messages...</div>}
-              {!loading && messages.length === 0 && (
+              {!loading && shownMessages.length === 0 && (
                 isDm && dmPeer ? (
                   <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center gap-4">
                     <span style={{ position: "relative", display: "inline-flex" }}>
@@ -801,16 +804,16 @@ export default function ChatPage() {
                     <Hash size={40} style={{ color: "var(--color-border)" }} />
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>Welcome to #{channelLabel()}</p>
                     <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>This is the beginning of the #{channelLabel()} channel. Be the first to post something.</p>
-                    <button onClick={() => {}} style={{ marginTop: 6, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Send a message</button>
+                    <button onClick={() => (document.querySelector("[data-chat-composer]") as HTMLElement | null)?.focus()} style={{ marginTop: 6, fontSize: 13, fontWeight: 600, padding: "8px 18px", borderRadius: 7, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", cursor: "pointer" }}>Send a message</button>
                   </div>
                 )
               )}
-              {!loading && messages.length > 0 && (
+              {!loading && shownMessages.length > 0 && (
                 <div style={{ paddingTop: 12, paddingBottom: 4 }}>
-                  {messages.map((msg, i) => {
-                    const prev = i > 0 ? messages[i - 1] : null;
+                  {shownMessages.map((msg, i) => {
+                    const prev = i > 0 ? shownMessages[i - 1] : null;
                     const showDiv = !prev || !sameDay(prev.createdAt, msg.createdAt);
-                    const isLastVisible = i === messages.length - 1;
+                    const isLastVisible = i === shownMessages.length - 1;
                     return (
                       <div
                         key={msg.id}

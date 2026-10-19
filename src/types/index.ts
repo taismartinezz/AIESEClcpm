@@ -195,8 +195,9 @@ export interface CalendarEvent {
   id: string;
   title: string;
   date: string;            // ISO date string
-  time?: string;
+  time?: string;           // "HH:MM" when the event has a start time
   projectId: string;
+  href?: string;           // where the event lives (Events page or Scheduling)
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────

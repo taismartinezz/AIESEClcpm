@@ -6,6 +6,7 @@ import { mapGoal, progressRatio } from "@/lib/pipeline";
 import { PRODUCTS, PRODUCT_BY_CODE, STAGES, STAGE_LABEL, type ExchangeStage, type ProductCode } from "@/lib/products";
 import type { Department, Goal } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 export interface GoalWithProgress extends Goal { current: number }
 
@@ -120,7 +121,7 @@ export function GoalModal({ projectId, userId, departments, allowedDepartmentIds
   }
 
   async function remove() {
-    if (!goal || !window.confirm(`Delete "${goal.title}"?`)) return;
+    if (!goal || !(await askConfirm(`Delete "${goal.title}"?`))) return;
     setDeleting(true);
     setError(null);
     try {

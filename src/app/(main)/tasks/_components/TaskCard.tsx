@@ -132,14 +132,16 @@ export function TaskCard({
         <div className="flex items-center justify-between gap-2" style={{ flexWrap: "wrap", rowGap: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flexShrink: 0 }}>
             {overdue && <Clock size={11} color="var(--color-secondary)" aria-label="Overdue" />}
-            <span style={{
-              fontSize: 12,
-              color: "var(--color-secondary)",
-              fontWeight: overdue ? 600 : 400,
-              flexShrink: 0,
-            }}>
-              {task.dueDate ? formatDate(task.dueDate) : "-"}
-            </span>
+            {task.dueDate && (
+              <span style={{
+                fontSize: 12,
+                color: "var(--color-secondary)",
+                fontWeight: overdue ? 600 : 400,
+                flexShrink: 0,
+              }}>
+                {formatDate(task.dueDate)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5" style={{ flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto", minWidth: 0 }}>
             {showLabBadge && task.scope === "lab" && (

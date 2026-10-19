@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { mapCategory } from "@/lib/finance";
 import type { FinanceCategory } from "@/types";
 import { Button, ErrorText, inputStyle } from "@/components/lc/ui";
+import { askConfirm } from "@/components/ui/confirm";
 
 /** President-only: the LC's finance categories (RLS: "president manages finance categories"). */
 export default function CategoriesManager({ projectId }: { projectId: string }) {
@@ -59,7 +60,7 @@ export default function CategoriesManager({ projectId }: { projectId: string }) 
             />
             <button
               type="button" aria-label={`Delete ${c.name}`}
-              onClick={() => { if (window.confirm(`Delete "${c.name}"? Entries keep their amounts but become uncategorised.`)) void run(c.id, () => supabase.from("finance_categories").delete().eq("id", c.id)); }}
+              onClick={() => { void askConfirm(`Delete "${c.name}"? Entries keep their amounts but become uncategorised.`).then((ok) => { if (ok) void run(c.id, () => supabase.from("finance_categories").delete().eq("id", c.id)); }); }}
               style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)", background: "transparent", borderRadius: 6, cursor: "pointer" }}
             >
               <Trash2 size={13} color="var(--color-secondary)" />
