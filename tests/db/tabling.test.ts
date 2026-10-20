@@ -146,3 +146,20 @@ describe("after the slot", () => {
     expect(omar.every((id) => id === u.gia || id === u.omar)).toBe(true);
   });
 });
+
+describe("signing up from the weekly email (tabling_sign_up_as)", () => {
+  it("signs a member up once, with the day-before reminder, and refuses non-members and full slots", async () => {
+    const id = await slot(1, 30);
+    const outsider = await createUser(db, "outsider-email");
+    expect((await db.query<{ r: string }>("select tabling_sign_up_as($1, $2) as r", [id, u.gia])).rows[0].r).toBe("signed_up");
+    expect((await db.query<{ r: string }>("select tabling_sign_up_as($1, $2) as r", [id, u.gia])).rows[0].r).toBe("already");
+    expect((await db.query("select 1 from reminders where user_id = $1 and kind = 'tabling' and linked_event_id = $2", [u.gia, id])).rows).toHaveLength(1);
+    await expect(db.query("select tabling_sign_up_as($1, $2)", [id, outsider])).rejects.toThrow(/Slot not found/);
+    await expect(db.query("select tabling_sign_up_as($1, $2)", [id, u.max])).rejects.toThrow(/full/);
+  });
+
+  it("can't be called by signed-in users", async () => {
+    const id = await slot(3, 30);
+    await expect(asUser(db, u.gia, (tx) => tx.query("select tabling_sign_up_as($1, $2)", [id, u.max]))).rejects.toThrow(/permission denied/);
+  });
+});

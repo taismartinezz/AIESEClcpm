@@ -504,7 +504,7 @@ export default function SettingsPage() {
 
       {/* LC & invites — president only, hidden in Personal workspace */}
       {isPresident && activeScope !== "personal" && (
-        <section style={sectionStyle} aria-labelledby="settings-invite-heading">
+        <section id="invite" style={sectionStyle} aria-labelledby="settings-invite-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
             <h2 id="settings-invite-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>

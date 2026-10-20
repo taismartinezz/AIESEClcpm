@@ -94,7 +94,16 @@ export function buildCheckinEmail(opts: { to: string; recipientName: string; kin
 export function buildWeeklyDigest(opts: {
   to: string; recipientName: string; lcName: string; tasks: { title: string; due: string }[];
   events: EventForEmail[]; wins: string[]; fromName?: string;
+  /** Open tabling slots this week, each with a one-tap sign-up link. */
+  slots?: { label: string; signUpUrl: string }[];
 }): EmailPayload {
+  const slots = opts.slots ?? [];
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  // The subject says what needs you, so it's useful without opening the email.
+  const asks = [
+    opts.tasks.length ? `You have ${plural(opts.tasks.length, "task", "tasks")} this week` : "",
+    slots.length ? `${plural(slots.length, "tabling slot needs", "tabling slots need")} you` : "",
+  ].filter(Boolean);
   const section = (title: string, body: string) =>
     `<p style="margin:18px 0 8px;font-size:12px;font-weight:700;color:#0263C4;text-transform:uppercase;letter-spacing:0.05em;">${title}</p>${body}`;
   const list = (items: string[], empty: string) => items.length
@@ -103,6 +112,7 @@ export function buildWeeklyDigest(opts: {
   const html = baseHtml(`
     ${p(`Hi ${escapeHtml(opts.recipientName)}, here's your week in <strong>${escapeHtml(opts.lcName)}</strong>.`)}
     ${section("Your tasks this week", list(opts.tasks.map((t) => `${escapeHtml(t.title)} <span style="color:#64748b;">· ${escapeHtml(t.due)}</span>`), "Nothing due this week."))}
+    ${slots.length ? section("Tabling needs you", list(slots.map((sl) => `${escapeHtml(sl.label)} · <a href="${escapeHtml(sl.signUpUrl)}" style="color:#0263C4;font-weight:600;">Sign me up</a>`), "")) : ""}
     ${section("Coming up", list(opts.events.map((e) => `${escapeHtml(e.name)} <span style="color:#64748b;">· ${escapeHtml(whenText(e))}</span>`), "No events in the next 7 days."))}
     ${section("LC wins", list(opts.wins.map(escapeHtml), "No wins posted last week. Post one!"))}
     ${btn(`Open ${APP_NAME}`, `${APP_URL}/`)}
@@ -110,11 +120,13 @@ export function buildWeeklyDigest(opts: {
   const text = [
     `Hi ${opts.recipientName}, here's your week in ${opts.lcName}.`, "",
     "Your tasks this week:", ...(opts.tasks.length ? opts.tasks.map((t) => `- ${t.title} (${t.due})`) : ["- nothing due"]), "",
+    ...(slots.length ? ["Tabling needs you:", ...slots.map((sl) => `- ${sl.label}: sign up at ${sl.signUpUrl}`), ""] : []),
     "Coming up:", ...(opts.events.length ? opts.events.map((e) => `- ${e.name} (${whenText(e)})`) : ["- no events"]), "",
     "LC wins:", ...(opts.wins.length ? opts.wins.map((w) => `- ${w}`) : ["- none yet"]), "",
     `${APP_URL}/`, `Manage email preferences: ${APP_URL}/settings#notifications`,
   ].join("\n");
-  return { to: opts.to, subject: `Your week in ${opts.lcName}`, html, text, fromName: opts.fromName };
+  const subject = asks.length ? `${asks.join(", ")} (${opts.lcName})` : `Your week in ${opts.lcName}`;
+  return { to: opts.to, subject, html, text, fromName: opts.fromName };
 }
 
 export function buildAnnouncementEmail(opts: {

@@ -16,14 +16,25 @@ beforeAll(async () => {
 describe("demo LC", () => {
   let demo: string;
 
-  it("is created full of sample data with the caller as its only member", async () => {
+  it("is created full of sample data, with the caller as president and a made-up team", async () => {
     demo = await asUserCommit(db, u.ana, async () => (await db.query<{ create_demo_lc: string }>("select create_demo_lc()")).rows[0].create_demo_lc);
     const counts = await asUser(db, u.ana, async (tx) => (await tx.query<Record<string, number>>(`select
       (select count(*)::int from exchanges where project_id = $1) as exchanges,
       (select count(*)::int from goals where project_id = $1) as goals,
       (select count(*)::int from partners where project_id = $1) as partners,
-      (select count(*)::int from team_members where project_id = $1) as members`, [demo])).rows[0]);
-    expect(counts).toEqual({ exchanges: 10, goals: 3, partners: 3, members: 1 });
+      (select count(*)::int from team_members where project_id = $1) as members,
+      (select count(*)::int from exchanges where project_id = $1 and owner_id is null) as unowned,
+      (select count(*)::int from chat_messages where channel = 'lab:' || $1) as messages,
+      (select count(*)::int from lab_wins where project_id = $1) as wins`, [demo])).rows[0]);
+    expect(counts).toEqual({ exchanges: 10, goals: 3, partners: 3, members: 8, unowned: 0, messages: 5, wins: 1 });
+    // Their check-ins are in, so the president's pulse shows numbers rather than "not enough responses".
+    const pulse = await asUser(db, u.ana, async (tx) => (await tx.query<{ suppressed: boolean }>(
+      "select suppressed from get_exec_pulse($1)", [demo])).rows);
+    expect(pulse.some((r) => !r.suppressed)).toBe(true);
+    // Placeholder accounts can't be reached or signed into.
+    const emails = (await db.query<{ email: string }>("select u.email from auth.users u join demo_people d on d.user_id = u.id where d.project_id = $1", [demo])).rows;
+    expect(emails).toHaveLength(7);
+    expect(emails.every((e) => e.email.endsWith("@demo.invalid"))).toBe(true);
     const { rows } = await db.query<{ approved: number }>("select current from goal_progress($1) limit 0", [demo]);
     expect(rows).toEqual([]);
   });
@@ -38,5 +49,6 @@ describe("demo LC", () => {
     await expect(asUser(db, u.bo, (tx) => tx.query("select delete_demo_lc($1)", [real]))).rejects.toThrow(/Only your own demo LCs/);
     await asUserCommit(db, u.ana, () => db.query("select delete_demo_lc($1)", [demo]));
     expect((await db.query("select 1 from projects where id = $1", [demo])).rows).toEqual([]);
+    expect((await db.query("select 1 from auth.users where email like '%@demo.invalid'")).rows).toEqual([]);
   });
 });

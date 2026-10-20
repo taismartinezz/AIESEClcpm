@@ -183,3 +183,11 @@ test('a stuck exchange offers one-click actions that reach a person', async ({ p
     .toContain('"user_id":"someone-else"')
   await expect(page.getByRole('status').filter({ hasText: /Nudged/ }).first()).toBeVisible()
 })
+
+test('a brand-new LC shows one next step instead of empty pulse and wins cards', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  await page.goto('/')
+  const next = page.getByRole('region', { name: 'Next step' })
+  await expect(next).toContainText('Invite your VPs', { timeout: 10000 })
+  await expect(next.getByRole('link', { name: 'Invite people' })).toHaveAttribute('href', '/settings#invite')
+})

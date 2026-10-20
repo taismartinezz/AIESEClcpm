@@ -22,3 +22,18 @@ export function verifyRsvpToken(eventId: string, userId: string, token: string):
     return false;
   }
 }
+
+/** Signed one-tap tabling sign-up links in the weekly email: one slot, one person. */
+export function tablingToken(slotId: string, userId: string): string {
+  return createHmac("sha256", secret()).update(`tabling:${slotId}:${userId}`).digest("base64url");
+}
+
+export function verifyTablingToken(slotId: string, userId: string, token: string): boolean {
+  try {
+    const expected = Buffer.from(tablingToken(slotId, userId));
+    const given = Buffer.from(token);
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  } catch {
+    return false;
+  }
+}

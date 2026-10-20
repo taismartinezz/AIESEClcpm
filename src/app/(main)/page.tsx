@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -363,6 +364,9 @@ export default function DashboardPage() {
     });
   }, [activeProjectId, userId, remindersVersion]);
 
+  // Only you in this LC so far (the team list includes you).
+  const soloLc = !loading && isSupabaseConfigured && teamMembers.length <= 1;
+
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const timeOfDay = (() => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; })();
 
@@ -536,7 +540,24 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {(role === "president" || role === "vp") && (
+        {/* A brand-new LC (just you): pulse, wins and opportunities can only be empty,
+            so show the one thing that fills them instead. */}
+        {soloLc && (role === "president" || role === "vp") && (
+          <section aria-label="Next step" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderLeft: "3px solid var(--color-navy)", borderRadius: 10, padding: "16px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "0 0 4px" }}>Next step</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "var(--color-navy)", margin: "0 0 4px" }}>
+                {role === "president" ? "Invite your VPs. It takes 1 minute." : "Ask your LCP to invite your department's members."}
+              </p>
+              <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>The team pulse, wins and opportunities fill in once your team is here.</p>
+            </div>
+            {role === "president" && (
+              <Link href="/settings#invite" style={{ backgroundColor: "var(--color-btn-primary)", color: "#fff", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Invite people</Link>
+            )}
+          </section>
+        )}
+
+        {!soloLc && (role === "president" || role === "vp") && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
             {role === "president" ? (
               <>
@@ -550,14 +571,14 @@ export default function DashboardPage() {
         )}
 
         {/* Row 2: Opportunities + Wins */}
-        <LcWinsWidget
+        {!soloLc && <LcWinsWidget
           posts={dashPosts}
           projectId={projectId}
           projectName={projectName}
           userId={userId}
           teamMembers={teamMembers}
           loading={loading}
-        />
+        />}
       </div>
 
       {/* Task detail panel */}

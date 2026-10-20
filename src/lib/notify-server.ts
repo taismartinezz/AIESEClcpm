@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { APP_URL, sendEmail, type EmailPayload } from "@/lib/email";
 import { buildIcs } from "@/lib/ics";
-import { rsvpToken } from "@/lib/rsvp-token";
+import { rsvpToken, tablingToken } from "@/lib/rsvp-token";
 import { runOutreach } from "@/lib/outreach-server";
 import { periodStart, type CheckinCadence } from "@/lib/wellbeing";
 import {
@@ -256,6 +256,12 @@ export async function runCheckinEmails(db: SupabaseClient, mailer: Mailer, now: 
   }
 }
 
+function slotTime(iso: string, timeZone = "UTC"): string {
+  const opts = { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } as const;
+  try { return new Date(iso).toLocaleString("en-US", { ...opts, timeZone }); }
+  catch { return `${new Date(iso).toLocaleString("en-US", { ...opts, timeZone: "UTC" })} UTC`; }
+}
+
 export async function runDigest(db: SupabaseClient, mailer: Mailer, now: Date, force = false) {
   const week = force ? isoDay(now) : digestWeek(now);
   if (!week) return;
@@ -265,6 +271,9 @@ export async function runDigest(db: SupabaseClient, mailer: Mailer, now: Date, f
   type M = { user_id: string; project_id: string; department_id: string | null; projects: { name: string; email_sender_name: string | null } | { name: string; email_sender_name: string | null }[] };
   const rows = (members ?? []) as M[];
   await mailer.load(rows.map((m) => m.user_id));
+  // Slot times are shown in each person's own time zone (Settings).
+  const { data: tzRows } = rows.length ? await db.from("user_settings").select("user_id, timezone").in("user_id", [...new Set(rows.map((m) => m.user_id))]) : { data: [] };
+  const tzOf = new Map((tzRows ?? []).map((r) => [r.user_id as string, r.timezone as string]));
   const byProject = new Map<string, { events: EventRow[]; wins: string[] }>();
   for (const m of rows) {
     const proj = Array.isArray(m.projects) ? m.projects[0] : m.projects;
@@ -283,9 +292,21 @@ export async function runDigest(db: SupabaseClient, mailer: Mailer, now: Date, f
     const { data: tasks } = await db.from("tasks").select("title, due_date, task_assignees!inner(user_id)")
       .eq("project_id", m.project_id).eq("task_assignees.user_id", m.user_id).neq("status", "done").eq("archived", false)
       .gte("due_date", week).lte("due_date", weekEnd).order("due_date");
+    // Tabling slots this week that still need people (LC-wide or this member's department)
+    // and that they haven't signed up for, with a one-tap sign-up link each.
+    const { data: slotRows } = await db.from("tabling_slots").select("id, purpose, location, starts_at, capacity, taken, department_id, tabling_signups(user_id)")
+      .eq("project_id", m.project_id).gt("starts_at", now.toISOString()).lte("starts_at", addDays(new Date(weekEnd + "T00:00:00Z"), 1).toISOString()).order("starts_at");
+    type S = { id: string; purpose: string; location: string; starts_at: string; capacity: number; taken: number; department_id: string | null; tabling_signups: { user_id: string }[] };
+    const slots = ((slotRows ?? []) as S[])
+      .filter((sl) => sl.taken < sl.capacity && (!sl.department_id || sl.department_id === m.department_id) && !sl.tabling_signups?.some((x) => x.user_id === m.user_id))
+      .slice(0, 3)
+      .map((sl) => ({
+        label: `${sl.purpose}, ${sl.location}, ${slotTime(sl.starts_at, tzOf.get(m.user_id))} (${sl.capacity - sl.taken} ${sl.capacity - sl.taken === 1 ? "place" : "places"} left)`,
+        signUpUrl: `${APP_URL}/api/tabling/signup?s=${sl.id}&u=${m.user_id}&t=${tablingToken(sl.id, m.user_id)}`,
+      }));
     await mailer.send("digest", `${week}:${m.project_id}`, m.user_id, (to, name) => buildWeeklyDigest({
       to, recipientName: name, lcName: proj.name, fromName: proj.email_sender_name ?? proj.name,
-      tasks: (tasks ?? []).map((t) => ({ title: t.title as string, due: t.due_date as string })), events, wins: lcData.wins,
+      tasks: (tasks ?? []).map((t) => ({ title: t.title as string, due: t.due_date as string })), events, wins: lcData.wins, slots,
     }));
   }
 }

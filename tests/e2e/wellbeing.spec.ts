@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test'
 import { setupAuthMocks } from './helpers/mocks'
 
+// An LC with people in it (with just you, the dashboard shows "Invite your VPs" instead of the pulse).
+const member = (user_id: string, role: string) => ({ project_id: 'project-abc', user_id, role, department_id: null, joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' }, user_profiles: { name: user_id } })
+const TEAM = [member('mock-user-id', 'president'), member('vp-1', 'vp'), member('m-1', 'member')]
+
 // The database decides what each role may see (tests/db/wellbeing.test.ts);
 // these tests check the dashboard renders each role's view correctly.
 
@@ -46,7 +50,7 @@ const memberRows = [
 
 test.describe('Wellbeing on the dashboard', () => {
   test('the president sees Exec Pulse and Member Pulse with a flagged department', async ({ page }) => {
-    await setupAuthMocks(page, 'president', { departments, rpc: { get_exec_pulse: execRows, get_member_pulse: memberRows } })
+    await setupAuthMocks(page, 'president', { departments, rpc: { get_exec_pulse: execRows, get_member_pulse: memberRows }, tables: { team_members: TEAM } })
     await page.goto('/')
     await expect(page.getByRole('region', { name: 'Exec Pulse' })).toBeVisible({ timeout: 10000 })
     const member = page.getByRole('region', { name: 'Member Pulse' })
