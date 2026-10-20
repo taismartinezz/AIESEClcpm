@@ -8,11 +8,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send, CalendarDays,
-  Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon,
+  Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon, MoreHorizontal,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
-import type { User, SubProject } from "@/types";
+import type { User, SubProject, UserRole } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
 import { DemoLcButton } from "@/components/lc/DemoLc";
@@ -43,51 +43,51 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 }
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
-type NavGroup = { id: string; label: string | null; items: NavItem[] };
+type NavGroup = { id: string; label: string | null; items: NavItem[]; foldedByDefault?: boolean };
 
-/** Sidebar groups. Check-in and Journal stay last, as agreed. */
-const NAV_GROUPS: NavGroup[] = [
-  { id: "main", label: null, items: [
-    { href: "/",            label: "Dashboard",  icon: LayoutDashboard },
-    { href: "/tasks",       label: "Tasks",      icon: CheckSquare     },
-    { href: "/chat",        label: "Chat",       icon: MessageSquare   },
-    { href: "/reminders",   label: "Reminders",  icon: CircleCheck     },
-    { href: "/scheduling",  label: "Scheduling", icon: CalendarDays    },
-  ] },
-  { id: "exchanges", label: "Exchanges", items: [
-    { href: "/pipeline",    label: "Pipeline",   icon: Plane           },
-    { href: "/outreach",    label: "Outreach",   icon: Send            },
-    { href: "/goals",       label: "Goals",      icon: Target          },
-    { href: "/partners",    label: "Partners",   icon: Handshake       },
-  ] },
-  { id: "people", label: "People", items: [
-    { href: "/team",        label: "Team",       icon: Users           },
-    { href: "/members",     label: "Members",    icon: UserPlus        },
-    { href: "/attendance",  label: "Events",     icon: UserCheck       },
-    { href: "/tabling",     label: "Tabling",    icon: Store           },
-  ] },
-  { id: "operations", label: "Operations", items: [
-    { href: "/finance",     label: "Finance",    icon: Wallet          },
-    { href: "/drive",       label: "LC Drive",   icon: FolderOpen      },
-    { href: "/handover",    label: "Handover",   icon: ScrollText      },
-    { href: "/import",      label: "Import",     icon: FileSpreadsheet },
-  ] },
-  { id: "wellbeing", label: "Wellbeing", items: [
-    { href: "/checkin",     label: "Check-in",   icon: HeartPulse      },
-    { href: "/journal",     label: "Journal",    icon: BookOpen        },
-  ] },
-];
+const NAV: Record<string, NavItem> = Object.fromEntries(([
+  ["/",           "Dashboard",  LayoutDashboard],
+  ["/tasks",      "Tasks",      CheckSquare    ],
+  ["/chat",       "Chat",       MessageSquare  ],
+  ["/reminders",  "Reminders",  CircleCheck    ],
+  ["/scheduling", "Scheduling", CalendarDays   ],
+  ["/pipeline",   "Pipeline",   Plane          ],
+  ["/outreach",   "Outreach",   Send           ],
+  ["/goals",      "Goals",      Target         ],
+  ["/partners",   "Partners",   Handshake      ],
+  ["/team",       "Team",       Users          ],
+  ["/members",    "Members",    UserPlus       ],
+  ["/attendance", "Events",     UserCheck      ],
+  ["/tabling",    "Tabling",    Store          ],
+  ["/finance",    "Finance",    Wallet         ],
+  ["/drive",      "LC Drive",   FolderOpen     ],
+  ["/handover",   "Handover",   ScrollText     ],
+  ["/import",     "Import",     FileSpreadsheet],
+  ["/checkin",    "Check-in",   HeartPulse     ],
+  ["/journal",    "Journal",    BookOpen       ],
+  ["/mc",         "National (MC)", Globe2      ],
+] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
-const NATIONAL: NavGroup = { id: "national", label: "National", items: [{ href: "/mc", label: "National (MC)", icon: Globe2 }] };
+/**
+ * What each role sees first; everything else sits under "More" (folded until
+ * opened, or while you're on one of its pages). A member gets their own day to
+ * day, a VP adds the department's tools, the president the LC-wide ones.
+ */
+const PRIMARY: Record<UserRole, string[]> = {
+  member:    ["/", "/tasks", "/chat", "/attendance", "/tabling", "/checkin"],
+  vp:        ["/", "/tasks", "/chat", "/pipeline", "/goals", "/partners", "/attendance", "/tabling", "/checkin"],
+  president: ["/", "/tasks", "/chat", "/pipeline", "/goals", "/members", "/attendance", "/finance", "/checkin"],
+};
 
-/** The sidebar groups, plus "National" for people on an MC (before Wellbeing). */
 function useNavGroups(): NavGroup[] {
   const { mcs } = useMcs();
-  return mcs.length > 0 ? [...NAV_GROUPS.slice(0, -1), NATIONAL, NAV_GROUPS[NAV_GROUPS.length - 1]] : NAV_GROUPS;
-}
-
-function useNavItems(): NavItem[] {
-  return useNavGroups().flatMap((g) => g.items);
+  const { role } = useProject();
+  const primary = PRIMARY[role ?? "member"] ?? PRIMARY.member;
+  const rest = Object.keys(NAV).filter((href) => !primary.includes(href) && (href !== "/mc" || mcs.length > 0));
+  return [
+    { id: "main", label: null, items: primary.map((h) => NAV[h]) },
+    { id: "more", label: "More", items: rest.map((h) => NAV[h]), foldedByDefault: true },
+  ];
 }
 
 const COLLAPSE_KEY = "aiesec_nav_sections";
@@ -227,7 +227,6 @@ function SidebarBody({
   projectName?: string;
   projectColor?: string;
 }) {
-  const navItems = useNavItems();
   const navGroups = useNavGroups();
   const [folded, toggleFolded] = useCollapsed();
   const [wsOpen, setWsOpen] = useState(false);
@@ -337,7 +336,7 @@ function SidebarBody({
 
         {/* Page nav icons */}
         <nav className="flex-1 flex flex-col items-center overflow-y-auto" style={{ gap: 2, scrollbarWidth: "none" }} aria-label="Main navigation">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navGroups[0].items.concat(navGroups.slice(1).flatMap((g) => g.items).filter((i) => isActive(i.href))).map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             const badgeCount = href === "/chat" ? chatUnread : 0;
             const showBadge = badgeCount > 0;
@@ -371,6 +370,13 @@ function SidebarBody({
               </Tooltip>
             );
           })}
+          {onExpand && (
+            <Tooltip label="More" placement="right">
+              <button type="button" onClick={onExpand} aria-label="More pages" style={{ ...ICON_BTN, background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)" }}>
+                <MoreHorizontal size={16} />
+              </button>
+            </Tooltip>
+          )}
         </nav>
 
         <SidebarDivider />
@@ -532,7 +538,9 @@ function SidebarBody({
       {/* Nav items, in collapsible sections */}
       <nav className="flex-1 px-2 overflow-y-auto" aria-label="Main navigation">
         {navGroups.map((group) => {
-          const open = !group.label || !folded.has(group.id) || group.items.some((i) => isActive(i.href));
+          // "folded" lists sections the user toggled: for a section folded by default, that means opened.
+          const toggled = folded.has(group.id);
+          const open = !group.label || (group.foldedByDefault ? toggled : !toggled) || group.items.some((i) => isActive(i.href));
           return (
             <div key={group.id} style={{ marginBottom: 4 }}>
               {group.label && (

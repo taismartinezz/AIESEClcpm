@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
@@ -50,7 +50,11 @@ export default function TasksPage() {
   const filterDepartment = departmentChoice ?? homeDepartment ?? "all";
   const [taskScope, setTaskScope] = useState<string>("all"); // "all" | "personal" | "lab" | subProjectId
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("aiesec_tasks_sidebar_collapsed") === "true"; } catch { return false; }
+    // Your choice wins; until you've made one, start folded where the five board columns need the room.
+    try {
+      const saved = localStorage.getItem("aiesec_tasks_sidebar_collapsed");
+      return saved != null ? saved === "true" : typeof window !== "undefined" && window.innerWidth < 1440;
+    } catch { return false; }
   });
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -59,6 +63,21 @@ export default function TasksPage() {
   const [subtaskData, setSubtaskData] = useState<Record<string, Task[]>>({});
   const [taskNavStack, setTaskNavStack] = useState<Task[]>([]);
   const [boardWidth, setBoardWidth] = useState(1440);
+  // Fade the right edge only while columns are hidden off to the right.
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const [boardOverflows, setBoardOverflows] = useState(false);
+  const checkBoardOverflow = useCallback(() => {
+    const el = boardScrollRef.current;
+    setBoardOverflows(Boolean(el && el.scrollWidth - el.scrollLeft - el.clientWidth > 4));
+  }, []);
+  useEffect(() => {
+    const el = boardScrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(checkBoardOverflow);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [view, loading, checkBoardOverflow]);
 
   useEffect(() => {
     function update() { setBoardWidth(window.innerWidth); }
@@ -538,6 +557,30 @@ export default function TasksPage() {
 
   const isSubProjectScope = taskScope !== "all" && taskScope !== "personal" && taskScope !== "lab";
 
+  // Quick add from a board column: just a title. It lands in the scope you're
+  // looking at, in your department, assigned to you; details can be added after.
+  async function quickAddTask(title: string, status: TaskStatus): Promise<boolean> {
+    const scope = effectiveTaskScope === "personal" ? "personal" : effectiveTaskScope === "all" || effectiveTaskScope === "lab" ? "lab" : "project";
+    const subProjectId = scope === "project" ? effectiveTaskScope : null;
+    const departmentId = ledDepartmentIds[0] ?? myDepartmentId ?? null;
+    const now = new Date().toISOString();
+    const local: Task = {
+      id: crypto.randomUUID(), projectId: projectId ?? "", title, description: "", status, priority: "medium",
+      assigneeIds: currentUserId ? [currentUserId] : [], departmentId, scope, subProjectId: subProjectId ?? undefined,
+      createdAt: now, updatedAt: now, createdBy: currentUserId, comments: [], files: [], links: [],
+    };
+    if (!isSupabaseConfigured || !projectId || !currentUserId) { setTasks((prev) => [local, ...prev]); return true; }
+    const { data, error } = await supabase.from("tasks").insert({
+      project_id: projectId, created_by: currentUserId, title, description: "", status, priority: "medium",
+      archived: false, scope, sub_project_id: subProjectId, department_id: departmentId,
+    }).select("id, created_at, updated_at").single();
+    if (error || !data?.id) { showToast(`Couldn't add the task: ${error?.message ?? "no task returned"}`, "error"); return false; }
+    const { error: aErr } = await supabase.from("task_assignees").insert({ task_id: data.id, user_id: currentUserId });
+    if (aErr) showToast(`Added, but not assigned to you: ${aErr.message}`, "error");
+    setTasks((prev) => [{ ...local, id: data.id as string, createdAt: data.created_at as string, updatedAt: data.updated_at as string }, ...prev]);
+    return true;
+  }
+
   const sidebarSections: ScopeSection[] = [
     { id: "all", label: "All", color: "#0263C4", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
     { id: "personal", label: "Personal", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
@@ -697,19 +740,20 @@ export default function TasksPage() {
         {!loading && view === "board" ? (
           <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div style={{ position: "relative" }}>
-            {boardWidth >= 640 && boardWidth < 1024 && (
+            {boardOverflows && (
               <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 48, pointerEvents: "none", background: "linear-gradient(to right, transparent, var(--color-canvas))", zIndex: 2 }} />
             )}
-            <div style={{
-              overflowX: boardWidth < 1024 ? "auto" : "visible",
+            <div ref={boardScrollRef} onScroll={checkBoardOverflow} style={{
+              overflowX: boardWidth < 640 ? "visible" : "auto",
               WebkitOverflowScrolling: "touch",
               scrollSnapType: boardWidth >= 640 && boardWidth < 1024 ? "x mandatory" : undefined,
             }}>
               <div style={{
                 display: boardWidth >= 1024 ? "grid" : "flex",
                 flexDirection: boardWidth < 640 ? "column" : "row",
-                gridTemplateColumns: boardWidth >= 1024 ? "repeat(4, minmax(0, 1fr))" : undefined,
-                gap: boardWidth >= 1024 ? 20 : 16,
+                // One column per status (Backlog made it five); too narrow → the board scrolls sideways.
+                gridTemplateColumns: boardWidth >= 1024 ? `repeat(${STATUS_ORDER.length}, minmax(172px, 1fr))` : undefined,
+                gap: boardWidth >= 1024 ? 12 : 16,
                 alignItems: "start",
               }}>
                 {STATUS_ORDER.map((status) => (
@@ -726,6 +770,7 @@ export default function TasksPage() {
                       onEditTask={(t) => setModalState({ mode: "edit", task: t })}
                       onDeleteTask={deleteTask}
                       onAddTask={(s) => setModalState({ mode: "add", status: s })}
+                      onQuickAdd={quickAddTask}
                       onArchiveDone={archiveDoneTasks}
                       teamMembers={teamMembers}
                       subtaskCounts={subtaskCounts}

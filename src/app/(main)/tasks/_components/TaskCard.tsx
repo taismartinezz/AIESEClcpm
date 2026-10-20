@@ -152,7 +152,7 @@ export function TaskCard({
             {department && (
               <span
                 title={department.name}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", border: "1px solid var(--color-border)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", border: "1px solid var(--color-border)", padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}
               >
                 <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: department.color, flexShrink: 0 }} />
                 {department.name}

@@ -67,6 +67,7 @@ test('a task saves with the description left empty', async ({ page }) => {
 })
 
 test('a Whole LC task assigned to you counts once, and a card without a date shows no dash', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 900 })   // the Filters panel starts folded on narrower screens
   await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'LC task'), task('t2', 'My errand', 'personal')] } })
   await page.goto('/tasks')
   await expect(page.getByText('LC task').first()).toBeVisible({ timeout: 10000 })
@@ -132,4 +133,25 @@ test('the profile links are just LinkedIn and GitHub', async ({ page }) => {
   await expect(page.getByText('LinkedIn', { exact: true })).toBeVisible()
   await expect(page.getByText('GitHub', { exact: true })).toBeVisible()
   await expect(page.getByText(/Google Scholar|ResearchGate|ORCID/)).toHaveCount(0)
+})
+
+test('a member sees a short sidebar, with the rest under More', async ({ page }) => {
+  await setupAuthMocks(page, 'member')
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  for (const label of ['Dashboard', 'Tasks', 'Chat', 'Events', 'Tabling', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
+  await nav.getByRole('button', { name: 'More' }).click()
+  await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
+})
+
+test('a task can be added from the board with just a title and Enter', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { tables: { tasks: [] } })
+  await recordWrites(page)
+  await page.goto('/tasks')
+  const input = page.getByRole('textbox', { name: 'Add a task to To Do' })
+  await input.fill('Call the venue')
+  await input.press('Enter')
+  await expect.poll(async () => (await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/tasks'))?.body ?? '')
+    .toContain('"title":"Call the venue"')
 })

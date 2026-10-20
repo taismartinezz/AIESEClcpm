@@ -2,6 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import type { Task, TaskStatus, User } from "@/types";
 import { STATUS_CONFIG } from "@/components/tasks/TaskDetailPanel";
@@ -16,6 +17,7 @@ export function KanbanColumn({
   onEditTask,
   onDeleteTask,
   onAddTask,
+  onQuickAdd,
   onArchiveDone,
   teamMembers = [],
   subtaskCounts = {},
@@ -30,6 +32,8 @@ export function KanbanColumn({
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string, confirmed?: boolean) => void;
   onAddTask: (status: TaskStatus) => void;
+  /** Save a task from just its title; resolves false if it didn't save (the text stays). */
+  onQuickAdd?: (title: string, status: TaskStatus) => Promise<boolean>;
   onArchiveDone?: () => void;
   teamMembers?: User[];
   subtaskCounts?: Record<string, { total: number; done: number }>;
@@ -102,7 +106,8 @@ export function KanbanColumn({
         </SortableContext>
       </div>
 
-      {/* Add task footer */}
+      {/* Add task footer: type a title and press Enter; the full form is one click away */}
+      {onQuickAdd ? <QuickAdd status={status} onQuickAdd={onQuickAdd} onMore={() => onAddTask(status)} /> : (
       <button
         onClick={() => onAddTask(status)}
         className="flex items-center gap-1.5 w-full transition-colors"
@@ -112,10 +117,38 @@ export function KanbanColumn({
           borderTop: "1px solid var(--color-border)", background: "none",
           cursor: "pointer", fontFamily: "var(--font-roboto)", textAlign: "left",
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(2,99,196,0.03)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-navy)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-secondary)"; }}
       >
         <Plus size={13} /> Add task
+      </button>
+      )}
+    </div>
+  );
+}
+
+function QuickAdd({ status, onQuickAdd, onMore }: {
+  status: TaskStatus; onQuickAdd: (title: string, status: TaskStatus) => Promise<boolean>; onMore: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    const t = title.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    if (await onQuickAdd(t, status)) setTitle("");
+    setBusy(false);
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderTop: "1px solid var(--color-border)" }}>
+      <Plus size={13} color="var(--color-secondary)" aria-hidden="true" style={{ flexShrink: 0 }} />
+      <input
+        value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submit(); } if (e.key === "Escape") setTitle(""); }}
+        placeholder="Add a task…" aria-label={`Add a task to ${STATUS_CONFIG[status].label}`} maxLength={300}
+        style={{ flex: 1, minWidth: 0, height: 28, border: "none", outline: "none", background: "transparent", fontSize: 12, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}
+      />
+      <button type="button" onClick={onMore} title="Add with details (assignees, due date, priority…)"
+        style={{ fontSize: 11, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap", padding: "2px 4px" }}>
+        Details
       </button>
     </div>
   );
