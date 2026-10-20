@@ -38,12 +38,13 @@ export default function PipelinePage() {
   const [editing, setEditing] = useState<Exchange | "new" | null>(null);
 
   // "New → Exchange" on the dashboard links here with ?new=1: open the form once you're allowed to add.
+  const canAdd = myProducts.length > 0;
   useEffect(() => {
-    if (myProducts.length === 0 || new URLSearchParams(window.location.search).get("new") !== "1") return;
+    if (!canAdd || new URLSearchParams(window.location.search).get("new") !== "1") return;
     window.history.replaceState(null, "", window.location.pathname);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditing("new");
-  }, [myProducts.length > 0]);
+  }, [canAdd]);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [termStart, setTermStart] = useState(() => `${new Date().getFullYear()}-02-01`);
