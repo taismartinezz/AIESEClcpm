@@ -7,6 +7,7 @@ import type { LcMember } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
 import OutreachPanel from "@/components/pipeline/OutreachPanel";
+import ExchangeHistory from "@/components/pipeline/ExchangeHistory";
 import { askConfirm } from "@/components/ui/confirm";
 
 /** Add or edit one exchange participant. */
@@ -34,6 +35,8 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
 
   async function save() {
     if (!personName.trim()) { setError("Add the person's name."); return; }
+    // Someone has to own a new exchange, so stuck alerts reach a person.
+    if (!exchange && !ownerId) { setError("Choose who's responsible for this exchange."); return; }
     if (expaUrl && !/^https:\/\//i.test(expaUrl.trim())) { setError("The EXPA link must start with https://"); return; }
     if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError("That email doesn't look right (e.g. name@example.com)."); return; }
     if (expaId.trim() && !/^\d+$/.test(expaId.trim())) { setError("The EXPA ID is a number (the digits in the application's EXPA link)."); return; }
@@ -121,6 +124,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
         <textarea id="ex-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, height: "auto", padding: 10 }} />
       </Field>
       <ErrorText>{error}</ErrorText>
+      {exchange && <ExchangeHistory exchange={exchange} roster={roster} />}
       {exchange && <OutreachPanel exchangeId={exchange.id} />}
     </Modal>
   );

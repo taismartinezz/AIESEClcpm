@@ -7,6 +7,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { localIsoDate, mapExchange, stuckExchanges, weekOverWeek, weekStart } from "@/lib/pipeline";
 import { PRODUCT_BY_CODE, STAGE_LABEL } from "@/lib/products";
 import { useLcMembers } from "@/hooks/useLcMembers";
+import StuckActions from "@/components/pipeline/StuckActions";
 import type { Department, Exchange, UserRole } from "@/types";
 
 interface OverdueTask { id: string; title: string; departmentId: string | null; dueDate: string }
@@ -91,6 +92,8 @@ export default function ThisWeekCard({ projectId, role, departments, ledDepartme
                     <li key={e.id} style={{ fontSize: 12, color: "var(--color-body)" }}>
                       <AlertTriangle size={11} color="var(--color-warning)" aria-hidden="true" style={{ verticalAlign: "-1px", marginRight: 4 }} />
                       <strong>{e.personName}</strong> · {PRODUCT_BY_CODE[e.product].label} · {STAGE_LABEL[e.stage].toLowerCase()} for {days} days
+                      <span style={{ color: "var(--color-secondary)" }}> · {e.ownerId ? names[e.ownerId] ?? "owner left the LC" : "no owner"}</span>
+                      <div style={{ margin: "2px 0 0 15px" }}><StuckActions exchange={e} days={days} ownerName={e.ownerId ? names[e.ownerId] ?? null : null} /></div>
                     </li>
                   ))}
                   {stuck.length > 4 && <li style={muted}>and {stuck.length - 4} more</li>}

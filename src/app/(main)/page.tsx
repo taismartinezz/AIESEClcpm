@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -159,6 +160,7 @@ function AddReminderModal({
 
 export default function DashboardPage() {
   const { activeScope, subProjectId, subProjects, projectId: activeProjectId, lcs, isLoading: lcLoading, role, departments, ledDepartmentIds, userId: ctxUserId } = useProject();
+  const router = useRouter();
   const financeLead = isFinanceLead(role, ctxUserId, departments);
   const [tasks, setTasks]             = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -472,6 +474,8 @@ export default function DashboardPage() {
                   {[
                     { label: "Task", action: () => { setNewMenuOpen(false); setModalStatus("todo"); } },
                     { label: "Reminder", action: () => { setNewMenuOpen(false); setReminderModalOpen(true); } },
+                    { label: "Exchange", action: () => { setNewMenuOpen(false); router.push("/pipeline?new=1"); } },
+                    ...(role !== "member" ? [{ label: "Event", action: () => { setNewMenuOpen(false); router.push("/attendance?new=1"); } }] : []),
                   ].map(({ label, action }) => (
                     <button
                       key={label}

@@ -155,3 +155,31 @@ test('a task can be added from the board with just a title and Enter', async ({ 
   await expect.poll(async () => (await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/tasks'))?.body ?? '')
     .toContain('"title":"Call the venue"')
 })
+
+const OGV_DEP = { id: 'dep-ogv', project_id: 'project-abc', name: 'Outgoing Global Volunteer', color: '#F85A40', vp_user_id: null, is_finance: false, sort_order: 1, products: ['ogv'] }
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
+const exchange = (over: Record<string, unknown>) => ({
+  id: 'ex1', project_id: 'project-abc', product: 'ogv', stage: 'applied', person_name: 'Nadia Farah', email: null, phone: null,
+  opportunity: null, host_entity: null, expa_id: null, expa_url: null, department_id: 'dep-ogv', owner_id: null, notes: null,
+  signed_up_at: daysAgo(40), applied_at: daysAgo(30), accepted_at: null, approved_at: null, realized_at: null, finished_at: null,
+  created_by: 'mock-user-id', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...over,
+})
+
+test('an unassigned exchange stays unassigned in its form, and its history shows', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { departments: [OGV_DEP], tables: { exchanges: [exchange({})], exchange_history: [] } })
+  await page.goto('/pipeline')
+  await page.getByRole('button', { name: 'Nadia Farah' }).first().click({ timeout: 10000 })
+  const dialog = page.getByRole('dialog', { name: 'Nadia Farah' })
+  await expect(dialog.getByLabel('Responsible member')).toHaveValue('')
+  await expect(dialog.getByRole('region', { name: 'History' })).toContainText('Applied')
+})
+
+test('a stuck exchange offers one-click actions that reach a person', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { departments: [OGV_DEP], tables: { exchanges: [exchange({ owner_id: 'someone-else' })] } })
+  await recordWrites(page)
+  await page.goto('/pipeline')
+  await page.getByRole('button', { name: /^Nudge/ }).first().click({ timeout: 10000 })
+  await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/notifications'))?.body ?? '')
+    .toContain('"user_id":"someone-else"')
+  await expect(page.getByRole('status').filter({ hasText: /Nudged/ }).first()).toBeVisible()
+})
