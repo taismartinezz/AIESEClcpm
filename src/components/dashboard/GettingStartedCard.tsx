@@ -75,6 +75,15 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
     try { return localStorage.getItem(dismissKey(projectId)) === "1"; } catch { return false; }
   });
   const ledKey = ledDepartmentIds.join(",");
+  // Inside the demo LC, don't offer to open the demo.
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => {
+    if (!projectId || !isSupabaseConfigured) return;
+    let cancelled = false;
+    supabase.from("projects").select("is_demo").eq("id", projectId).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setIsDemo(Boolean(data?.is_demo)); });
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId || !userId || !isSupabaseConfigured || dismissed) return;
@@ -115,7 +124,7 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
           </li>
         ))}
       </ul>
-      {role !== "member" && (
+      {role !== "member" && !isDemo && (
         <p style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--color-secondary)", margin: "10px 0 0" }}>
           Want to see how it looks with data first?
           <DemoLcButton variant="button" />

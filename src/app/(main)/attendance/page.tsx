@@ -34,6 +34,14 @@ export default function AttendancePage() {
   const [version, setVersion] = useState(0);
   const reload = () => setVersion((v) => v + 1);
   const [editing, setEditing] = useState<LcEvent | "new" | null>(null);
+
+  // "New → Event" on the dashboard links here with ?new=1: open the form if you can add events.
+  useEffect(() => {
+    if (!exec || new URLSearchParams(window.location.search).get("new") !== "1") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditing("new");
+  }, [exec]);
   const [logging, setLogging] = useState<LcEvent | null>(null);
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
   const [announcing, setAnnouncing] = useState(false);

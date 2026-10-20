@@ -7,6 +7,7 @@ import type { LcMember } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
 import OutreachPanel from "@/components/pipeline/OutreachPanel";
+import ExchangeHistory from "@/components/pipeline/ExchangeHistory";
 import { askConfirm } from "@/components/ui/confirm";
 
 /** Add or edit one exchange participant. */
@@ -24,7 +25,8 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   const [hostEntity, setHostEntity] = useState(exchange?.hostEntity ?? "");
   const [expaId, setExpaId] = useState(exchange?.expaId ?? "");
   const [expaUrl, setExpaUrl] = useState(exchange?.expaUrl ?? "");
-  const [ownerId, setOwnerId] = useState(exchange?.ownerId ?? userId);
+  // New exchanges start with you as owner; an existing unassigned one stays unassigned.
+  const [ownerId, setOwnerId] = useState(exchange ? (exchange.ownerId ?? "") : userId);
   const [notes, setNotes] = useState(exchange?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -33,6 +35,8 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
 
   async function save() {
     if (!personName.trim()) { setError("Add the person's name."); return; }
+    // Someone has to own a new exchange, so stuck alerts reach a person.
+    if (!exchange && !ownerId) { setError("Choose who's responsible for this exchange."); return; }
     if (expaUrl && !/^https:\/\//i.test(expaUrl.trim())) { setError("The EXPA link must start with https://"); return; }
     if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError("That email doesn't look right (e.g. name@example.com)."); return; }
     if (expaId.trim() && !/^\d+$/.test(expaId.trim())) { setError("The EXPA ID is a number (the digits in the application's EXPA link)."); return; }
@@ -112,7 +116,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
       </div>
       <Field label="Responsible member" htmlFor="ex-owner">
         <select id="ex-owner" value={ownerId ?? ""} onChange={(e) => setOwnerId(e.target.value)} style={selectStyle}>
-          <option value="">Nobody yet</option>
+          <option value="">Unassigned</option>
           {roster.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
       </Field>
@@ -120,6 +124,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
         <textarea id="ex-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, height: "auto", padding: 10 }} />
       </Field>
       <ErrorText>{error}</ErrorText>
+      {exchange && <ExchangeHistory exchange={exchange} roster={roster} />}
       {exchange && <OutreachPanel exchangeId={exchange.id} />}
     </Modal>
   );

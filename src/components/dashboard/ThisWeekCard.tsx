@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { localIsoDate, mapExchange, stuckExchanges, weekOverWeek } from "@/lib/pipeline";
+import { localIsoDate, mapExchange, stuckExchanges, weekOverWeek, weekStart } from "@/lib/pipeline";
 import { PRODUCT_BY_CODE, STAGE_LABEL } from "@/lib/products";
 import { useLcMembers } from "@/hooks/useLcMembers";
+import StuckActions from "@/components/pipeline/StuckActions";
 import type { Department, Exchange, UserRole } from "@/types";
 
 interface OverdueTask { id: string; title: string; departmentId: string | null; dueDate: string }
@@ -58,7 +59,7 @@ export default function ThisWeekCard({ projectId, role, departments, ledDepartme
   const byDept = [...overdueShown.reduce((m, t) => m.set(t.departmentId, (m.get(t.departmentId) ?? 0) + 1), new Map<string | null, number>())]
     .map(([id, n]) => {
       const d = departments.find((x) => x.id === id);
-      return { id, n, name: d?.name ?? "No department", color: d?.color ?? "var(--color-border)", vp: d?.vpUserId ? names[d.vpUserId] : null };
+      return { id, n, name: d?.name ?? "Tasks with no department", color: d?.color ?? "var(--color-border)", vp: d?.vpUserId ? names[d.vpUserId] : null };
     })
     .sort((a, b) => b.n - a.n);
 
@@ -67,6 +68,8 @@ export default function ThisWeekCard({ projectId, role, departments, ledDepartme
       <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px 10px", borderBottom: "1px solid var(--color-border)" }}>
         <CalendarCheck size={15} color="var(--color-navy)" aria-hidden="true" />
         <h2 style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "var(--color-navy)", margin: 0 }}>This week{scope ? " in your departments" : ""}</h2>
+        {/* Spell out the window: an approval last Saturday counts under "last week". */}
+        <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>since {new Date(weekStart(new Date()) + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
       </header>
       <div style={{ padding: "12px 14px" }}>
         {error ? (
@@ -89,6 +92,8 @@ export default function ThisWeekCard({ projectId, role, departments, ledDepartme
                     <li key={e.id} style={{ fontSize: 12, color: "var(--color-body)" }}>
                       <AlertTriangle size={11} color="var(--color-warning)" aria-hidden="true" style={{ verticalAlign: "-1px", marginRight: 4 }} />
                       <strong>{e.personName}</strong> · {PRODUCT_BY_CODE[e.product].label} · {STAGE_LABEL[e.stage].toLowerCase()} for {days} days
+                      <span style={{ color: "var(--color-secondary)" }}> · {e.ownerId ? names[e.ownerId] ?? "owner left the LC" : "no owner"}</span>
+                      <div style={{ margin: "2px 0 0 15px" }}><StuckActions exchange={e} days={days} ownerName={e.ownerId ? names[e.ownerId] ?? null : null} /></div>
                     </li>
                   ))}
                   {stuck.length > 4 && <li style={muted}>and {stuck.length - 4} more</li>}

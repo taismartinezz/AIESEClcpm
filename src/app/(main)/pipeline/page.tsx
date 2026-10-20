@@ -13,6 +13,7 @@ import { useLcMembers } from "@/hooks/useLcMembers";
 import type { Exchange } from "@/types";
 import { Button, ErrorText, Stat, inputStyle } from "@/components/lc/ui";
 import ExchangeModal from "@/components/pipeline/ExchangeModal";
+import StuckActions from "@/components/pipeline/StuckActions";
 import ImportWizard from "@/components/import/ImportWizard";
 
 export default function PipelinePage() {
@@ -35,6 +36,15 @@ export default function PipelinePage() {
   const [version, setVersion] = useState(0);
   const reload = () => setVersion((v) => v + 1);
   const [editing, setEditing] = useState<Exchange | "new" | null>(null);
+
+  // "New → Exchange" on the dashboard links here with ?new=1: open the form once you're allowed to add.
+  const canAdd = myProducts.length > 0;
+  useEffect(() => {
+    if (!canAdd || new URLSearchParams(window.location.search).get("new") !== "1") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditing("new");
+  }, [canAdd]);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [termStart, setTermStart] = useState(() => `${new Date().getFullYear()}-02-01`);
@@ -166,14 +176,22 @@ export default function PipelinePage() {
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, color: "var(--color-warning)" }}>
                     <AlertTriangle size={13} aria-hidden="true" /> {stuck.length} stuck
                   </span>{" "}
-                  {stuck.slice(0, 6).map(({ exchange: e, days }, i) => (
-                    <span key={e.id}>
-                      {i > 0 && " · "}
-                      <button type="button" onClick={() => setEditing(e)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: "var(--color-navy)", fontWeight: 600 }}>{e.personName}</button>
-                      {` ${STAGE_LABEL[e.stage].toLowerCase()} ${days}d`}
-                    </span>
-                  ))}
-                  {stuck.length > 6 && ` · and ${stuck.length - 6} more`}
+                  <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, display: "grid", gap: 6 }}>
+                    {stuck.slice(0, 6).map(({ exchange: e, days }) => {
+                      const owner = e.ownerId ? roster.find((m) => m.id === e.ownerId)?.name ?? null : null;
+                      return (
+                        <li key={e.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 10px" }}>
+                          <span>
+                            <button type="button" onClick={() => setEditing(e)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: "var(--color-navy)", fontWeight: 600 }}>{e.personName}</button>
+                            {` ${STAGE_LABEL[e.stage].toLowerCase()} ${days}d · `}
+                            <span style={{ color: "var(--color-secondary)" }}>{owner ?? "no owner"}</span>
+                          </span>
+                          <StuckActions exchange={e} days={days} ownerName={owner} onChanged={reload} />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {stuck.length > 6 && <p style={{ margin: "6px 0 0" }}>and {stuck.length - 6} more</p>}
                 </div>
               )}
             </section>
