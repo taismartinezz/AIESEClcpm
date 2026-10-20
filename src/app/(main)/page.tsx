@@ -336,13 +336,15 @@ export default function DashboardPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const uid = session?.user?.id;
       if (!uid) return;
-      const remProjectFilter = `,and(scope.eq.lab,project_id.eq.${activeProjectId})`;
+      // Your personal reminders (they follow you, so they're tagged "Personal") plus this LC's:
+      // its Whole LC ones and any you made or were given here. Not your reminders from other LCs.
+      const remFilter = `and(scope.eq.personal,user_id.eq.${uid}),and(project_id.eq.${activeProjectId},or(scope.eq.lab,user_id.eq.${uid},assignee_id.eq.${uid}))`;
       const nextWeek = new Date();
       nextWeek.setDate(nextWeek.getDate() + 7);
       const { data: remData, error: remError } = await supabase
         .from("reminders")
         .select("id, title, due_at, scope, assignee_id")
-        .or(`user_id.eq.${uid},assignee_id.eq.${uid}${remProjectFilter}`)
+        .or(remFilter)
         .eq("completed", false)
         .not("due_at", "is", null)
         .lt("due_at", nextWeek.toISOString());

@@ -28,7 +28,10 @@ beforeEach(() => {
     removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
   }));
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+// unstubAllGlobals also drops tests/setup.ts's localStorage stub, which on Node 25
+// exposes Node's own (unconfigured) localStorage without clear(); put the stub back.
+const setupStorage = globalThis.localStorage;
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.stubGlobal("localStorage", setupStorage); });
 
 describe("browser preferences", () => {
   it("restores saved theme and density without overwriting the saved density", () => {

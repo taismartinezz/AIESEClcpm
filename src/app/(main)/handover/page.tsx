@@ -7,6 +7,7 @@ import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isExec, isPresident } from "@/lib/permissions";
+import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import { HANDOVER_TEMPLATE, mapHandoverNote, termLabel, termOptions, type HandoverNote } from "@/lib/handover";
 import { useLcMembers } from "@/hooks/useLcMembers";
 import { Button, ErrorText, Panel, inputStyle, selectStyle } from "@/components/lc/ui";
@@ -142,7 +143,7 @@ export default function HandoverPage() {
                       </>
                     ) : note ? (
                       <>
-                        <div style={{ whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.6, color: "var(--color-body)" }}>{note.body || "—"}</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-body)" }}>{note.body ? <SimpleMarkdown text={note.body} /> : "—"}</div>
                         <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "12px 0 0" }}>
                           Last updated {new Date(note.updatedAt).toLocaleDateString()}{note.updatedBy && names[note.updatedBy] ? ` by ${names[note.updatedBy]}` : ""}
                         </p>

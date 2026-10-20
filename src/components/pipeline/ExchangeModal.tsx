@@ -24,7 +24,8 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   const [hostEntity, setHostEntity] = useState(exchange?.hostEntity ?? "");
   const [expaId, setExpaId] = useState(exchange?.expaId ?? "");
   const [expaUrl, setExpaUrl] = useState(exchange?.expaUrl ?? "");
-  const [ownerId, setOwnerId] = useState(exchange?.ownerId ?? userId);
+  // New exchanges start with you as owner; an existing unassigned one stays unassigned.
+  const [ownerId, setOwnerId] = useState(exchange ? (exchange.ownerId ?? "") : userId);
   const [notes, setNotes] = useState(exchange?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -112,7 +113,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
       </div>
       <Field label="Responsible member" htmlFor="ex-owner">
         <select id="ex-owner" value={ownerId ?? ""} onChange={(e) => setOwnerId(e.target.value)} style={selectStyle}>
-          <option value="">Nobody yet</option>
+          <option value="">Unassigned</option>
           {roster.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
       </Field>

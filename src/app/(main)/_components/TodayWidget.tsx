@@ -16,6 +16,8 @@ type AgendaItem = {
   id: string;
   title: string;
   kind: "task" | "reminder" | "event";
+  /** A personal reminder: yours in every LC, so it's labelled as such. */
+  personal?: boolean;
   dateIso: string;
   /** Shown next to the date: a reminder's or event's start time. */
   time?: string;
@@ -97,7 +99,7 @@ export function categorize(
     const due = new Date(r.dueAt);
     const hasTime = !/^\d{4}-\d{2}-\d{2}$/.test(r.dueAt);
     const time = hasTime ? `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}` : undefined;
-    const item: AgendaItem = { id: r.id, title: r.title, kind: "reminder", dateIso: r.dueAt, time, href: "/reminders", assigneeIds: r.assigneeId ? [r.assigneeId] : [], canComplete: true };
+    const item: AgendaItem = { id: r.id, title: r.title, kind: "reminder", personal: r.scope === "personal", dateIso: r.dueAt, time, href: "/reminders", assigneeIds: r.assigneeId ? [r.assigneeId] : [], canComplete: true };
     if (due < todayStart)    overdue.push(item);
     else if (due <= todayEnd) today.push(item);
     else if (due <= weekEnd)  upcoming.push(item);
@@ -157,7 +159,7 @@ function ItemRow({
             borderRadius: 4, padding: "1px 5px", textTransform: "uppercase", letterSpacing: "0.04em",
             whiteSpace: "nowrap", flexShrink: 0,
           }}>
-            {kCfg.label}
+            {item.personal ? "Personal" : kCfg.label}
           </span>
           {dateLabel && (
             <span style={{ fontSize: 11, color: "var(--color-secondary)", whiteSpace: "nowrap" }}>{dateLabel}</span>
