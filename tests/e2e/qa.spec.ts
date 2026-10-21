@@ -191,3 +191,16 @@ test('a brand-new LC shows one next step instead of empty pulse and wins cards',
   await expect(next).toContainText('Invite your VPs', { timeout: 10000 })
   await expect(next.getByRole('link', { name: 'Invite people' })).toHaveAttribute('href', '/settings#invite')
 })
+
+test('creating an LC: the university is optional and there are no working hours to fill in', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  await page.goto('/onboarding')
+  await page.getByText('Create a Local Committee').click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Porto')
+  await page.getByPlaceholder('Full name').fill('Tais Martinez')
+  await expect(page.getByText('University (optional)')).toBeVisible()
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await expect(page.getByText('Your time zone')).toBeVisible()
+  await expect(page.getByText('Working hours')).toHaveCount(0)
+})

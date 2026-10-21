@@ -196,6 +196,8 @@ export interface WorkingHoursEditorProps {
   onWorkingHoursChange: (wh: WorkingHours) => void;
   /** When true, shows a "Detected: X — looks right?" banner */
   showDetectedBanner?: boolean;
+  /** Time zone only (onboarding): availability comes from Scheduling, not a fixed weekly grid. */
+  hideWorkingHours?: boolean;
 }
 
 export function WorkingHoursEditor({
@@ -204,6 +206,7 @@ export function WorkingHoursEditor({
   workingHours,
   onWorkingHoursChange,
   showDetectedBanner = false,
+  hideWorkingHours = false,
 }: WorkingHoursEditorProps) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [detectedTz] = useState(detectTimezone);
@@ -270,7 +273,7 @@ export function WorkingHoursEditor({
       </div>
 
       {/* Per-day working hours */}
-      <div>
+      {!hideWorkingHours && <div>
         <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: "0 0 10px" }}>
           Working hours
         </p>
@@ -345,7 +348,7 @@ export function WorkingHoursEditor({
             );
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
