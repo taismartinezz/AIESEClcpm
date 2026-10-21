@@ -2,8 +2,8 @@
  * Shared Supabase mock setup for e2e tests.
  *
  * AppShell calls supabase.auth.getUser() (server-verified) which hits
- * /auth/v1/user. We intercept that — and /auth/v1/token for the
- * refreshSession() fallback — via addInitScript so they never reach the
+ * /auth/v1/user. We intercept that: and /auth/v1/token for the
+ * refreshSession() fallback: via addInitScript so they never reach the
  * real Supabase project.
  */
 
@@ -17,7 +17,7 @@ export function mockSession() {
     access_token: 'mock-access-token',
     token_type: 'bearer',
     expires_in: 3600,
-    // expires_at well in the future — avoids a proactive refresh attempt
+    // expires_at well in the future: avoids a proactive refresh attempt
     expires_at: Math.floor(Date.now() / 1000) + 3600,
     refresh_token: 'mock-refresh-token',
     user: {
@@ -101,7 +101,7 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
             ? input.href
             : (input as Request).url
 
-        // Auth endpoints — needed by getUser() and refreshSession() (AppShell)
+        // Auth endpoints: needed by getUser() and refreshSession() (AppShell)
         if (url.includes('/auth/v1/user'))  return ok(sessionObj.user)
         if (url.includes('/auth/v1/token')) return ok(sessionObj)
 

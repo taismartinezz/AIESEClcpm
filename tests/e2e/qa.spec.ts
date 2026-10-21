@@ -139,11 +139,12 @@ test('a member sees a short sidebar, with the rest under More', async ({ page })
   await setupAuthMocks(page, 'member')
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'People', 'Drive']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'People', 'Drive', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
   await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
   await nav.getByRole('button', { name: 'More' }).click()
   await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Check-in' })).toBeVisible()
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections') ?? '[]'))).toContain('more')
 })
 
 test('merged sections: one menu item, tabs inside, and the item stays lit on every tab', async ({ page }) => {
@@ -151,7 +152,7 @@ test('merged sections: one menu item, tabs inside, and the item stays lit on eve
   for (const [path, item, tabs] of [
     ['/attendance', 'Calendar', ['Calendar', 'Events', 'Tabling']],
     ['/outreach', 'Pipeline', ['Pipeline', 'Outreach', 'Goals']],
-    ['/members', 'People', ['Team', 'Members']],
+    ['/members', 'People', ['Directory', 'Recruitment & onboarding']],
     ['/handover', 'Drive', ['Files', 'Handover']],
   ] as const) {
     await page.goto(path)
@@ -289,4 +290,13 @@ test('before the history migration, an exchange still shows its stage dates and 
   const history = page.getByRole('dialog', { name: 'Nadia Farah' }).getByRole('region', { name: 'History' })
   await expect(history).toContainText('Applied')
   await expect(history.getByRole('alert')).toHaveCount(0)
+})
+
+test("People counts only this LC's tasks, and not subtasks", async ({ page }) => {
+  const me = { project_id: 'project-abc', user_id: 'mock-user-id', role: 'president', department_id: null, joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' }, user_profiles: { name: 'Test User' } }
+  const row = (task_id: string, project_id: string, parent_id: string | null) => ({ user_id: 'mock-user-id', task_id, tasks: { id: task_id, status: 'in_progress', archived: false, project_id, parent_id } })
+  await setupAuthMocks(page, 'president', { tables: { team_members: [me], task_assignees: [row('t1', 'project-abc', null), row('t2', 'other-lc', null), row('t3', 'project-abc', 't1')] } })
+  await page.goto('/team')
+  await expect(page.getByText(/In progress:\s*1/).first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/In progress:\s*[23]/)).toHaveCount(0)
 })

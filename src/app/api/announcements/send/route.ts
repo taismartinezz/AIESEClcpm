@@ -4,7 +4,7 @@ import { sendAnnouncement } from "@/lib/notify-server";
 
 export const maxDuration = 300;
 
-// POST /api/announcements/send { announcementId } — email an announcement the
+// POST /api/announcements/send { announcementId }: email an announcement the
 // caller wrote to its audience. Replies go to the author.
 export async function POST(request: Request) {
   const userId = await requireAuth(request);

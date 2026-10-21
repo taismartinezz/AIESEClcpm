@@ -218,18 +218,18 @@ create policy "project members can insert bookmarks" on bookmarks
 
 -- ── (9) schedule_events SELECT ────────────────────────────────────────────────
 -- Adds the missing scope='project' branch (Phase 3 added project events to the
--- DB but the old SELECT policy had no predicate for them — they fell through).
+-- DB but the old SELECT policy had no predicate for them: they fell through).
 drop policy if exists "members can read lab events and own personal events" on schedule_events;
 create policy "members can read lab events and own personal events" on schedule_events
   for select using (
-    -- EXISTING: lab scope — lab members only
+    -- EXISTING: lab scope: lab members only
     (scope = 'lab' and exists (
       select 1 from team_members tm
       where tm.project_id = schedule_events.project_id and tm.user_id = auth.uid()
     ))
-    -- EXISTING: personal scope — creator only
+    -- EXISTING: personal scope: creator only
     or (scope = 'personal' and auth.uid() = created_by)
-    -- NEW: project scope — sub_project members (including external)
+    -- NEW: project scope: sub_project members (including external)
     or (
       scope = 'project'
       and schedule_events.sub_project_id is not null

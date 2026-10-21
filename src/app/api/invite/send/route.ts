@@ -10,7 +10,7 @@ const RESEND_COOLDOWN_MS = 10 * 60 * 1000;
 const MAX_IDS = 50;
 
 // POST /api/invite/send
-// Body: { inviteIds: string[] }  — invite_codes.id values to email (max 50)
+// Body: { inviteIds: string[] } : invite_codes.id values to email (max 50)
 // Auth: valid Supabase user JWT belonging to the president of each invite's LC
 export async function POST(request: Request) {
   const authHeader = request.headers.get("Authorization") ?? "";
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   if (!serviceKey) return Response.json({ ok: true, skipped: "service key not configured" });
   const db = createClient(supabaseUrl, serviceKey);
 
-  // Resolve caller's name from user_profiles (name only — no project_id dependency)
+  // Resolve caller's name from user_profiles (name only: no project_id dependency)
   const { data: callerProf, error: profErr } = await db
     .from("user_profiles")
     .select("name")

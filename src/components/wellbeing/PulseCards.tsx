@@ -241,7 +241,7 @@ export function ExecPulseCard({ projectId }: { projectId: string | null }) {
   const { loading, error, series, cadence } = usePulse("get_exec_pulse", projectId);
   if (!loading && !error && !hasVisibleData(series)) return <Waiting title="Exec Pulse" cadence={cadence} icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />} />;
   return (
-    <Card title="Exec Pulse" subtitle="How your VPs are doing — only you see this" icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />}>
+    <Card title="Exec Pulse" subtitle="How your VPs are doing. Only you see this." icon={<Activity size={15} color="var(--color-navy)" aria-hidden="true" />}>
       {loading ? <Skeleton /> : error ? <ErrorNote message={error} /> : <SeriesBody series={series[0]} label="Exec Pulse" cadence={cadence} />}
     </Card>
   );

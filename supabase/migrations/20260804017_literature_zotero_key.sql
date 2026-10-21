@@ -1,7 +1,7 @@
 -- Migration 017: Add zotero_key column for stable per-item deduplication.
 --
 -- Problem: literature_items has a partial unique index on (project_id, doi)
--- WHERE doi IS NOT NULL.  Items without a DOI have no dedup key at all — every
+-- WHERE doi IS NOT NULL.  Items without a DOI have no dedup key at all: every
 -- re-sync of a Zotero collection creates fresh duplicate rows for those items
 -- regardless of how many times they already exist in the DB.
 --
@@ -22,7 +22,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS literature_items_project_zotero_key_unique
   ON literature_items (project_id, zotero_key)
   WHERE zotero_key IS NOT NULL AND deleted_at IS NULL;
 
--- ── 3. Backfill hint (cannot be automated — run after deploying the app code) ─
+-- ── 3. Backfill hint (cannot be automated: run after deploying the app code) ─
 -- Once the app populates zotero_key on new syncs you can optionally backfill
 -- existing rows via the Zotero API, but that requires user credentials.
 -- The new unique index prevents future duplicates without a backfill;

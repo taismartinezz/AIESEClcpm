@@ -1,13 +1,13 @@
 -- Migration 003: Standardize scope vocabulary to personal | lab | project across all features.
--- Canonical set: ('personal', 'lab', 'project') — no more 'my'.
+-- Canonical set: ('personal', 'lab', 'project'): no more 'my'.
 --
 -- Live tables affected:
---   reminders.scope — CHECK was ('personal', 'lab'), expand to include 'project'
---   literature_items.library — no CHECK existed on the live column; add one now
+--   reminders.scope: CHECK was ('personal', 'lab'), expand to include 'project'
+--   literature_items.library: no CHECK existed on the live column; add one now
 --                              + update any 'my' rows to 'personal' (safe no-op; 0 rows)
 --
 -- Tables added by migration 002 (tasks, bookmarks, schedule_events) already have
--- the expanded constraint written in migration 002 — no action needed here.
+-- the expanded constraint written in migration 002: no action needed here.
 
 -- ── reminders.scope ───────────────────────────────────────────────────────────
 -- Drop any existing CHECK constraint on reminders.scope (name may vary),

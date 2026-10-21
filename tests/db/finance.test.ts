@@ -48,7 +48,7 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("who is in charge of finance", () => {
-  it("is the president and the VP of the finance department — nobody else", async () => {
+  it("is the president and the VP of the finance department: nobody else", async () => {
     const check = (who: string) => asUser(db, u[who], async (tx) =>
       (await tx.query<{ ok: boolean }>("select is_finance_lead($1) as ok", [lc.id])).rows[0].ok);
     expect(await check("pres")).toBe(true);

@@ -4,7 +4,7 @@ Date: October 18, 2026. Repository: `taismartinezz/AIESEClcpm`.
 
 The app builds and the tested workflows work in the local cloud environment. The follow-up clears every remaining ESLint error and warning, removes the Next.js middleware deprecation, and adds regressions for state, navigation and search. The earlier journal confidentiality and dependency fixes remain verified. The remaining release limitation is the upstream development-tool advisory described below; live external integrations were not tested.
 
-## Merge follow-up — October 19, 2026
+## Merge follow-up: October 19, 2026
 
 Merged `origin/main` at `a7c8a61` into `work`, resolving overlapping search and sidebar changes. Personal reminders and completed-state labels remain searchable, while encrypted journals stay excluded and chat remains scoped to the selected LC. The phone sidebar drawer from main is retained. Strict lint, TypeScript, production builds, 301 unit/database tests and all 78 mocked-backend browser tests and all 10 demo browser tests pass. The initial threaded unit run encountered a Node/V8 native crash; rerunning with `--pool=forks --maxWorkers=2` passed all 46 files.
 

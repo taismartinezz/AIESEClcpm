@@ -1,4 +1,4 @@
-// Institution search — Hipolabs Universities API with bundled fallback
+// Institution search: Hipolabs Universities API with bundled fallback
 // API docs: http://universities.hipolabs.com/search?name=<query>
 
 export interface InstitutionResult {
@@ -103,7 +103,7 @@ export async function searchInstitutions(query: string): Promise<InstitutionResu
     }
   }
 
-  // Bundled fallback — filter by query
+  // Bundled fallback: filter by query
   return FALLBACK_INSTITUTIONS.filter(
     (inst) =>
       inst.name.toLowerCase().includes(q) ||

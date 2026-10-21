@@ -26,11 +26,11 @@ export interface LcMembership {
 }
 
 interface ProjectContextValue {
-  /** Signed-in user's id — null until auth resolves */
+  /** Signed-in user's id: null until auth resolves */
   userId: string | null;
   /** Every LC the user belongs to */
   lcs: LcMembership[];
-  /** Active LC (projects.id) — null until auth resolves */
+  /** Active LC (projects.id): null until auth resolves */
   projectId: string | null;
   /** The user's role in the active LC */
   role: UserRole | null;

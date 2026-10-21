@@ -1,4 +1,4 @@
--- Migration 033: Tabling — shift slots, sign-ups and the after-slot log.
+-- Migration 033: Tabling: shift slots, sign-ups and the after-slot log.
 --
 --   tabling_slots    VPs and the president create slots (optionally repeating
 --                    weekly). Everyone in the LC sees them, including `taken`.

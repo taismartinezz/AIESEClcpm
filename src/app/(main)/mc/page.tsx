@@ -148,7 +148,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   }, [rows, metric]);
 
   const sum = (m: Metric, product?: string) => rows.filter((r) => !product || r.product === product).reduce((s, r) => s + r[m], 0);
-  const conv = sum("applied") ? `${Math.round((sum("approved") / sum("applied")) * 100)}%` : "—";
+  const conv = sum("applied") ? `${Math.round((sum("approved") / sum("applied")) * 100)}%` : "-";
 
   async function removeLc(id: string, name: string) {
     if (!(await askConfirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`, { confirmLabel: "Remove" }))) return;

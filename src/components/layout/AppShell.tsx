@@ -68,19 +68,21 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
 const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive"],
-  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/drive"],
-  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive"],
+  member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
 };
 
 function useNavGroups(): NavGroup[] {
   const { mcs } = useMcs();
   const { role } = useProject();
-  const primary = PRIMARY[role ?? "member"] ?? PRIMARY.member;
-  const rest = Object.keys(NAV).filter((href) => !primary.includes(href) && (href !== "/mc" || mcs.length > 0));
+  // People on an MC also get the National view in the main list.
+  const primary = [...(PRIMARY[role ?? "member"] ?? PRIMARY.member), ...(mcs.length > 0 ? ["/mc"] : [])];
+  const rest = Object.keys(NAV).filter((href) => !primary.includes(href) && href !== "/mc");
+  // No "More" for a single leftover item: that's just an extra click.
   return [
     { id: "main", label: null, items: primary.map((h) => NAV[h]) },
-    { id: "more", label: "More", items: rest.map((h) => NAV[h]), foldedByDefault: true },
+    ...(rest.length > 1 ? [{ id: "more", label: "More", items: rest.map((h) => NAV[h]), foldedByDefault: true }] : []),
   ];
 }
 
@@ -357,7 +359,7 @@ function SidebarBody({
 
         <SidebarDivider />
 
-        {/* Get help — support resources, reachable from every page */}
+        {/* Get help: support resources, reachable from every page */}
         <Tooltip label="Get help" placement="right">
           <button
             onClick={onGetHelp}

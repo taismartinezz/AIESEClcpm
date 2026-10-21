@@ -158,7 +158,7 @@ export function buildPreviewTables(now = new Date(), myName = "Alex Rivera"): Ta
     { id: id(17, 2), type: "expense", amount: 120, entry_date: day(now, -12), category_id: id(16, 3), department_id: D.mkt, description: "Posters for the info session" },
   ].map((e) => ({ ...e, project_id: lc, currency: "EUR", recorded_by: me, receipt_path: null, claim_id: null, created_at: iso, updated_at: iso }));
 
-  const drive_folders = ["Templates", "Brand kit", "Job descriptions", "Important links", "Handover"]
+  const drive_folders = ["Templates", "Brand kit", "Job descriptions", "Important links"]
     .map((name, i) => ({ id: id(18, i + 1), project_id: lc, name, sort_order: i + 1, created_by: null, created_at: iso }));
   const bookmarks = [
     { id: id(19, 1), folder_id: id(18, 2), title: "AIESEC brand guidelines", url: "https://aiesec.org" },

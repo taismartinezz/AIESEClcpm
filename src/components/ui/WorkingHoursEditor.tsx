@@ -194,7 +194,7 @@ export interface WorkingHoursEditorProps {
   onTimezoneChange: (tz: string) => void;
   workingHours?: WorkingHours;
   onWorkingHoursChange?: (wh: WorkingHours) => void;
-  /** When true, shows a "Detected: X — looks right?" banner */
+  /** When true, shows a "Detected: X. Looks right?" banner */
   showDetectedBanner?: boolean;
   /** Time zone only (onboarding): availability comes from Scheduling, not a fixed weekly grid. */
   hideWorkingHours?: boolean;

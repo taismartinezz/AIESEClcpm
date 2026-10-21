@@ -1,4 +1,4 @@
--- ⚠️  HISTORICAL REFERENCE ONLY — do not run this file.
+-- ⚠️  HISTORICAL REFERENCE ONLY: do not run this file.
 -- It drifted from the real schema and does not execute on a clean Postgres.
 -- To build a database, run supabase/migrations/*.sql in filename order
 -- (see "Setting up a fresh Supabase project" in README.md).
@@ -62,7 +62,7 @@ create policy "same-project members can read profiles" on user_profiles
   );
 
 -- Co-members of a shared sub_project can read each other's profiles.
--- Does NOT expose the full lab roster to external members — only profiles of
+-- Does NOT expose the full lab roster to external members: only profiles of
 -- users who share at least one sub_project with the caller.
 create policy "sub-project co-members can read profiles" on user_profiles
   for select using (
@@ -126,7 +126,7 @@ create policy "lab members can read sub_projects" on sub_projects
       where tm.project_id = sub_projects.project_id and tm.user_id = auth.uid()
     )
     -- external member sees only the sub_projects they belong to
-    -- (SECURITY DEFINER — bypasses sub_project_members RLS to prevent mutual recursion)
+    -- (SECURITY DEFINER: bypasses sub_project_members RLS to prevent mutual recursion)
     or auth_uid_is_sub_project_member(sub_projects.id)
   );
 
@@ -412,7 +412,7 @@ create policy "project members can manage literature" on literature_items
 
 -- ── Scheduling: User Availability ────────────────────────────────────────────
 -- Stores each member's weekly availability as an array of "day-slot" keys.
--- Only free/busy is shared — no event content is stored here.
+-- Only free/busy is shared: no event content is stored here.
 
 create table if not exists user_availability (
   id          uuid primary key default gen_random_uuid(),
@@ -506,13 +506,13 @@ alter table schedule_events enable row level security;
 
 create policy "members can read lab events and own personal events" on schedule_events
   for select using (
-    -- existing: lab scope — lab members only
+    -- existing: lab scope: lab members only
     (scope = 'lab' and exists (
       select 1 from team_members tm where tm.project_id = schedule_events.project_id and tm.user_id = auth.uid()
     ))
-    -- existing: personal scope — creator only
+    -- existing: personal scope: creator only
     or (scope = 'personal' and auth.uid() = created_by)
-    -- new: project scope — sub_project members (including external)
+    -- new: project scope: sub_project members (including external)
     or (
       scope = 'project'
       and schedule_events.sub_project_id is not null
@@ -544,7 +544,7 @@ create policy "creator can delete own events" on schedule_events
   for delete using (auth.uid() = created_by);
 
 -- ── Scheduling: Reminders ─────────────────────────────────────────────────────
--- Private to each user — no one else can read or modify them.
+-- Private to each user: no one else can read or modify them.
 
 create table if not exists reminders (
   id              uuid primary key default gen_random_uuid(),

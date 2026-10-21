@@ -77,7 +77,7 @@ describe("Member Pulse", () => {
     expect(mktEnergy?.respondent_count).toBe(3);
 
     const totalEnergy = rows.find((r) => r.department_id === null && r.question_id === "energy");
-    expect(Number(totalEnergy?.avg_score)).toBe(3.2);       // members only: (5+3+4+2+2)/5 — no president, no VPs
+    expect(Number(totalEnergy?.avg_score)).toBe(3.2);       // members only: (5+3+4+2+2)/5: no president, no VPs
   });
 
   it("a VP sees only the departments they lead", async () => {

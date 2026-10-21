@@ -50,7 +50,7 @@ create table if not exists checkins (
 create index if not exists checkins_project_period_idx on checkins (project_id, period_start);
 
 -- People record the current period only, and can edit it until it ends.
--- (Without an auth.uid() — service role, seed scripts — a given date is
+-- (Without an auth.uid(): service role, seed scripts: a given date is
 -- normalised to its period, so history can be imported.)
 create or replace function _checkins_guard()
 returns trigger

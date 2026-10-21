@@ -3,7 +3,7 @@
 -- Diagnosis: chat_messages was created directly in the DB with a minimal schema
 -- (id, channel, sender_id, content, created_at, thread_parent_id). The client
 -- selects deleted_at, is_pinned, mentioned_user_ids, attachments, and
--- thread_last_replier_id — none of which exist, causing a 400 on every fetch.
+-- thread_last_replier_id : none of which exist, causing a 400 on every fetch.
 --
 -- This migration is idempotent: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS.
 
@@ -100,7 +100,7 @@ create policy "chat_messages_own_delete"
   using (sender_id = auth.uid());
 
 -- ── message_reactions ────────────────────────────────────────────────────────
--- One row per (message, user, emoji). Already exists in prod — safe IF NOT EXISTS.
+-- One row per (message, user, emoji). Already exists in prod: safe IF NOT EXISTS.
 
 create table if not exists message_reactions (
   message_id uuid not null references chat_messages(id) on delete cascade,
@@ -127,7 +127,7 @@ create policy "message_reactions_delete"
   using (user_id = auth.uid());
 
 -- ── chat_read_state ───────────────────────────────────────────────────────────
--- Already exists in prod — safe IF NOT EXISTS.
+-- Already exists in prod: safe IF NOT EXISTS.
 
 create table if not exists chat_read_state (
   user_id     uuid not null references auth.users(id) on delete cascade,

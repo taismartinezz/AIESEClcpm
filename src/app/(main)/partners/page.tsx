@@ -50,7 +50,7 @@ export default function PartnersPage() {
     return () => { cancelled = true; };
   }, [projectId, isLoading, enabled, version]);
 
-  const deptName = (id: string | null) => departments.find((d) => d.id === id)?.name ?? "—";
+  const deptName = (id: string | null) => departments.find((d) => d.id === id)?.name ?? "-";
   const shown = partners.filter((p) =>
     (stage === "all" || p.stage === stage)
     && (dept === "all" || p.departmentId === dept)
@@ -154,9 +154,9 @@ export default function PartnersPage() {
                             </td>
                             <td style={td}>{PARTNER_STAGE_LABEL[p.stage]}</td>
                             <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(p.departmentId)}</td>
-                            <td style={td}>{p.ownerId ? names[p.ownerId] ?? "—" : "—"}</td>
+                            <td style={td}>{p.ownerId ? names[p.ownerId] ?? "-" : "-"}</td>
                             <td style={{ ...td, whiteSpace: "nowrap", color: f === "overdue" ? "var(--color-error)" : f === "soon" ? "var(--color-warning)" : "var(--color-body)", fontWeight: f ? 600 : 400 }}>
-                              {p.nextFollowUp ?? "—"}{f === "overdue" ? " · overdue" : ""}
+                              {p.nextFollowUp ?? "-"}{f === "overdue" ? " · overdue" : ""}
                             </td>
                           </tr>
                         );

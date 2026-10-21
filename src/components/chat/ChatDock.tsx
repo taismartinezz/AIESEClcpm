@@ -472,7 +472,7 @@ export default function ChatDock() {
         </div>
       )}
 
-      {/* Dock tab button — icon-only FAB when closed, expands on hover/focus */}
+      {/* Dock tab button: icon-only FAB when closed, expands on hover/focus */}
       {dockOpen ? (
         // Open: full pill connecting to panel above
         <button

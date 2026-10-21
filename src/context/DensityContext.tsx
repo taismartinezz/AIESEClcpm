@@ -21,7 +21,7 @@ export function DensityProvider({ children }: { children: React.ReactNode }) {
     try {
       const saved = localStorage.getItem("aiesec_density") as Density | null;
       if (saved === "compact") return saved;
-    } catch { /* storage blocked — use default */ }
+    } catch { /* storage blocked: use default */ }
     return "comfortable";
   });
   const density = hydrated ? selectedDensity : "comfortable";

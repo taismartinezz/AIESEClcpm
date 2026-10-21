@@ -18,5 +18,5 @@ create index if not exists literature_items_deleted_at_idx
 -- No RLS changes needed: the existing "project members can manage literature"
 -- policy (for all) already allows lab members to UPDATE a row's deleted_at back
 -- to NULL (restore) and to SELECT soft-deleted rows for the trash view.
--- Soft-deleted rows remain readable by the owner's lab — that is intentional so
+-- Soft-deleted rows remain readable by the owner's lab: that is intentional so
 -- the "Recently removed" panel can list and restore them.

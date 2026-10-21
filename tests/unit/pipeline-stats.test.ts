@@ -24,7 +24,7 @@ describe("pipeline numbers", () => {
     expect(formatPct(s.appliedToAccepted)).toBe("75%");
     expect(formatPct(s.appliedToApproved)).toBe("50%");
     expect(formatPct(s.approvedToRealized)).toBe("50%");
-    expect(formatPct(pipelineStats([], "2026-02-01", "2027-01-31").appliedToApproved)).toBe("—");
+    expect(formatPct(pipelineStats([], "2026-02-01", "2027-01-31").appliedToApproved)).toBe("-");
   });
 
   it("flags applications and acceptances waiting 14+ days", () => {

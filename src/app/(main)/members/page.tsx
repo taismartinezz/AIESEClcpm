@@ -27,7 +27,7 @@ export default function MembersPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Members" subtitle={exec ? "Recruitment, onboarding and how your members are doing." : "Your onboarding in the LC."} />
+      <PageHeader title="People" subtitle={exec ? "Recruitment, onboarding and how your members are doing." : "Your onboarding in the LC."} />
       <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         {isLoading ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />

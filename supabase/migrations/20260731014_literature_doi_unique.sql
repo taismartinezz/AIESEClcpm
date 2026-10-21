@@ -1,7 +1,7 @@
 -- DB-level backstop against duplicate DOIs within a project.
 -- A partial unique index (not a constraint) so NULL DOIs and soft-deleted rows are excluded.
 -- If two items in the same project have the same DOI and are both active, the second insert/update
--- will fail at the DB level — this catches any case where the client-side dupe check is bypassed
+-- will fail at the DB level: this catches any case where the client-side dupe check is bypassed
 -- (e.g. concurrent syncs, direct API writes, or stale snapshot misses).
 --
 -- IMPORTANT: Run this AFTER 20260728012_literature_volume_pages.sql has been applied.

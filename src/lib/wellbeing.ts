@@ -32,13 +32,13 @@ export function activeQuestions(disabled: string[] | null | undefined) {
   return CHECKIN_QUESTIONS.filter((q) => !off.has(q.id));
 }
 
-/** Who will see (aggregates of) this person's check-in — shown above the form. */
+/** Who will see (aggregates of) this person's check-in: shown above the form. */
 export function audienceCopy(role: UserRole | null): string {
   if (role === "vp") {
     return "Your LCP sees the average for the executive board, never your individual answers.";
   }
   if (role === "president") {
-    return "As LCP your answers are just for you — they're never included in any average.";
+    return "As LCP your answers are just for you. They're never included in any average.";
   }
   return "Your VP and LCP see the average for your department, never your individual answers.";
 }
@@ -139,7 +139,7 @@ export function summarize(series: PulseSeries | undefined): PulseSummary {
 export type CheckinCadence = 1 | 2;   // weeks per check-in period (projects.checkin_period_weeks)
 export const DEFAULT_CADENCE: CheckinCadence = 2;
 
-/** "this fortnight" / "this week" — for copy that refers to the current period. */
+/** "this fortnight" / "this week": for copy that refers to the current period. */
 export function thisPeriod(weeks: CheckinCadence): string {
   return weeks === 2 ? "this fortnight" : "this week";
 }
@@ -152,7 +152,7 @@ export function privacyMessage(weeks: CheckinCadence): string {
   return `Not enough responses ${thisPeriod(weeks)} to protect privacy`;
 }
 
-/** First Monday of the period containing `at` — mirrors SQL checkin_period_start(). */
+/** First Monday of the period containing `at`: mirrors SQL checkin_period_start(). */
 export function periodStart(weeks: CheckinCadence, at = new Date()): Date {
   const monday = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
   monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));

@@ -1,11 +1,11 @@
 -- Migration 002: Add sub-project scope to tasks, bookmarks, reminders, scheduling.
 -- Follows the same pattern as Literature's `library`/`scope` + FK columns.
 -- All ADD COLUMN statements use IF NOT EXISTS for idempotency.
--- Existing rows default to their current lab/personal behavior — no data is lost.
+-- Existing rows default to their current lab/personal behavior: no data is lost.
 
 -- ── Tasks ─────────────────────────────────────────────────────────────────────
 -- sub_project_id was pre-existing in the live DB (reconciled in migration 001).
--- scope: existing tasks default to 'lab' — no behavioral change for current data.
+-- scope: existing tasks default to 'lab': no behavioral change for current data.
 
 alter table tasks
   add column if not exists scope text not null
@@ -23,7 +23,7 @@ alter table bookmarks
     references sub_projects(id) on delete set null;
 
 -- ── Reminders ─────────────────────────────────────────────────────────────────
--- scope ('personal', 'lab') already exists — constraint unchanged.
+-- scope ('personal', 'lab') already exists: constraint unchanged.
 -- sub_project_id added for future sub-project-targeted reminders.
 
 alter table reminders

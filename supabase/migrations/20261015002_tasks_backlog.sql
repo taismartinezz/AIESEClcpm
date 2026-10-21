@@ -1,4 +1,4 @@
--- Migration 029: LC-friendly task board — add a "backlog" column.
+-- Migration 029: LC-friendly task board: add a "backlog" column.
 -- Columns are now Backlog / To do / In progress / Review / Done
 -- (stored as backlog / todo / in_progress / in_review / done).
 -- tasks.department_id (optional department tag) was added in migration 028.

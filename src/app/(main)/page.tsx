@@ -507,7 +507,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Wellbeing — what you see depends on your role in this LC */}
+        {/* Wellbeing : what you see depends on your role in this LC */}
         {role && role !== "president" && isSupabaseConfigured && (
           <MyOnboardingCard projectId={activeProjectId} userId={ctxUserId} departmentId={lcs.find((l) => l.id === activeProjectId)?.departmentId ?? null} />
         )}
@@ -531,7 +531,7 @@ export default function DashboardPage() {
           <ThisWeekCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
         )}
 
-        {/* LC modules: finance, events and tabling — by role */}
+        {/* LC modules: finance, events and tabling: by role */}
         {role && isSupabaseConfigured && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
             <GoalsCard projectId={activeProjectId} departments={departments} departmentId={lcs.find((l) => l.id === activeProjectId)?.departmentId ?? null} />

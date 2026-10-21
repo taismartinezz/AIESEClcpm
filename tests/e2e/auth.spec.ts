@@ -3,7 +3,7 @@ import { test, expect, Page } from '@playwright/test'
 // ── Shared: mock Supabase and skip auth redirect ──────────────────────────────
 
 async function mockSupabaseAndVisitLogin(page: Page) {
-  // Intercept Supabase auth session check — return no session so login page renders
+  // Intercept Supabase auth session check: return no session so login page renders
   await page.route('**/auth/v1/session**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
   )
@@ -17,13 +17,13 @@ async function mockSupabaseAndVisitLogin(page: Page) {
 
   await page.goto('/login')
 
-  // Wait for login card to be visible — the h1 is visually hidden but in DOM
+  // Wait for login card to be visible: the h1 is visually hidden but in DOM
   await page.waitForSelector('h1', { timeout: 10000 })
 }
 
 // ── Feature: Authentication page ──────────────────────────────────────────────
 
-test.describe('Auth page — Issue #16: accessible heading', () => {
+test.describe('Auth page: Issue #16: accessible heading', () => {
   test('login page has an h1 heading', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     const h1 = page.locator('h1').first()
@@ -32,7 +32,7 @@ test.describe('Auth page — Issue #16: accessible heading', () => {
   })
 })
 
-test.describe('Auth page — Issue #1/#2: real anchor tags', () => {
+test.describe('Auth page: Issue #1/#2: real anchor tags', () => {
   test('sign up toggle is an <a> element with a valid href', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     const signUpLink = page.getByRole('link', { name: /sign up/i })
@@ -42,7 +42,7 @@ test.describe('Auth page — Issue #1/#2: real anchor tags', () => {
   })
 })
 
-test.describe('Auth page — Issue #3: privacy link', () => {
+test.describe('Auth page: Issue #3: privacy link', () => {
   test('"privacy-first principles" is a real link', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     const link = page.getByRole('link', { name: /privacy-first principles/i })
@@ -51,7 +51,7 @@ test.describe('Auth page — Issue #3: privacy link', () => {
   })
 })
 
-test.describe('Auth page — Issue #4: forgot password', () => {
+test.describe('Auth page: Issue #4: forgot password', () => {
   test('shows Forgot password? button and expands inline form', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     const forgotBtn = page.getByRole('button', { name: /forgot password/i })
@@ -74,7 +74,7 @@ test.describe('Auth page — Issue #4: forgot password', () => {
   })
 })
 
-test.describe('Auth page — Issue #6: OAuth providers', () => {
+test.describe('Auth page: Issue #6: OAuth providers', () => {
   test('Continue with Google is offered by default; no other providers', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     await expect(page.getByRole('button', { name: /google/i }).first()).toBeVisible()
@@ -82,7 +82,7 @@ test.describe('Auth page — Issue #6: OAuth providers', () => {
   })
 })
 
-test.describe('Auth page — Issue #13/#17: clean console', () => {
+test.describe('Auth page: Issue #13/#17: clean console', () => {
   test('no user data appears in console on page load', async ({ page }) => {
     const sensitivePatterns = [/user_profiles row/i, /key prefix/i, /tati06mar/i, /sb_publishable/i]
     const violations: string[] = []
@@ -103,7 +103,7 @@ test.describe('Auth page — Issue #13/#17: clean console', () => {
   })
 })
 
-test.describe('Auth page — password visibility toggle', () => {
+test.describe('Auth page: password visibility toggle', () => {
   test('password field has a visibility toggle and shows plain text when clicked', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
     const passwordInput = page.getByLabel(/^password$/i)

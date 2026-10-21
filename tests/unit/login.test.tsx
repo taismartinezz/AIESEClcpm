@@ -46,7 +46,7 @@ async function renderLogin() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('Login page — Issue #1/#2: anchor tags', () => {
+describe('Login page: Issue #1/#2: anchor tags', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -76,7 +76,7 @@ describe('Login page — Issue #1/#2: anchor tags', () => {
   })
 })
 
-describe('Login page — Issue #3: privacy link', () => {
+describe('Login page: Issue #3: privacy link', () => {
   it('"privacy-first principles" is a clickable link', async () => {
     await renderLogin()
     const privacyLink = screen.getByRole('link', { name: /privacy-first principles/i })
@@ -86,7 +86,7 @@ describe('Login page — Issue #3: privacy link', () => {
   })
 })
 
-describe('Login page — Issue #4: forgot password', () => {
+describe('Login page: Issue #4: forgot password', () => {
   it('shows "Forgot password?" button in sign-in mode', async () => {
     await renderLogin()
     expect(screen.getByRole('button', { name: /forgot password/i })).toBeInTheDocument()
@@ -111,7 +111,7 @@ describe('Login page — Issue #4: forgot password', () => {
   })
 })
 
-describe('Login page — Issue #6: OAuth buttons', () => {
+describe('Login page: Issue #6: OAuth buttons', () => {
   afterEach(() => { delete process.env.NEXT_PUBLIC_AUTH_PROVIDERS })
 
   it('shows no OAuth buttons when NEXT_PUBLIC_AUTH_PROVIDERS=none', async () => {
@@ -130,14 +130,14 @@ describe('Login page — Issue #6: OAuth buttons', () => {
     process.env.NEXT_PUBLIC_AUTH_PROVIDERS = 'google'
     await renderLogin()
     const googleBtn = screen.getByRole('button', { name: /sign in with google/i })
-    // buttons default to type="submit" inside forms but here no form — check attribute
+    // buttons default to type="submit" inside forms but here no form: check attribute
     // AuthButton renders <button onClick={...}> without explicit type; browsers default to "submit"
     // The test verifies they are buttons (not form submit triggers)
     expect(googleBtn.tagName).toBe('BUTTON')
   })
 })
 
-describe('Login page — Issue #16: heading structure', () => {
+describe('Login page: Issue #16: heading structure', () => {
   it('page has an <h1> element', async () => {
     await renderLogin()
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
@@ -158,7 +158,7 @@ describe('Login page — Issue #16: heading structure', () => {
   })
 })
 
-describe('Login page — Issue #13/#17: no sensitive console output', () => {
+describe('Login page: Issue #13/#17: no sensitive console output', () => {
   it('no console.log fires during render', async () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
     await renderLogin()
@@ -167,7 +167,7 @@ describe('Login page — Issue #13/#17: no sensitive console output', () => {
   })
 })
 
-describe('Login page — password visibility toggle', () => {
+describe('Login page: password visibility toggle', () => {
   it('password field has a visibility toggle button', async () => {
     await renderLogin()
     const toggleBtn = screen.getByRole('button', { name: /show password|hide password/i })

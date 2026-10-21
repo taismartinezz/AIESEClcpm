@@ -14,7 +14,7 @@ describe("escapeHtml", () => {
   });
 });
 
-describe("email templates — XSS injection", () => {
+describe("email templates: XSS injection", () => {
   const xss = '<script>alert("xss")</script>';
   const href = '<a href="javascript:alert(1)">click</a>';
 

@@ -38,6 +38,6 @@ create policy "lab members can read sub_projects" on sub_projects
       where tm.project_id = sub_projects.project_id and tm.user_id = auth.uid()
     )
     -- new: external member sees only the sub_projects they belong to
-    -- (SECURITY DEFINER — does not trigger sub_project_members RLS → no recursion)
+    -- (SECURITY DEFINER: does not trigger sub_project_members RLS → no recursion)
     or auth_uid_is_sub_project_member(sub_projects.id)
   );

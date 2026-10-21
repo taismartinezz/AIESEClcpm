@@ -1,4 +1,4 @@
--- Migration 031: Finance — ledger, categories and expense claims.
+-- Migration 031: Finance: ledger, categories and expense claims.
 --
 -- "In charge of finance" = the LC president, or a VP who leads a department
 -- flagged departments.is_finance (Finance & Legality by default). That rule
@@ -65,7 +65,7 @@ as $$
          );
 $$;
 
--- Parses a path segment as a uuid, or null — storage paths are user input.
+-- Parses a path segment as a uuid, or null: storage paths are user input.
 create or replace function _try_uuid(p text)
 returns uuid
 language plpgsql
@@ -278,8 +278,8 @@ begin
       'claim_' || new.status,
       case new.status when 'approved' then 'Expense claim approved' else 'Expense claim rejected' end,
       case new.status
-        when 'approved' then new.currency || ' ' || new.amount || ' — ' || new.description
-        else new.description || ' — Reason: ' || new.rejection_reason
+        when 'approved' then new.currency || ' ' || new.amount || ': ' || new.description
+        else new.description || ': Reason: ' || new.rejection_reason
       end,
       new.id, '/finance', false
     );

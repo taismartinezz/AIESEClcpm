@@ -3,7 +3,7 @@
 -- Problems observed in QA:
 --   1. "Dynamics of algorithmic content amplification on TikTok" appears in both
 --      active items (deleted_at IS NULL) AND recently-removed (deleted_at IS NOT NULL).
---      This happens when the same item was imported twice — once active, once deleted.
+--      This happens when the same item was imported twice: once active, once deleted.
 --      Keep the active (non-deleted) copy and hard-delete the deleted duplicate.
 --   2. "Ideological fragmentation of the social media ecosystem" and
 --      "A Picture is Worth a Thousand (S)words" are duplicated inside the trash itself.

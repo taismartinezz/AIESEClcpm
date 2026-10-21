@@ -77,7 +77,7 @@ export async function runOutreach(db: SupabaseClient, now = new Date()): Promise
       const unsubscribeUrl = `${APP_URL}/api/unsubscribe?x=${encodeURIComponent(en.exchange_id)}&t=${encodeURIComponent(unsubscribeToken(en.exchange_id))}`;
 
       const result = await sendEmail({
-        to: ex.email, subject, text: `${body}\n\n—\nYou're getting this because you signed up with ${lcName}. Unsubscribe: ${unsubscribeUrl}`,
+        to: ex.email, subject, text: `${body}\n\n-- \nYou're getting this because you signed up with ${lcName}. Unsubscribe: ${unsubscribeUrl}`,
         html: outreachHtml(body, unsubscribeUrl, lcName),
         fromName: `${sender.name} (${lcName})`, replyTo: sender.email ?? undefined,
         headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },

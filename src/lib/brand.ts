@@ -2,7 +2,7 @@
 export const APP_NAME = "AIESEClcpm";
 export const APP_TAGLINE = "Project management and wellbeing for AIESEC Local Committees";
 
-// AIESEC brand palette — used for department/group colours and charts.
+// AIESEC brand palette: used for department/group colours and charts.
 export const AIESEC_BLUE = "#037EF3";
 export const AIESEC_PALETTE = [
   "#037EF3", // AIESEC blue

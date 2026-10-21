@@ -11,11 +11,11 @@
 -- HIGH:   notifications table has no RLS at all (same situation).
 --
 -- Fix strategy:
---   1. invite_codes — keep anonymous lookup by code value via SECURITY DEFINER RPC;
+--   1. invite_codes: keep anonymous lookup by code value via SECURITY DEFINER RPC;
 --      restrict direct table reads to own-lab members only.
---   2. sub_project_invite_codes — same approach.
---   3. activity_feed — enable RLS; project members see their lab's feed.
---   4. notifications — enable RLS; each user sees only their own notifications.
+--   2. sub_project_invite_codes: same approach.
+--   3. activity_feed: enable RLS; project members see their lab's feed.
+--   4. notifications: enable RLS; each user sees only their own notifications.
 --
 -- All statements are idempotent.
 
