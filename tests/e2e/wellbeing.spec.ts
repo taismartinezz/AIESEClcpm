@@ -4,6 +4,7 @@ import { setupAuthMocks } from './helpers/mocks'
 // An LC with people in it (with just you, the dashboard shows "Invite your VPs" instead of the pulse).
 const member = (user_id: string, role: string) => ({ project_id: 'project-abc', user_id, role, department_id: null, joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' }, user_profiles: { name: user_id } })
 const TEAM = [member('mock-user-id', 'president'), member('vp-1', 'vp'), member('m-1', 'member')]
+const VP_TEAM = [member('mock-user-id', 'vp'), member('pres-1', 'president'), member('m-1', 'member')]
 
 // The database decides what each role may see (tests/db/wellbeing.test.ts);
 // these tests check the dashboard renders each role's view correctly.
@@ -66,6 +67,7 @@ test.describe('Wellbeing on the dashboard', () => {
     await setupAuthMocks(page, 'vp', {
       departments,
       rpc: { get_member_pulse: periodRows(MKT, [4.0, 4.1, 4.0, 4.2, 4.1, 4.0, 4.1, 4.1]) },
+      tables: { team_members: VP_TEAM },
     })
     await page.goto('/')
     await expect(page.getByRole('region', { name: "My Department's Pulse" })).toBeVisible({ timeout: 10000 })
@@ -95,9 +97,12 @@ test.describe('Wellbeing on the dashboard', () => {
     await setupAuthMocks(page, 'president', {
       departments,
       rpc: { get_exec_pulse: periodRows(undefined, [4, 4, 4, 4, 4, 4, 4, null]).map(({ period_start, question_id, avg_score, respondent_count, suppressed }) => ({ period_start, question_id, avg_score, respondent_count, suppressed })) },
+      tables: { team_members: TEAM },
     })
     await page.goto('/')
     const exec = page.getByRole('region', { name: 'Exec Pulse' })
     await expect(exec.getByText('Not enough responses this fortnight to protect privacy.')).toBeVisible({ timeout: 10000 })
+    // Privacy: no score for the suppressed period (earlier periods may appear in the trend).
+    await expect(exec.getByText(/\/ 5 this fortnight/)).toHaveCount(0)
   })
 })

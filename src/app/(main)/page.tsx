@@ -364,8 +364,10 @@ export default function DashboardPage() {
     });
   }, [activeProjectId, userId, remindersVersion]);
 
-  // Only you in this LC so far (the team list includes you).
-  const soloLc = !loading && isSupabaseConfigured && teamMembers.length <= 1;
+  // Only you in this LC so far (the team list includes you). Until the team has
+  // loaded we show neither the pulse nor the "invite" step, so neither flashes.
+  const teamKnown = !loading || !isSupabaseConfigured;
+  const soloLc = teamKnown && isSupabaseConfigured && teamMembers.length <= 1;
 
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const timeOfDay = (() => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; })();
@@ -557,7 +559,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {!soloLc && (role === "president" || role === "vp") && (
+        {teamKnown && !soloLc && (role === "president" || role === "vp") && (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
             {role === "president" ? (
               <>

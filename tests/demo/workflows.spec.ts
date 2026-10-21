@@ -127,11 +127,14 @@ test('availability autosaves keyboard edits and survives tab changes', async ({ 
 
 test('folded navigation sections and collapsed sidebar preferences are independent', async ({ page }) => {
   await page.goto('/')
-  const people = page.getByRole('button', { name: 'People', exact: true })
-  await people.click()
+  // The sidebar shows each role's own pages, with the rest under "More" (folded until opened).
+  const more = page.getByRole('button', { name: 'More', exact: true })
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+  await more.click()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
   const sections = await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))
   expect(sections).not.toBeNull()
-  expect(Array.isArray(JSON.parse(sections!))).toBe(true)
+  expect(JSON.parse(sections!)).toContain('more')
   await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
   await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
   expect(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))).toBe(sections)
