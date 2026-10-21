@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
 // ── Shared mock state ─────────────────────────────────────────────────────────
 // We use module-level variables so each test can control the returned role.
@@ -127,20 +127,26 @@ describe('Settings page — Issue #15', () => {
   it('shows notifications section', async () => {
     mockRole = 'president'
     await renderSettings()
+    fireEvent.click(screen.getByRole('tab', { name: 'Notifications' }))
     expect(screen.getByRole('heading', { name: /notifications/i })).toBeInTheDocument()
   })
 
-  it('shows members & invites, departments and LC settings to the president', async () => {
+  it('shows members & invites, departments and LC settings to the president, one tab each', async () => {
     mockRole = 'president'
     await renderSettings()
+    fireEvent.click(screen.getByRole('tab', { name: 'Invites' }))
     expect(screen.getByRole('heading', { name: /members.*invites/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'LC & departments' }))
     expect(screen.getByRole('heading', { name: /^departments$/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /lc settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /members.*invites/i })).not.toBeInTheDocument()
   })
 
   it.each(['vp', 'member'] as const)('hides LC administration from a %s', async (role) => {
     mockRole = role
     await renderSettings()
+    expect(screen.queryByRole('tab', { name: 'Invites' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'LC & departments' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /members.*invites/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /^departments$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /lc settings/i })).not.toBeInTheDocument()

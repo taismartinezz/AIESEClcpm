@@ -6,7 +6,7 @@ import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors, closestCorners,
 } from "@dnd-kit/core";
-import { LayoutGrid, List, Search, Plus, User as UserIcon, Users } from "lucide-react";
+import { LayoutGrid, List, Search, Plus, Upload, User as UserIcon, Users } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { toUserRole } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
@@ -22,6 +22,8 @@ import { TaskCard } from "./_components/TaskCard";
 import { KanbanColumn } from "./_components/KanbanColumn";
 import { TaskRow, FilterSelect, avatarColorFromId } from "./_components/TaskRow";
 import { askConfirm } from "@/components/ui/confirm";
+import ImportWizard from "@/components/import/ImportWizard";
+import { useLcMembers } from "@/hooks/useLcMembers";
 
 // ── Modal state ───────────────────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [view, setView] = useState<"board" | "list">("board");
+  const [importing, setImporting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);   // bump to fetch tasks again (after an import)
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -45,6 +49,7 @@ export default function TasksPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<ModalState>(null);
   const { subProjects, activeScope, subProjectId: ctxSubProjectId, projectId: lcId, isLoading: lcLoading, departments, role, departmentId: myDepartmentId, ledDepartmentIds } = useProject();
+  const { members: lcMembers } = useLcMembers(lcId);
   // VPs and members land on their own department; "All departments" is one click away.
   const homeDepartment = role === "vp" ? ledDepartmentIds[0] ?? myDepartmentId : role === "member" ? myDepartmentId : null;
   const filterDepartment = departmentChoice ?? homeDepartment ?? "all";
@@ -195,7 +200,7 @@ export default function TasksPage() {
 
     return () => { cancelled = true; };
 
-  }, [lcId, lcLoading]);
+  }, [lcId, lcLoading, reloadKey]);
 
   // Consume each search navigation once; dismissing the detail panel does not reopen it.
   const [openedTaskParam, setOpenedTaskParam] = useState<string | null>(null);
@@ -537,8 +542,8 @@ export default function TasksPage() {
 
   const scopeCounts = {
     all: visibleTasks.length,
-    // Each task counts under exactly one scope, so All = Personal + Whole LC + projects
-    personal: visibleTasks.filter(t => t.scope === "personal").length,
+    // "Mine": your private tasks plus anything assigned to you (it overlaps Whole LC on purpose)
+    personal: visibleTasks.filter(t => t.scope === "personal" || (!!currentUserId && t.assigneeIds.includes(currentUserId))).length,
     lab: visibleTasks.filter(t => t.scope === "lab" || !t.scope).length,
   };
   const projectTaskCounts: Record<string, number> = {};
@@ -583,13 +588,13 @@ export default function TasksPage() {
 
   const sidebarSections: ScopeSection[] = [
     { id: "all", label: "All", color: "#0263C4", icon: <LayoutGrid size={17} />, count: scopeCounts.all, isActive: taskScope === "all", onClick: () => setTaskScope("all") },
-    { id: "personal", label: "Personal", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
+    { id: "personal", label: "Mine", color: "#6366f1", icon: <UserIcon size={17} />, count: scopeCounts.personal, isActive: taskScope === "personal", onClick: () => setTaskScope("personal") },
     { id: "lab", label: "Whole LC", color: "#0ea5e9", icon: <Users size={17} />, count: scopeCounts.lab, isActive: taskScope === "lab", onClick: () => setTaskScope("lab") },
   ];
 
   const scopedTasks = tasks.filter(t => {
     if (effectiveTaskScope === "all") return true;
-    if (effectiveTaskScope === "personal") return t.scope === "personal";
+    if (effectiveTaskScope === "personal") return t.scope === "personal" || (!!currentUserId && t.assigneeIds.includes(currentUserId));
     if (effectiveTaskScope === "lab") return t.scope === "lab" || !t.scope;
     return t.scope === "project" && t.subProjectId === effectiveTaskScope;
   });
@@ -631,6 +636,17 @@ export default function TasksPage() {
                 </button>
               ))}
             </div>
+            {isSupabaseConfigured && projectId && (
+              <button
+                onClick={() => setImporting(true)}
+                className="flex items-center gap-1.5 px-3 transition-opacity hover:opacity-90"
+                style={{ backgroundColor: "var(--color-surface)", color: "var(--color-navy)", fontSize: 12, fontWeight: 600, borderRadius: 7, border: "1px solid var(--color-border)", cursor: "pointer", height: 36 }}
+                title="Import tasks from a Google Sheet or CSV"
+              >
+                <Upload size={13} />
+                <span className="hidden sm:inline">Import</span>
+              </button>
+            )}
             <button
               onClick={() => setModalState({ mode: "add", status: "todo" })}
               className="flex items-center gap-1.5 px-3 md:px-4 transition-opacity hover:opacity-90"
@@ -885,6 +901,12 @@ export default function TasksPage() {
           teamMembers={teamMembers}
           currentUserId={currentUserId}
         />
+      )}
+
+      {importing && projectId && (
+        <ImportWizard target="tasks" projectId={projectId} products={[]}
+          context={{ departments, roster: lcMembers, defaultDepartmentId: myDepartmentId ?? null }}
+          onClose={() => setImporting(false)} onImported={() => setReloadKey((k) => k + 1)} />
       )}
 
       {modalState && (

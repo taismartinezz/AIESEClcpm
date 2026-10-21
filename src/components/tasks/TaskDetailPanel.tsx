@@ -538,7 +538,9 @@ function TaskDetailEditor({
         status: "todo",
         priority: task.priority,
         description: "",
-        scope: "lab",
+        // A subtask lives on its parent's layer (the database enforces this too).
+        scope: task.scope ?? "lab",
+        sub_project_id: task.subProjectId ?? null,
       })
       .select("id")
       .single();

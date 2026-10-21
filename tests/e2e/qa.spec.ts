@@ -66,14 +66,14 @@ test('a task saves with the description left empty', async ({ page }) => {
     .toContain('"description":""')
 })
 
-test('a Whole LC task assigned to you counts once, and a card without a date shows no dash', async ({ page }) => {
+test('task filters: All, Mine (private or assigned to you) and Whole LC', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 900 })   // the Filters panel starts folded on narrower screens
   await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'LC task'), task('t2', 'My errand', 'personal')] } })
   await page.goto('/tasks')
   await expect(page.getByText('LC task').first()).toBeVisible({ timeout: 10000 })
   const count = (label: string) => page.getByRole('button', { name: new RegExp(`^${label}\\s*\\d+$`) })
   await expect(count('All')).toContainText('2')
-  await expect(count('Personal')).toContainText('1')
+  await expect(count('Mine')).toContainText('2')       // the private task, and the LC task assigned to you
   await expect(count('Whole LC')).toContainText('1')
 })
 
@@ -139,10 +139,37 @@ test('a member sees a short sidebar, with the rest under More', async ({ page })
   await setupAuthMocks(page, 'member')
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const label of ['Dashboard', 'Tasks', 'Chat', 'Events', 'Tabling', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'People', 'Drive']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
   await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
   await nav.getByRole('button', { name: 'More' }).click()
   await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Check-in' })).toBeVisible()
+})
+
+test('merged sections: one menu item, tabs inside, and the item stays lit on every tab', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  for (const [path, item, tabs] of [
+    ['/attendance', 'Calendar', ['Calendar', 'Events', 'Tabling']],
+    ['/outreach', 'Pipeline', ['Pipeline', 'Outreach', 'Goals']],
+    ['/members', 'People', ['Team', 'Members']],
+    ['/handover', 'Drive', ['Files', 'Handover']],
+  ] as const) {
+    await page.goto(path)
+    const tabBar = page.getByRole('navigation', { name: item, exact: true })
+    for (const t of tabs) await expect(tabBar.getByRole('link', { name: t, exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(tabBar.locator('[aria-current="page"]')).toHaveCount(1)
+    await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: item, exact: true })).toHaveAttribute('aria-current', 'page')
+  }
+})
+
+test('tabling shifts show on the Calendar, and can be filtered out', async ({ page }) => {
+  const start = new Date(); start.setHours(12, 0, 0, 0)
+  const slot = { id: 's1', purpose: 'oGV recruitment', location: 'Library', starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 2 * 3_600_000).toISOString(), capacity: 3, taken: 1 }
+  await setupAuthMocks(page, 'president', { tables: { tabling_slots: [slot], schedule_events: [], lc_events: [] } })
+  await page.goto('/scheduling')
+  await expect(page.getByText('Tabling: oGV recruitment (1/3)').first()).toBeVisible({ timeout: 10000 })
+  await page.getByRole('group', { name: 'Show on the calendar' }).getByRole('button', { name: 'Tabling' }).click()
+  await expect(page.getByText('Tabling: oGV recruitment (1/3)')).toHaveCount(0)
 })
 
 test('a task can be added from the board with just a title and Enter', async ({ page }) => {
@@ -229,4 +256,37 @@ test('Find a time suggests slots from the server and says who is free', async ({
   await page.getByText("Everyone's free").click()
   const pad = (n: number) => String(n).padStart(2, '0')
   await expect(page.locator('input[type="date"]')).toHaveValue(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`)
+})
+
+test.describe('on a phone, chat lives in the top bar', () => {
+  test.use({ viewport: { width: 390, height: 780 } })
+
+  test('there is no floating chat button covering the page, and the top-bar icon opens Chat', async ({ page }) => {
+    await setupAuthMocks(page, 'president')
+    await page.goto('/settings')
+    await expect(page.getByRole('link', { name: 'Chat', exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Open messaging' })).toBeHidden()
+    await page.getByRole('banner').getByRole('link', { name: 'Chat', exact: true }).click()
+    await expect(page).toHaveURL(/\/chat$/)
+  })
+})
+
+test('before the history migration, an exchange still shows its stage dates and no error', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { departments: [OGV_DEP], tables: { exchanges: [exchange({})] } })
+  // The mocks answer inside the page, so the missing-table error is injected there too.
+  await page.addInitScript(() => {
+    const inner = window.fetch
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (url.includes('/rest/v1/exchange_history')) {
+        return Promise.resolve(new Response(JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.exchange_history' in the schema cache" }), { status: 404, headers: { 'Content-Type': 'application/json' } }))
+      }
+      return inner.call(this, input, init)
+    }
+  })
+  await page.goto('/pipeline')
+  await page.getByRole('button', { name: 'Nadia Farah' }).first().click({ timeout: 10000 })
+  const history = page.getByRole('dialog', { name: 'Nadia Farah' }).getByRole('region', { name: 'History' })
+  await expect(history).toContainText('Applied')
+  await expect(history.getByRole('alert')).toHaveCount(0)
 })

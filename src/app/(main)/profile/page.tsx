@@ -7,7 +7,7 @@ import type { UserProfileRecord, ProjectRecord } from "@/types/database-records"
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, Lock, X, Pencil,
+  ChevronLeft, X, Pencil,
 } from "lucide-react";
 
 function LinkedinIcon() {
@@ -188,7 +188,6 @@ export default function ProfilePage() {
   // ── Activity stats ────────────────────────────────────────────────────────
   const [taskCounts, setTaskCounts] = useState<Record<TaskStatus, number>>(emptyTaskCounts);
   const [recentTasks, setRecentTasks] = useState<import("@/types").Task[]>([]);
-  const [journalStreak, setJournalStreak] = useState(0);
 
   // ── Load profile & project from Supabase ─────────────────────────────────
   useEffect(() => {
@@ -270,11 +269,6 @@ export default function ProfilePage() {
             }));
           setRecentTasks(recent);
         });
-
-      const monthStart = new Date().toISOString().slice(0, 7) + "-01";
-      supabase.from("journal_entries").select("id", { count: "exact", head: true })
-        .eq("user_id", user.id).gte("created_at", monthStart)
-        .then(({ count }) => setJournalStreak(count ?? 0));
     });
   }, [project]);
 
@@ -1039,19 +1033,6 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   )}
-                </div>
-
-                <div>
-                  <SectionLabel>Journal</SectionLabel>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
-                      {journalStreak} journal {journalStreak === 1 ? "entry" : "entries"} this month
-                    </p>
-                    <Lock size={13} color="var(--color-secondary)" />
-                    <span style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)" }}>
-                      Only you can see this
-                    </span>
-                  </div>
                 </div>
               </div>
             )}

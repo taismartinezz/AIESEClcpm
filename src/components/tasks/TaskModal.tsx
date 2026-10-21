@@ -435,7 +435,7 @@ export default function TaskModal({
                 {subProjects.map((sp) => (
                   <option key={sp.id} value={sp.id}>{sp.name}</option>
                 ))}
-                <option value="personal">Personal</option>
+                <option value="personal">Only me (private)</option>
               </select>
             </div>
           )}

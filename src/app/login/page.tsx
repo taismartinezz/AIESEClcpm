@@ -754,7 +754,7 @@ export default function LoginPage() {
         )}
         {!passwordError && mode === "signup" && (
           <p style={{ fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
-            Use a unique password. Your account protects your LC&#39;s data and your private journal.
+            Use a unique password. Your account protects your LC&#39;s data.
           </p>
         )}
 

@@ -30,6 +30,7 @@ export default function DepartmentsManager() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,16 +104,56 @@ export default function DepartmentsManager() {
     <div>
       <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 0, marginBottom: 12 }}>
         Create your LC&rsquo;s departments or committees (e.g. oGX, oGT, oGV, Marketing). Every member belongs to one department and a VP can lead several. Tick the exchange products a department runs so its exchanges show in the pipeline. The department marked{" "}
-        <Landmark size={11} style={{ verticalAlign: "-1px" }} aria-label="finance" /> is the one whose VP handles finance.
+        <Landmark size={11} style={{ display: "inline-block", verticalAlign: "-1px" }} aria-label="finance" /> is the one whose VP handles finance.
       </p>
 
       {departments.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--color-body)", margin: "0 0 12px" }}>No departments yet. Add your own below, or start from a suggestion.</p>
       )}
 
+      {/* One row per department; "Edit" opens its full settings. */}
+      {departments.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 4 }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: "var(--color-secondary)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <th style={{ padding: "6px 4px", fontWeight: 700 }}>Department</th>
+              <th style={{ padding: "6px 4px", fontWeight: 700 }}>VP</th>
+              <th style={{ padding: "6px 4px", fontWeight: 700 }}>Products</th>
+              <th style={{ padding: "6px 4px" }}><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {departments.map((dep) => (
+              <tr key={dep.id} style={{ borderTop: "1px solid var(--color-border)", opacity: busyId === dep.id ? 0.6 : 1, backgroundColor: editingId === dep.id ? "var(--color-navy-dim)" : undefined }}>
+                <td style={{ padding: "8px 4px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dep.color, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: "var(--color-body)" }}>{dep.name}</span>
+                    {dep.isFinance && <Landmark size={11} color="var(--color-navy)" aria-label="handles finance" />}
+                  </span>
+                </td>
+                <td style={{ padding: "8px 4px", color: dep.vpUserId ? "var(--color-body)" : "var(--color-secondary)" }}>
+                  {execs.find((x) => x.id === dep.vpUserId)?.name ?? "No VP"}
+                </td>
+                <td style={{ padding: "8px 4px", color: "var(--color-secondary)" }}>
+                  {dep.products.length ? PRODUCTS.filter((p) => dep.products.includes(p.code)).map((p) => p.label).join(", ") : "—"}
+                </td>
+                <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  <button type="button" onClick={() => setEditingId(editingId === dep.id ? null : dep.id)} aria-expanded={editingId === dep.id}
+                    aria-label={`${editingId === dep.id ? "Close" : "Edit"} ${dep.name}`}
+                    style={{ fontSize: 12, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
+                    {editingId === dep.id ? "Done" : "Edit"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {departments.map((dep) => (
-          <div key={dep.id} style={{ opacity: busyId === dep.id ? 0.6 : 1 }}>
+        {departments.filter((dep) => dep.id === editingId).map((dep) => (
+          <div key={dep.id} style={{ opacity: busyId === dep.id ? 0.6 : 1, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8, marginTop: 8 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             <input
               type="color"

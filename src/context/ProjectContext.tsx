@@ -209,9 +209,8 @@ function ProjectProviderState({ children, onSwitch }: { children: React.ReactNod
         const storedGroup = readStorage(STORAGE_KEY);
         const storedScope = (readStorage(SCOPE_STORAGE_KEY) ?? "lab") as ActiveScope;
 
-        if (storedScope === "personal") {
-          setActiveScopeState("personal");
-        } else if (storedGroup && sps.some((sp) => sp.id === storedGroup)) {
+        // (The separate "Personal" workspace is gone; anyone left in it is back in their LC.)
+        if (storedScope !== "personal" && storedGroup && sps.some((sp) => sp.id === storedGroup)) {
           setSubProjectId(storedGroup);
           setActiveScopeState("project");
         } else {

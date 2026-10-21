@@ -12,7 +12,7 @@ test('switching LCs refreshes membership permissions without reloading the docum
       { id: 'lc-beta', name: 'LC Beta', institution: 'Beta University', active_prompt_ids: [] },
     ],
   } })
-  await page.goto('/settings')
+  await page.goto('/settings#invite')
   await expect(page.getByRole('heading', { name: /members.*invites/i })).toBeVisible()
   await page.evaluate(() => { (window as Window & { qaDocumentMarker?: string }).qaDocumentMarker = 'retained' })
   await page.getByRole('button', { name: 'Switch workspace', exact: true }).click()
@@ -21,6 +21,7 @@ test('switching LCs refreshes membership permissions without reloading the docum
   await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: /members.*invites/i })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: 'Invites' })).toHaveCount(0)
   expect(await page.evaluate(() => (window as Window & { qaDocumentMarker?: string }).qaDocumentMarker)).toBe('retained')
 })
 

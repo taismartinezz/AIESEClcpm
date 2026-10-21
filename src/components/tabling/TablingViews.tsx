@@ -82,7 +82,7 @@ export function WeekView({ slots, mySignups, canCreate, canManage, departments, 
         <Button variant="secondary" aria-label="Previous week" onClick={() => setWeekStart((w) => addDays(w, -7))} style={{ width: 36, padding: 0 }}><ChevronLeft size={15} /></Button>
         <Button variant="secondary" onClick={() => setWeekStart(startOfWeek(new Date()))}>This week</Button>
         <Button variant="secondary" aria-label="Next week" onClick={() => setWeekStart((w) => addDays(w, 7))} style={{ width: 36, padding: 0 }}><ChevronRight size={15} /></Button>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--color-navy)", margin: "0 0 0 6px", flex: 1 }}>{label}</h2>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--color-navy)", margin: "0 0 0 6px", flex: "1 1 auto", whiteSpace: "nowrap" }}>{label}</h2>
         {canCreate && <Button onClick={onNew}><Plus size={14} aria-hidden="true" /> New slot</Button>}
       </div>}
     >

@@ -30,7 +30,7 @@ async function loadItems(role: UserRole, projectId: string, userId: string, ledD
     return [
       { id: "departments", label: "Create your departments", href: "/settings#departments", done: deps > 0 },
       { id: "vps", label: "Invite your VPs", href: "/settings", done: vps > 0 },
-      { id: "import", label: "Import a tracker from Google Sheets", href: "/import", done: exchanges + partners > 0 },
+      { id: "import", label: "Import a tracker from Google Sheets", href: "/pipeline", done: exchanges + partners > 0 },
       { id: "goals", label: "Set this term's goals", href: "/goals", done: goals > 0 },
       { id: "mc", label: "Link your LC to your MC", href: "/settings#national", done: Boolean(proj.data?.mc_id) },
     ];
@@ -45,7 +45,7 @@ async function loadItems(role: UserRole, projectId: string, userId: string, ledD
       count(supabase.from("checkins").select("id", head).eq("project_id", projectId).eq("user_id", userId)),
     ]);
     return [
-      { id: "import", label: "Import your department's tracker", href: "/import", done: exchanges + partners > 0 },
+      { id: "import", label: "Import your department's tracker", href: "/pipeline", done: exchanges + partners > 0 },
       { id: "goals", label: "Set a goal for your department", href: "/goals", done: goals > 0 },
       { id: "plan", label: "Plan an event or a tabling shift", href: "/tabling", done: events + slots > 0 },
       { id: "checkin", label: "Do your first check-in", href: "/checkin", done: checkins > 0 },
@@ -124,7 +124,8 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
           </li>
         ))}
       </ul>
-      {role !== "member" && !isDemo && (
+      {/* Only while the LC is still empty (nothing imported, no goals yet). */}
+      {role !== "member" && !isDemo && !items.some((i) => (i.id === "import" || i.id === "goals") && i.done) && (
         <p style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--color-secondary)", margin: "10px 0 0" }}>
           Want to see how it looks with data first?
           <DemoLcButton variant="button" />

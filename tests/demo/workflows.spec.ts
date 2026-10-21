@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 const routes = ['/', '/tasks', '/chat', '/reminders', '/scheduling', '/pipeline', '/outreach',
   '/goals', '/partners', '/team', '/members', '/attendance', '/tabling', '/finance', '/drive',
-  '/handover', '/import', '/checkin', '/journal', '/help', '/settings', '/profile', '/mc', '/privacy']
+  '/handover', '/checkin', '/help', '/settings', '/profile', '/mc', '/privacy']
 
 for (const mobile of [false, true]) {
   test(`all demo routes render without crashes or overflow (${mobile ? 'mobile' : 'desktop'})`, async ({ page }) => {
@@ -67,19 +67,6 @@ test('submits and edits the current check-in', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: 'Your answers were updated.' })).toBeVisible()
 })
 
-test('demo journal warns about privacy, saves an entry and clears the editor', async ({ page }) => {
-  await page.goto('/journal')
-  await expect(page.getByText(/Demo only — do not enter private information/)).toBeVisible()
-  const input = page.getByPlaceholder(/Take a moment/)
-  await input.fill('Fictional reflection for QA')
-  await page.getByRole('button', { name: 'Save entry', exact: true }).click()
-  await expect(page.getByText('✓ Entry saved.', { exact: true })).toBeVisible()
-  await expect(page.getByText('Fictional reflection for QA', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'New Entry', exact: true }).click()
-  await expect(input).toHaveValue('')
-  await expect(page.getByText(/Encryption key unavailable/)).toHaveCount(0)
-})
-
 test('search opens an in-session task and closing it does not reopen it', async ({ page }) => {
   await page.goto('/tasks')
   await page.getByRole('button', { name: 'Add Task', exact: true }).click()
@@ -127,11 +114,14 @@ test('availability autosaves keyboard edits and survives tab changes', async ({ 
 
 test('folded navigation sections and collapsed sidebar preferences are independent', async ({ page }) => {
   await page.goto('/')
-  const people = page.getByRole('button', { name: 'People', exact: true })
-  await people.click()
+  // The sidebar shows each role's own pages, with the rest under "More" (folded until opened).
+  const more = page.getByRole('button', { name: 'More', exact: true })
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+  await more.click()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
   const sections = await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))
   expect(sections).not.toBeNull()
-  expect(Array.isArray(JSON.parse(sections!))).toBe(true)
+  expect(JSON.parse(sections!)).toContain('more')
   await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
   await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
   expect(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))).toBe(sections)

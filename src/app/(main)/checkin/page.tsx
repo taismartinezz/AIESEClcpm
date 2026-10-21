@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { CheckCircle2, ShieldCheck, BookOpen } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import CheckinQuestion from "@/components/wellbeing/CheckinQuestion";
 import { Button, ErrorText, Panel } from "@/components/lc/ui";
@@ -197,9 +196,6 @@ export default function CheckinPage() {
                 </Panel>
               )}
 
-              <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
-                Want to write things down? The <Link href="/journal" style={{ color: "var(--color-navy)" }}><BookOpen size={11} aria-hidden="true" style={{ verticalAlign: "-1px" }} /> Journal</Link> is a private diary only you can read.
-              </p>
             </>
           )}
         </div>

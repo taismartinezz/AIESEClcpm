@@ -9,8 +9,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
 import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
-import type { PromptCategory } from "@/types";
-import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
+import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,15 +17,7 @@ type Role = "president" | "member";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
-  emotional_processing: "Emotional Processing",
-  purpose_growth: "Purpose & Growth",
-  team_support: "Team & Support",
-  boundaries_workload: "Boundaries & Workload",
-  looking_forward: "Looking Forward",
-};
-
-const CREATE_STEPS = 6;
+const CREATE_STEPS = 5;
 const JOIN_STEPS = 5;
 
 
@@ -507,11 +498,6 @@ export default function OnboardingPage() {
   const [revealLink, setRevealLink] = useState(false);
   const [piShowAdvancedInvites, setPiShowAdvancedInvites] = useState(false);
 
-  // Create-LC step 5 - journal prompts
-  const [piActivePromptIds, setPiActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
-  const [piCustomPrompts, setPiCustomPrompts] = useState<{ id: string; text: string }[]>([]);
-  const [piPromptInput, setPiPromptInput] = useState("");
-
   // Join-LC step 3 - profile
   const [profileNameInput, setProfileName] = useState<string | null>(null);
   const profileName = profileNameInput ?? resUserName;
@@ -709,8 +695,6 @@ export default function OnboardingPage() {
         timezone: role === "president" ? piTimezone : resTimezone,
         // No working hours at sign-up: availability comes from Scheduling (and Google Calendar).
         workingHours: undefined,
-        activePromptIds: role === "president" ? piActivePromptIds : undefined,
-        customPrompts: role === "president" ? piCustomPrompts : undefined,
       });
       if (syncErr) {
         setSyncError(syncErr);
@@ -990,7 +974,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your time zone"
-            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect Google Calendar later in the Calendar."
           />
           <WorkingHoursEditor
             timezone={piTimezone}
@@ -1252,103 +1236,14 @@ export default function OnboardingPage() {
     );
   }
 
-  // ── Step 5A: President picks journal prompts ─────────────────────────────────────────────
+  // ── Step 5A: President wellbeing preview ──────────────────────────────────────────
 
   if (step === 5 && role === "president") {
     return (
       <div style={PAGE_WRAP}>
-        <div style={{ ...cardStyle(isLarge), maxHeight: "90dvh", display: "flex", flexDirection: "column" }}>
-          <div style={{ flexShrink: 0 }}>
-            <BackButton onClick={() => setStep(4)} />
-            <StepDots current={5} total={CREATE_STEPS} />
-            <SectionTitle
-              large={isLarge}
-              title="Journal prompts"
-              subtitle="Choose which prompts appear for your team's weekly journals. You can change this in Settings at any time."
-            />
-          </div>
-          <div style={{ overflowY: "auto", flex: 1 }}>
-            {Array.from(new Set(JOURNAL_PROMPTS.map(p => p.category))).map(cat => (
-              <div key={cat} style={{ marginBottom: 18 }}>
-                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
-                  {PROMPT_CATEGORY_LABELS[cat]}
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {JOURNAL_PROMPTS.filter(p => p.category === cat).map(prompt => {
-                    const active = piActivePromptIds.includes(prompt.id);
-                    return (
-                      <button key={prompt.id}
-                        onClick={() => setPiActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
-                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(2,99,196,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
-                        {prompt.text}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {/* Custom prompts */}
-            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 14, marginBottom: 4 }}>
-              <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
-                Custom Prompts
-              </p>
-              {piCustomPrompts.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
-                  {piCustomPrompts.map(cp => (
-                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(2,99,196,0.04)", border: "1px solid var(--color-navy)" }}>
-                      <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
-                      <button onClick={() => setPiCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}
-                        style={{ flexShrink: 0, height: 24, width: 24, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "none", cursor: "pointer" }}
-                        aria-label="Remove custom prompt">
-                        <X size={13} color="var(--color-secondary)" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <input value={piPromptInput} onChange={e => setPiPromptInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && piPromptInput.trim()) {
-                      setPiCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: piPromptInput.trim() }]);
-                      setPiPromptInput("");
-                    }
-                  }}
-                  placeholder="Add a custom prompt and press Enter or Add"
-                  style={{ ...inputStyle(isLarge), flex: 1, height: isLarge ? 48 : 40 }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
-                />
-                <button
-                  onClick={() => {
-                    if (!piPromptInput.trim()) return;
-                    setPiCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: piPromptInput.trim() }]);
-                    setPiPromptInput("");
-                  }}
-                  style={{ height: 40, padding: "0 14px", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-          <div style={{ flexShrink: 0 }}>
-            <NavButton large={isLarge} onClick={() => setStep(6)}>
-              Continue
-            </NavButton>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 6A: President wellbeing preview ──────────────────────────────────────────
-
-  if (step === 6 && role === "president") {
-    return (
-      <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
-          <BackButton onClick={() => setStep(5)} />
-          <StepDots current={6} total={CREATE_STEPS} />
+          <BackButton onClick={() => setStep(4)} />
+          <StepDots current={5} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Team wellbeing check-ins"
@@ -1431,7 +1326,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your time zone"
-            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect Google Calendar later in the Calendar."
           />
           <WorkingHoursEditor
             timezone={resTimezone}

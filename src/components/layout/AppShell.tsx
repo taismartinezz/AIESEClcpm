@@ -7,21 +7,21 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send, CalendarDays,
-  Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon, MoreHorizontal,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
+  LayoutDashboard, CheckSquare, FolderOpen, Users, Globe2, CalendarDays, Bell, ChevronDown, ChevronLeft, ChevronRight,
+  LogOut, User as UserIcon, MoreHorizontal, Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet,
+  LifeBuoy, HeartPulse, Plane, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
-import { DemoLcButton } from "@/components/lc/DemoLc";
 import WhatsNew from "@/components/ui/WhatsNew";
-import { USERS, getStoredProject, getStoredUser, withDemoUser } from "@/lib/mock-data";
-import { toUserRole, ROLE_LABELS } from "@/lib/permissions";
+import { getStoredProject, getStoredUser } from "@/lib/mock-data";
+import { ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
 import SupportPanel from "@/components/support/SupportPanel";
+import SectionTabs, { sectionFor } from "@/components/layout/SectionTabs";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
@@ -50,21 +50,15 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/tasks",      "Tasks",      CheckSquare    ],
   ["/chat",       "Chat",       MessageSquare  ],
   ["/reminders",  "Reminders",  CircleCheck    ],
-  ["/scheduling", "Scheduling", CalendarDays   ],
+  // Calendar = Scheduling + Events + Tabling, People = Team + Members, Pipeline = Pipeline +
+  // Outreach + Goals, Drive = Files + Handover: one menu item each, tabs inside (SectionTabs).
+  ["/scheduling", "Calendar",   CalendarDays   ],
   ["/pipeline",   "Pipeline",   Plane          ],
-  ["/outreach",   "Outreach",   Send           ],
-  ["/goals",      "Goals",      Target         ],
   ["/partners",   "Partners",   Handshake      ],
-  ["/team",       "Team",       Users          ],
-  ["/members",    "Members",    UserPlus       ],
-  ["/attendance", "Events",     UserCheck      ],
-  ["/tabling",    "Tabling",    Store          ],
+  ["/team",       "People",     Users          ],
   ["/finance",    "Finance",    Wallet         ],
-  ["/drive",      "LC Drive",   FolderOpen     ],
-  ["/handover",   "Handover",   ScrollText     ],
-  ["/import",     "Import",     FileSpreadsheet],
+  ["/drive",      "Drive",      FolderOpen     ],
   ["/checkin",    "Check-in",   HeartPulse     ],
-  ["/journal",    "Journal",    BookOpen       ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
@@ -74,9 +68,9 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
 const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/chat", "/attendance", "/tabling", "/checkin"],
-  vp:        ["/", "/tasks", "/chat", "/pipeline", "/goals", "/partners", "/attendance", "/tabling", "/checkin"],
-  president: ["/", "/tasks", "/chat", "/pipeline", "/goals", "/members", "/attendance", "/finance", "/checkin"],
+  member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/drive"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive"],
 };
 
 function useNavGroups(): NavGroup[] {
@@ -137,7 +131,6 @@ function LcMenuSection({ onDone }: { onDone: () => void }) {
           </button>
         );
       })}
-      <DemoLcButton onDone={onDone} />
       <Link
         href="/onboarding?add=1"
         onClick={onDone}
@@ -184,8 +177,6 @@ function SidebarBody({
   onLinkClick,
   showCloseButton,
   onClose,
-  team,
-  currentUserId,
   collapsed = false,
   onCollapse,
   onExpand,
@@ -195,11 +186,9 @@ function SidebarBody({
   activeSubProjectId = null,
   onLabHome,
   onSelectProject,
-  onPersonal,
   onCreateProject,
   onSettings,
   onGetHelp,
-  profileInitials = "??",
   projectName = "",
   projectColor = "",
 }: {
@@ -207,8 +196,6 @@ function SidebarBody({
   onLinkClick?: () => void;
   showCloseButton?: boolean;
   onClose?: () => void;
-  team: User[];
-  currentUserId: string;
   collapsed?: boolean;
   onCollapse?: () => void;
   onExpand?: () => void;
@@ -219,11 +206,9 @@ function SidebarBody({
   activeSubProjectId?: string | null;
   onLabHome?: () => void;
   onSelectProject?: (id: string) => void;
-  onPersonal?: () => void;
   onCreateProject?: () => void;
   onSettings?: () => void;
   onGetHelp?: () => void;
-  profileInitials?: string;
   projectName?: string;
   projectColor?: string;
 }) {
@@ -312,15 +297,6 @@ function SidebarBody({
               })}
               <div style={{ borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
               <button
-                onClick={() => { onPersonal?.(); setWsOpen(false); }}
-                className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
-                style={{ padding: "7px 14px", border: "none", background: activeScope === "personal" ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
-              >
-                <span style={{ width: 10, height: 10, borderRadius: 50, backgroundColor: "var(--color-navy-dim)", border: "1px solid var(--color-border)", flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: activeScope === "personal" ? 700 : 400, color: "var(--color-body)" }}>Personal</span>
-              </button>
-              <div style={{ borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
-              <button
                 onClick={() => { onCreateProject?.(); setWsOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
                 style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)" }}
@@ -405,24 +381,6 @@ function SidebarBody({
           </button>
         </Tooltip>
 
-        {/* Personal workspace */}
-        <Tooltip label="Personal workspace" placement="right">
-          <button
-            onClick={onPersonal}
-            style={{
-              ...ICON_BTN,
-              backgroundColor: activeScope === "personal" ? "var(--color-navy)" : "var(--color-navy-dim)",
-              color: activeScope === "personal" ? "#fff" : "var(--color-navy)",
-              border: activeScope === "personal" ? "none" : "2px solid var(--color-border)",
-              cursor: "pointer",
-              fontFamily: "var(--font-roboto)", fontSize: 10, fontWeight: 700,
-            }}
-            aria-label="Personal workspace"
-            aria-current={activeScope === "personal" ? "true" : undefined}
-          >
-            {profileInitials}
-          </button>
-        </Tooltip>
 
       </aside>
     );
@@ -515,15 +473,6 @@ function SidebarBody({
             })}
             <div style={{ borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
             <button
-              onClick={() => { onPersonal?.(); setWsOpen(false); }}
-              className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
-              style={{ padding: "7px 14px", border: "none", background: activeScope === "personal" ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)" }}
-            >
-              <span style={{ width: 10, height: 10, borderRadius: 50, backgroundColor: "var(--color-navy-dim)", border: "1px solid var(--color-border)", flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: activeScope === "personal" ? 700 : 400, color: "var(--color-body)" }}>Personal</span>
-            </button>
-            <div style={{ borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
-            <button
               onClick={() => { onCreateProject?.(); setWsOpen(false); }}
               className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
               style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)" }}
@@ -591,42 +540,7 @@ function SidebarBody({
         })}
       </nav>
 
-      {/* Team member list (folded by default so the nav has room) */}
-      <div className="px-3 py-2 shrink-0" style={{ borderTop: "1px solid var(--color-border)" }}>
-        <button type="button" onClick={() => toggleFolded("team")} aria-expanded={!folded.has("team")}
-          className="flex items-center w-full"
-          style={{ gap: 4, padding: "4px 2px", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-secondary)" }}>
-          <ChevronDown size={11} aria-hidden="true" style={{ transform: folded.has("team") ? "rotate(-90deg)" : undefined, transition: "transform 120ms" }} />
-          Team ({team.length})
-        </button>
-        {!folded.has("team") && <div className="max-h-40 overflow-y-auto space-y-0.5">
-          {team.length === 0 && (
-            <p style={{ fontSize: 12, color: "var(--color-secondary)", padding: "2px 4px" }}>No teammates yet.</p>
-          )}
-          {team.map((user) => {
-            const parts = user.name.trim().split(/\s+/);
-            const shortName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0] ?? user.name;
-            return (
-              <div key={user.id} className="flex items-center gap-2 px-1 py-1" style={{ minHeight: 32 }}>
-                <Avatar user={user} size={22} />
-                <span style={{
-                  fontSize: 13,
-                  color: user.id === currentUserId ? "var(--color-navy)" : "var(--color-body)",
-                  fontWeight: user.id === currentUserId ? 600 : 400,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}>
-                  {shortName}
-                  {user.role !== "member" && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--color-secondary)", fontWeight: 400 }}>{ROLE_LABELS[user.role]}</span>}
-                </span>
-              </div>
-            );
-          })}
-        </div>}
-      </div>
-
-      {/* Footer: get help + settings + personal workspace */}
+      {/* Footer: get help + settings */}
       <div className="px-2 pb-2 shrink-0" style={{ borderTop: "1px solid var(--color-border)", paddingTop: 4 }}>
         <button
           onClick={onGetHelp}
@@ -645,24 +559,6 @@ function SidebarBody({
         >
           <Settings size={14} />
           <span>Settings</span>
-        </button>
-        <button
-          onClick={onPersonal}
-          className="flex items-center gap-2.5 w-full rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
-          style={{ padding: "6px 10px", border: "none", background: activeScope === "personal" ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: activeScope === "personal" ? "var(--color-navy)" : "var(--color-secondary)", fontSize: 13, minHeight: 36, textAlign: "left" }}
-          aria-label="Personal workspace"
-          aria-current={activeScope === "personal" ? "true" : undefined}
-        >
-          <span style={{
-            width: 20, height: 20, borderRadius: 10, flexShrink: 0,
-            backgroundColor: activeScope === "personal" ? "var(--color-navy)" : "var(--color-navy-dim)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: "var(--font-roboto)", fontSize: 9, fontWeight: 700,
-            color: activeScope === "personal" ? "#fff" : "var(--color-navy)",
-          }}>
-            {profileInitials}
-          </span>
-          <span>Personal</span>
         </button>
       </div>
     </aside>
@@ -829,7 +725,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
   const [profile, setProfile] = useState<UserProfileRecord | null>(null);
   const [project, setProject] = useState<ProjectRecord | null>(null);
-  const [team, setTeam] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<SupabaseNotif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pastDueCount, setPastDueCount] = useState(0);
@@ -872,7 +767,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const me = getStoredUser();
         setProfile({ ...me, avatar_initials: me.avatarInitials, avatar_color: me.avatarColor });
         setProject(getStoredProject());
-        setTeam(withDemoUser(USERS, me));
         setAuthed(true);
         return;
       }
@@ -1014,7 +908,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Project data + team - driven by projectId from context ────────────────
+  // ── Project data - driven by projectId from context ───────────────────────
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
     let canceled = false;
@@ -1031,50 +925,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       const currentUserId = session?.user?.id ?? null;
       // "Last seen" for Talent Management's activity view; best effort, never blocks loading.
       if (currentUserId) void supabase.rpc("touch_last_seen").then(({ error }) => { if (error) console.warn("[last seen]", error.message); });
-
-      const { data: members } = await supabase
-        .from("team_members")
-        .select("*, user_profiles(name, avatar_color, avatar_initials, avatar_url)")
-        .eq("project_id", projectId);
-
-      if (!canceled) {
-        const mapped: User[] = (members ?? []).map((row) => {
-          const profiles = row.user_profiles as unknown as Record<string, string>[] | null;
-          const p = Array.isArray(profiles) ? profiles[0] : (profiles as Record<string, string> | null);
-          return {
-            id: row.user_id as string,
-            name: p?.name ?? "Unknown",
-            email: "",
-            role: row.role as User["role"],
-            avatarColor: p?.avatar_color ?? "#B4D4E3",
-            avatarInitials: computeInitials(p?.name ?? "") || (p?.avatar_initials ?? "??"),
-            avatarUrl: p?.avatar_url ?? undefined,
-          };
-        });
-
-        // Guarantee the current user always appears, even if missing from team_members
-        if (currentUserId && !mapped.some((m) => m.id === currentUserId)) {
-          const { data: myProf } = await supabase
-            .from("user_profiles")
-            .select("name, role, avatar_color, avatar_initials, avatar_url")
-            .eq("id", currentUserId)
-            .maybeSingle();
-          if (myProf && !canceled) {
-            const name = (myProf.name as string) ?? "You";
-            mapped.unshift({
-              id: currentUserId,
-              name,
-              email: "",
-              role: toUserRole(myProf.role),
-              avatarColor: (myProf.avatar_color as string) ?? "#B4D4E3",
-              avatarInitials: computeInitials(name) || ((myProf.avatar_initials as string) ?? "??"),
-              avatarUrl: (myProf.avatar_url as string) ?? undefined,
-            });
-          }
-        }
-
-        setTeam(mapped);
-      }
     }
 
     loadProjectData();
@@ -1113,7 +963,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
       if (e.altKey && !e.metaKey && !e.ctrlKey) {
         const nav: Record<string, string> = {
-          d: "/", t: "/tasks", j: "/journal", c: "/chat",
+          d: "/", t: "/tasks", c: "/chat",
           r: "/reminders",
           b: "/drive", m: "/team",
         };
@@ -1137,7 +987,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [mobileNavOpen]);
 
   function isActive(href: string) {
-    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+    if (href === "/") return pathname === "/";
+    // A section's menu item stays lit on every one of its tabs.
+    const section = sectionFor(pathname);
+    if (section && section.tabs[0].href === href) return true;
+    return pathname.startsWith(href);
   }
 
   async function handleSignOut() {
@@ -1204,8 +1058,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       >
         <SidebarBody
           isActive={isActive}
-          team={team}
-          currentUserId={profile?.id ?? ""}
           collapsed={navCollapsed}
           onCollapse={() => { setNavCollapsed(true); localStorage.setItem("aiesec_nav_collapsed", "true"); }}
           onExpand={() => { setNavCollapsed(false); localStorage.setItem("aiesec_nav_collapsed", "false"); }}
@@ -1216,11 +1068,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           activeSubProjectId={subProjectId}
           onLabHome={() => { setActiveSubProject(null); setActiveScope("lab"); }}
           onSelectProject={(id) => { setActiveSubProject(id); setActiveScope("project"); }}
-          onPersonal={() => { setActiveSubProject(null); setActiveScope("personal"); }}
           onCreateProject={() => setShowCreate(true)}
           onSettings={() => router.push("/settings")}
           onGetHelp={() => { setHelpKey((k) => k + 1); setHelpOpen(true); }}
-          profileInitials={computeInitials(profile?.name ?? "") || (profile?.avatar_initials ?? "??")}
           projectName={project?.name ?? ""}
           projectColor={project?.color ?? ""}
         />
@@ -1310,8 +1160,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onLinkClick={() => setMobileNavOpen(false)}
           showCloseButton
           onClose={() => setMobileNavOpen(false)}
-          team={team}
-          currentUserId={profile?.id ?? ""}
           pastDueCount={pastDueCount}
           chatUnread={chatUnread}
           subProjects={subProjects}
@@ -1319,11 +1167,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           activeSubProjectId={subProjectId}
           onLabHome={() => { setActiveSubProject(null); setActiveScope("lab"); }}
           onSelectProject={(id) => { setActiveSubProject(id); setActiveScope("project"); }}
-          onPersonal={() => { setActiveSubProject(null); setActiveScope("personal"); }}
           onCreateProject={() => setShowCreate(true)}
           onSettings={() => router.push("/settings")}
           onGetHelp={() => { setHelpKey((k) => k + 1); setHelpOpen(true); }}
-          profileInitials={computeInitials(profile?.name ?? "") || (profile?.avatar_initials ?? "??")}
           projectName={project?.name ?? ""}
           projectColor={project?.color ?? ""}
         />
@@ -1404,6 +1250,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               </Tooltip>
             )}
+
+            {/* Chat (phones only: on bigger screens the floating Messaging button does this) */}
+            <Link href="/chat" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}
+              className="sm:hidden relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
+              style={{ width: 44, height: 44 }}>
+              <MessageSquare size={18} color="var(--color-body)" />
+              <NotifDot count={chatUnread} />
+            </Link>
 
             {/* Notification bell */}
             <div className="relative">
@@ -1493,8 +1347,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
           <UndoToastProvider>
-            <div key={pathname} style={{ animation: "page-in 150ms ease both", height: "100%" }}>
-              {children}
+            <div key={pathname} style={{ animation: "page-in 150ms ease both", height: "100%", display: "flex", flexDirection: "column" }}>
+              <SectionTabs pathname={pathname} />
+              <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
             </div>
           </UndoToastProvider>
         </main>
