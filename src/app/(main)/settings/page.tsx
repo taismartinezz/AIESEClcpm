@@ -11,6 +11,7 @@ import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
 import type { LabRole } from "@/types";
 import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
+import SupportResourcesSettings from "@/components/support/SupportResourcesSettings";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
@@ -833,6 +834,15 @@ export default function SettingsPage() {
           </div>
           <div style={{ padding: "20px" }}>
             <WellbeingSettings projectId={activeLcId} />
+          </div>
+        </section>
+      )}
+
+      {/* Support resources (shown in "Get help") — president only; moved here from the Team page */}
+      {isPresident && activeLcId && (
+        <section id="support" style={sectionStyle} aria-label="Support resources">
+          <div style={{ padding: "20px" }}>
+            <SupportResourcesSettings projectId={activeLcId} />
           </div>
         </section>
       )}

@@ -14,9 +14,19 @@ export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void
   const { setActiveLc } = useProject();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // If you already have a demo LC, open it rather than making another.
+  const [existing, setExisting] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured || isPreview) return;
+    let cancelled = false;
+    supabase.from("projects").select("id").eq("is_demo", true).order("created_at", { ascending: false }).limit(1)
+      .then(({ data }) => { if (!cancelled) setExisting((data?.[0]?.id as string | undefined) ?? null); });
+    return () => { cancelled = true; };
+  }, []);
   if (!isSupabaseConfigured || isPreview) return null;
 
   async function create() {
+    if (existing) { onDone?.(); setActiveLc(existing); return; }
     setBusy(true);
     setError(null);
     try {
@@ -33,13 +43,13 @@ export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void
   return (
     <>
       {variant === "button" ? (
-        <Button variant="secondary" onClick={create} disabled={busy}><Sparkles size={14} aria-hidden="true" /> {busy ? "Creating…" : "Explore a demo LC"}</Button>
+        <Button variant="secondary" onClick={create} disabled={busy}><Sparkles size={14} aria-hidden="true" /> {busy ? "Creating…" : existing ? "Open your demo LC" : "Explore a demo LC"}</Button>
       ) : (
         <button type="button" onClick={create} disabled={busy}
           className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"
           style={{ padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)" }}>
           <Sparkles size={13} aria-hidden="true" />
-          <span style={{ fontSize: 13 }}>{busy ? "Creating demo LC…" : "Explore a demo LC"}</span>
+          <span style={{ fontSize: 13 }}>{busy ? "Creating demo LC…" : existing ? "Open your demo LC" : "Explore a demo LC"}</span>
         </button>
       )}
       {error && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "4px 14px" }}>Couldn&apos;t create the demo: {error}</p>}

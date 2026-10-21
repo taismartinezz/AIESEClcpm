@@ -34,7 +34,7 @@ const LIST_COLORS: Record<ListType, string> = {
 };
 const LIST_LABELS: Record<ListType, string> = {
   today: "Today", scheduled: "Scheduled", priority: "Priority",
-  all: "All", personal: "Personal", lab: "Whole LC", project: "Groups",
+  all: "All", personal: "Mine", lab: "Whole LC", project: "Groups",
 };
 // No drag-reorder - all views use date-sorted grouped layout
 const DRAGGABLE_LISTS: ListType[] = [];
@@ -84,13 +84,14 @@ function sortByDate(list: Reminder[]): Reminder[] {
   });
 }
 
-function filterReminders(list: ListType, all: Reminder[], subProjectId?: string | null): Reminder[] {
+/** "personal" is the "Mine" list: your private reminders plus any assigned to you. */
+function filterReminders(list: ListType, all: Reminder[], subProjectId?: string | null, userId?: string): Reminder[] {
   const tomorrow = tomorrowStart();
   switch (list) {
     case "today":     return all.filter(r => r.dueAt && new Date(r.dueAt) < tomorrow);
     case "scheduled": return all.filter(r => !!r.dueAt);
     case "priority":  return all.filter(r => !!r.priority);
-    case "personal":  return all.filter(r => r.scope === "personal");
+    case "personal":  return all.filter(r => r.scope === "personal" || (!!userId && r.assigneeId === userId));
     case "lab":       return all.filter(r => r.scope === "lab");
     case "project":   return all.filter(r => r.scope === "project" && (!subProjectId || r.subProjectId === subProjectId));
     default:          return all;
@@ -349,7 +350,7 @@ function ReminderEditRow({ reminder, teamMembers, onSave, onCancel }: {
         {/* Scope toggle */}
         {(["personal","lab"] as const).map(s => (
           <button key={s} onClick={() => setScope(s)} style={{ ...pillBase(scope === s, LIST_COLORS[s]), fontWeight: scope === s ? 700 : 400 }}>
-            {s === "personal" ? "Personal" : "Whole LC"}
+            {s === "personal" ? "Only me" : "Whole LC"}
           </button>
         ))}
         <div style={{ width: 1, height: 16, backgroundColor: "var(--color-border)" }} />
@@ -430,7 +431,7 @@ function InlineAddRow({ defaultScope, accentColor, teamMembers, onAdd, onClose }
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 16px 6px 60px", flexWrap: "wrap" }}>
         {(["personal","lab"] as const).map(s => (
           <button key={s} onClick={() => setScope(s)} style={{ ...pillBase(scope === s, LIST_COLORS[s]), fontWeight: scope === s ? 700 : 400 }}>
-            {s === "personal" ? "Personal" : "Whole LC"}
+            {s === "personal" ? "Only me" : "Whole LC"}
           </button>
         ))}
         <div style={{ width: 1, height: 16, backgroundColor: "var(--color-border)" }} />
@@ -925,9 +926,9 @@ export default function RemindersPage() {
 
   const sidebarCounts = useMemo(() => ({
     all:      allActive.length,
-    personal: allActive.filter(r => r.scope === "personal").length,
+    personal: allActive.filter(r => r.scope === "personal" || (!!currentUserId && r.assigneeId === currentUserId)).length,
     lab:      allActive.filter(r => r.scope === "lab").length,
-  }), [allActive]);
+  }), [allActive, currentUserId]);
 
   const sidebarProjectCounts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -939,7 +940,7 @@ export default function RemindersPage() {
 
   const sidebarSections: ScopeSection[] = [
     { id: "all",      label: "All",      color: LIST_COLORS.all,      icon: <List size={17} />,     count: sidebarCounts.all,      isActive: selectedList === "all",      onClick: () => handleListSelect("all") },
-    { id: "personal", label: "Personal", color: LIST_COLORS.personal, icon: <UserIcon size={17} />, count: sidebarCounts.personal, isActive: selectedList === "personal", onClick: () => handleListSelect("personal") },
+    { id: "personal", label: "Mine", color: LIST_COLORS.personal, icon: <UserIcon size={17} />, count: sidebarCounts.personal, isActive: selectedList === "personal", onClick: () => handleListSelect("personal") },
     { id: "lab",      label: "Whole LC", color: LIST_COLORS.lab,      icon: <Users size={17} />,    count: sidebarCounts.lab,      isActive: selectedList === "lab",      onClick: () => handleListSelect("lab") },
   ];
 
@@ -982,12 +983,12 @@ export default function RemindersPage() {
   const effectiveSubProjectId: string | null = isLabHome ? selectedSubProjectId : (activeScope === "project" ? (subProjectId ?? null) : null);
 
   const visible = useMemo(() => {
-    const filtered = filterReminders(effectiveList, allActive, effectiveSubProjectId);
+    const filtered = filterReminders(effectiveList, allActive, effectiveSubProjectId, currentUserId);
     if (DRAGGABLE_LISTS.includes(effectiveList)) return sortByPosition(filtered);
     return sortByDate(filtered);
-  }, [effectiveList, effectiveSubProjectId, allActive]);
+  }, [effectiveList, effectiveSubProjectId, allActive, currentUserId]);
 
-  const completedVisible = useMemo(() => filterReminders(effectiveList, allCompleted, effectiveSubProjectId), [effectiveList, effectiveSubProjectId, allCompleted]);
+  const completedVisible = useMemo(() => filterReminders(effectiveList, allCompleted, effectiveSubProjectId, currentUserId), [effectiveList, effectiveSubProjectId, allCompleted, currentUserId]);
 
   const activeSubProject = effectiveList === "project" && effectiveSubProjectId
     ? subProjects.find(sp => sp.id === effectiveSubProjectId) ?? null

@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 const routes = ['/', '/tasks', '/chat', '/reminders', '/scheduling', '/pipeline', '/outreach',
   '/goals', '/partners', '/team', '/members', '/attendance', '/tabling', '/finance', '/drive',
-  '/handover', '/import', '/checkin', '/help', '/settings', '/profile', '/mc', '/privacy']
+  '/handover', '/checkin', '/help', '/settings', '/profile', '/mc', '/privacy']
 
 for (const mobile of [false, true]) {
   test(`all demo routes render without crashes or overflow (${mobile ? 'mobile' : 'desktop'})`, async ({ page }) => {

@@ -3,7 +3,7 @@ import { setupAuthMocks } from './helpers/mocks'
 
 // Members check the app on their phones: no page may scroll sideways at 390 px.
 const PAGES = ['/', '/tasks', '/pipeline', '/goals', '/partners', '/outreach', '/attendance', '/tabling', '/finance',
-  '/drive', '/handover', '/members', '/import', '/team', '/checkin', '/help', '/settings', '/mc']
+  '/drive', '/handover', '/members', '/team', '/checkin', '/help', '/settings', '/mc']
 
 test.use({ viewport: { width: 390, height: 844 } })
 

@@ -66,14 +66,14 @@ test('a task saves with the description left empty', async ({ page }) => {
     .toContain('"description":""')
 })
 
-test('a Whole LC task assigned to you counts once, and a card without a date shows no dash', async ({ page }) => {
+test('task filters: All, Mine (private or assigned to you) and Whole LC', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 900 })   // the Filters panel starts folded on narrower screens
   await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'LC task'), task('t2', 'My errand', 'personal')] } })
   await page.goto('/tasks')
   await expect(page.getByText('LC task').first()).toBeVisible({ timeout: 10000 })
   const count = (label: string) => page.getByRole('button', { name: new RegExp(`^${label}\\s*\\d+$`) })
   await expect(count('All')).toContainText('2')
-  await expect(count('Personal')).toContainText('1')
+  await expect(count('Mine')).toContainText('2')       // the private task, and the LC task assigned to you
   await expect(count('Whole LC')).toContainText('1')
 })
 

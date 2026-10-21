@@ -169,15 +169,14 @@ test.describe('Members and import', () => {
     await expect(page.getByText(/Check-in answers and who did the check-in are never shown/)).toBeVisible()
   })
 
-  test('the import page offers trackers by role and explains Google Sheets sharing', async ({ page }) => {
+  test('tasks import from a Google Sheet, and the old Import page sends you to the Pipeline', async ({ page }) => {
     await setupAuthMocks(page, 'member')
+    await page.goto('/tasks')
+    await page.getByRole('button', { name: 'Import' }).click({ timeout: 10000 })
+    await expect(page.getByRole('dialog', { name: 'Import tasks' })).toBeVisible()
+    await expect(page.getByText(/Anyone with the link can view/)).toBeVisible()
     await page.goto('/import')
-    await expect(page.getByText('Anyone with the link can view')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: /Partners \(B2B/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Recruitment/ })).toHaveCount(0)
-    await page.getByRole('button', { name: /Tasks \(to-do/ }).click()
-    await expect(page.getByRole('dialog', { name: 'Import a tracker' })).toBeVisible()
-    await expect(page.getByLabel('Link to the sheet')).toBeVisible()
+    await expect(page).toHaveURL(/\/pipeline$/)
   })
 })
 
