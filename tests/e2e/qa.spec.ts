@@ -139,10 +139,37 @@ test('a member sees a short sidebar, with the rest under More', async ({ page })
   await setupAuthMocks(page, 'member')
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const label of ['Dashboard', 'Tasks', 'Chat', 'Events', 'Tabling', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'People', 'Drive']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
   await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
   await nav.getByRole('button', { name: 'More' }).click()
   await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Check-in' })).toBeVisible()
+})
+
+test('merged sections: one menu item, tabs inside, and the item stays lit on every tab', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  for (const [path, item, tabs] of [
+    ['/attendance', 'Calendar', ['Calendar', 'Events', 'Tabling']],
+    ['/outreach', 'Pipeline', ['Pipeline', 'Outreach', 'Goals']],
+    ['/members', 'People', ['Team', 'Members']],
+    ['/handover', 'Drive', ['Files', 'Handover']],
+  ] as const) {
+    await page.goto(path)
+    const tabBar = page.getByRole('navigation', { name: item, exact: true })
+    for (const t of tabs) await expect(tabBar.getByRole('link', { name: t, exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(tabBar.locator('[aria-current="page"]')).toHaveCount(1)
+    await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: item, exact: true })).toHaveAttribute('aria-current', 'page')
+  }
+})
+
+test('tabling shifts show on the Calendar, and can be filtered out', async ({ page }) => {
+  const start = new Date(); start.setHours(12, 0, 0, 0)
+  const slot = { id: 's1', purpose: 'oGV recruitment', location: 'Library', starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 2 * 3_600_000).toISOString(), capacity: 3, taken: 1 }
+  await setupAuthMocks(page, 'president', { tables: { tabling_slots: [slot], schedule_events: [], lc_events: [] } })
+  await page.goto('/scheduling')
+  await expect(page.getByText('Tabling: oGV recruitment (1/3)').first()).toBeVisible({ timeout: 10000 })
+  await page.getByRole('group', { name: 'Show on the calendar' }).getByRole('button', { name: 'Tabling' }).click()
+  await expect(page.getByText('Tabling: oGV recruitment (1/3)')).toHaveCount(0)
 })
 
 test('a task can be added from the board with just a title and Enter', async ({ page }) => {

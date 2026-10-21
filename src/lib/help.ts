@@ -95,6 +95,15 @@ export interface Release { id: string; date: string; title: string; items: strin
 /** Newest first. Bump the first id to show "What's new" again. */
 export const RELEASES: Release[] = [
   {
+    id: "2026-10-simpler", date: "2026-10-21", title: "A simpler menu",
+    items: [
+      "Calendar now holds meetings, LC events and tabling shifts, with filters; Events and Tabling are tabs inside it.",
+      "People is Team and Members together. Pipeline has Outreach and Goals as tabs; Drive has Handover.",
+      "Import lives on each page (Pipeline, Partners, People, Tasks). The Journal is gone; the Check-in stays.",
+      "Tasks and Reminders have a \"Mine\" filter: your private items plus anything assigned to you.",
+    ],
+  },
+  {
     id: "2026-10-emails", date: "2026-10-21", title: "Emails, invites and outreach",
     items: [
       "Events: invite a department, a role or chosen people; they answer Going / Not going from the email and get reminders.",

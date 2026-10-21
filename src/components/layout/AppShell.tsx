@@ -7,9 +7,9 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, FolderOpen, ScrollText, Users, UserPlus, Globe2, Send, CalendarDays,
-  Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon, MoreHorizontal,
-  Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
+  LayoutDashboard, CheckSquare, FolderOpen, Users, Globe2, CalendarDays, Bell, ChevronDown, ChevronLeft, ChevronRight,
+  LogOut, User as UserIcon, MoreHorizontal, Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet,
+  LifeBuoy, HeartPulse, Plane, Handshake,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
@@ -21,6 +21,7 @@ import { ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
 import SupportPanel from "@/components/support/SupportPanel";
+import SectionTabs, { sectionFor } from "@/components/layout/SectionTabs";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
@@ -49,18 +50,14 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/tasks",      "Tasks",      CheckSquare    ],
   ["/chat",       "Chat",       MessageSquare  ],
   ["/reminders",  "Reminders",  CircleCheck    ],
-  ["/scheduling", "Scheduling", CalendarDays   ],
+  // Calendar = Scheduling + Events + Tabling, People = Team + Members, Pipeline = Pipeline +
+  // Outreach + Goals, Drive = Files + Handover: one menu item each, tabs inside (SectionTabs).
+  ["/scheduling", "Calendar",   CalendarDays   ],
   ["/pipeline",   "Pipeline",   Plane          ],
-  ["/outreach",   "Outreach",   Send           ],
-  ["/goals",      "Goals",      Target         ],
   ["/partners",   "Partners",   Handshake      ],
-  ["/team",       "Team",       Users          ],
-  ["/members",    "Members",    UserPlus       ],
-  ["/attendance", "Events",     UserCheck      ],
-  ["/tabling",    "Tabling",    Store          ],
+  ["/team",       "People",     Users          ],
   ["/finance",    "Finance",    Wallet         ],
-  ["/drive",      "LC Drive",   FolderOpen     ],
-  ["/handover",   "Handover",   ScrollText     ],
+  ["/drive",      "Drive",      FolderOpen     ],
   ["/checkin",    "Check-in",   HeartPulse     ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
@@ -71,9 +68,9 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
 const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/chat", "/attendance", "/tabling", "/checkin"],
-  vp:        ["/", "/tasks", "/chat", "/pipeline", "/goals", "/partners", "/attendance", "/tabling", "/checkin"],
-  president: ["/", "/tasks", "/chat", "/pipeline", "/goals", "/members", "/attendance", "/finance", "/checkin"],
+  member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/drive"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive"],
 };
 
 function useNavGroups(): NavGroup[] {
@@ -990,7 +987,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [mobileNavOpen]);
 
   function isActive(href: string) {
-    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+    if (href === "/") return pathname === "/";
+    // A section's menu item stays lit on every one of its tabs.
+    const section = sectionFor(pathname);
+    if (section && section.tabs[0].href === href) return true;
+    return pathname.startsWith(href);
   }
 
   async function handleSignOut() {
@@ -1346,8 +1347,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
           <UndoToastProvider>
-            <div key={pathname} style={{ animation: "page-in 150ms ease both", height: "100%" }}>
-              {children}
+            <div key={pathname} style={{ animation: "page-in 150ms ease both", height: "100%", display: "flex", flexDirection: "column" }}>
+              <SectionTabs pathname={pathname} />
+              <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
             </div>
           </UndoToastProvider>
         </main>

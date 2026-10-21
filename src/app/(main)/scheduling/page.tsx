@@ -134,7 +134,7 @@ interface CalEvent {
   endMin: number | null;
   color: string;
   bgColor: string;
-  type: "lab" | "personal" | "meeting" | "google" | "lc";
+  type: "lab" | "personal" | "meeting" | "google" | "lc" | "tabling";
   link?: string | null;
   isScheduleEvent: boolean;
   ownerId: string;
@@ -194,6 +194,30 @@ function lcToCalEvents(events: LcEventLite[], currentUserId: string): CalEvent[]
   return result;
 }
 
+/** Tabling shifts from the Tabling tab, so the calendar shows everything happening in the LC. */
+interface TablingLite { id: string; purpose: string; location: string; startsAt: string; endsAt: string; capacity: number; taken: number }
+function tablingToCalEvents(slots: TablingLite[], currentUserId: string): CalEvent[] {
+  return slots.map((t) => {
+    const start = new Date(t.startsAt);
+    const end = new Date(t.endsAt);
+    const startMin = start.getHours() * 60 + start.getMinutes();
+    const endMin = end.toDateString() === start.toDateString() ? end.getHours() * 60 + end.getMinutes() : 24 * 60;
+    return {
+      id: `tabling:${t.id}`, title: `Tabling: ${t.purpose} (${t.taken}/${t.capacity})`, date: makeDateStr(start), startMin, endMin: Math.max(endMin, startMin + 15),
+      color: "#F48924", bgColor: "rgba(244,137,36,0.12)", type: "tabling" as const, isScheduleEvent: false, ownerId: currentUserId, link: "/tabling",
+    };
+  });
+}
+
+/** Filter chips: what kinds of items the calendar shows. */
+const CAL_KINDS = [
+  { id: "calendar", label: "Calendar", color: "var(--color-navy)", types: ["lab", "personal"] },
+  { id: "events",   label: "Events",   color: "var(--color-navy)", types: ["lc"] },
+  { id: "tabling",  label: "Tabling",  color: "#F48924",           types: ["tabling"] },
+  { id: "meetings", label: "Meetings", color: "var(--color-success)", types: ["meeting"] },
+  { id: "google",   label: "Google",   color: "#4285F4",           types: ["google"] },
+] as const;
+
 function googleToCalEvents(events: GoogleEvent[], currentUserId: string): CalEvent[] {
   return events.map((g) => {
     const start = new Date(g.allDay ? g.start + "T00:00:00" : g.start);
@@ -238,9 +262,10 @@ function minToTimeStr(min: number): string {
 }
 
 function CalendarTab({
-  events, lcEvents, proposals, googleEvents, currentUserId, projectId, onAddEvent, onUpdateEvent, onDeleteEvent,
+  events, lcEvents, tablingSlots, proposals, googleEvents, currentUserId, projectId, onAddEvent, onUpdateEvent, onDeleteEvent,
 }: {
   lcEvents: LcEventLite[];
+  tablingSlots: TablingLite[];
   onUpdateEvent: (id: string, changes: Pick<ScheduleEvent, "title" | "date" | "time" | "scope">) => void;
   events: ScheduleEvent[];
   googleEvents: GoogleEvent[];
@@ -273,7 +298,12 @@ function CalendarTab({
   const [tpPos, setTpPos] = useState<{ top: number; left: number; anchorTop?: number } | null>(null);
   const timeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const calEvents = useMemo(() => [...toCalEvents(events, proposals), ...lcToCalEvents(lcEvents, currentUserId), ...googleToCalEvents(googleEvents, currentUserId)], [events, lcEvents, proposals, googleEvents, currentUserId]);
+  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
+  const calEvents = useMemo(() => {
+    const all = [...toCalEvents(events, proposals), ...lcToCalEvents(lcEvents, currentUserId), ...tablingToCalEvents(tablingSlots, currentUserId), ...googleToCalEvents(googleEvents, currentUserId)];
+    const hiddenTypes = new Set<string>(CAL_KINDS.filter((k) => hiddenKinds.has(k.id)).flatMap((k) => [...k.types]));
+    return all.filter((e) => !hiddenTypes.has(e.type));
+  }, [events, lcEvents, tablingSlots, proposals, googleEvents, currentUserId, hiddenKinds]);
 
   function navigate(dir: 1 | -1) {
     const d = new Date(anchor);
@@ -670,6 +700,9 @@ function CalendarTab({
             {detailEvent.type === "lc" && (
               <a href="/attendance" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>LC event · open in Events</a>
             )}
+            {detailEvent.type === "tabling" && (
+              <a href="/tabling" style={{ marginLeft: 19, fontSize: 12, color: "var(--color-navy)" }}>Tabling shift · sign up in Tabling</a>
+            )}
             {detailEvent.isScheduleEvent && detailEvent.ownerId === currentUserId && (
               <div className="flex items-center gap-3" style={{ marginLeft: 15 }}>
                 <button onClick={() => openEdit(detailEvent.id)} style={{ fontSize: 12, color: "var(--color-navy)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Edit</button>
@@ -691,14 +724,20 @@ function CalendarTab({
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex gap-5">
-        {[{ color: "var(--color-navy)", label: "LC event" }, { color: "var(--color-secondary)", label: "Personal" }, { color: "var(--color-success)", label: "Meeting" }, ...(googleEvents.length ? [{ color: "#4285F4", label: "Google" }] : [])].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
-            <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{label}</span>
-          </div>
-        ))}
+      {/* What to show: click a kind to hide or show it */}
+      <div role="group" aria-label="Show on the calendar" className="flex flex-wrap gap-2">
+        {CAL_KINDS.filter((k) => k.id !== "google" || googleEvents.length > 0).map((k) => {
+          const on = !hiddenKinds.has(k.id);
+          return (
+            <button key={k.id} type="button" aria-pressed={on}
+              onClick={() => setHiddenKinds((prev) => { const n = new Set(prev); if (n.has(k.id)) n.delete(k.id); else n.add(k.id); return n; })}
+              className="flex items-center gap-1.5"
+              style={{ height: 28, padding: "0 10px", borderRadius: 14, border: `1px solid ${on ? "var(--color-border)" : "transparent"}`, background: on ? "var(--color-surface)" : "transparent", cursor: "pointer", opacity: on ? 1 : 0.5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: k.color, display: "inline-block" }} />
+              <span style={{ fontSize: 12, color: "var(--color-body)", textDecoration: on ? "none" : "line-through" }}>{k.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1075,6 +1114,7 @@ export default function SchedulingPage() {
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [lcEvents, setLcEvents] = useState<LcEventLite[]>([]);
+  const [tablingSlots, setTablingSlots] = useState<TablingLite[]>([]);
   const [google, setGoogle] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([]);
   const [googleVersion, setGoogleVersion] = useState(0);
@@ -1241,7 +1281,7 @@ export default function SchedulingPage() {
     if (!projectId || !currentUserId || !isSupabaseConfigured) return;
 
     async function fetchEvents() {
-      const [{ data: evData }, { data: lcData }] = await Promise.all([
+      const [{ data: evData }, { data: lcData }, { data: slotData }] = await Promise.all([
         supabase
           .from("schedule_events")
           .select("*")
@@ -1253,7 +1293,14 @@ export default function SchedulingPage() {
           .from("lc_events")
           .select("id, name, starts_on, ends_on")
           .eq("project_id", projectId),
+        // Tabling shifts show on the calendar too (from two months back)
+        supabase
+          .from("tabling_slots")
+          .select("id, purpose, location, starts_at, ends_at, capacity, taken")
+          .eq("project_id", projectId)
+          .gte("starts_at", new Date(Date.now() - 60 * 86_400_000).toISOString()),
       ]);
+      setTablingSlots((slotData ?? []).map((r) => ({ id: r.id as string, purpose: r.purpose as string, location: r.location as string, startsAt: r.starts_at as string, endsAt: r.ends_at as string, capacity: r.capacity as number, taken: r.taken as number })));
       setLcEvents((lcData ?? []).map((r) => ({ id: r.id as string, name: r.name as string, startsOn: r.starts_on as string, endsOn: r.ends_on as string })));
 
       if (evData) {
@@ -1498,7 +1545,7 @@ export default function SchedulingPage() {
   return (
     <ClientOnly>
       <div className="flex flex-col h-full">
-        <PageHeader title="Scheduling" />
+        <PageHeader title="Calendar" />
         <div className="flex flex-1 overflow-hidden">
           <ScopeSidebar
             sections={schedulingSections}
@@ -1518,6 +1565,7 @@ export default function SchedulingPage() {
                 <CalendarTab
                   events={events}
                   lcEvents={lcEvents}
+                  tablingSlots={tablingSlots}
                   proposals={proposals}
                   googleEvents={googleEvents}
                   currentUserId={currentUserId}
