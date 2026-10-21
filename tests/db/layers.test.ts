@@ -82,9 +82,16 @@ describe("tasks", () => {
     expect(await readers("tasks", sub)).toEqual(["ana", "bo", "cy"]);
   });
 
-  it("project: the LC and the project's outside collaborators", async () => {
+  it("project: the project's members, outside collaborators included, and they can work on it", async () => {
     const id = await add("bo", "project", P);
-    expect(await readers("tasks", id)).toEqual(["ana", "bo", "cy", "eve"]);
+    expect(await readers("tasks", id)).toEqual(["ana", "bo", "eve"]);
+    expect(await writers("tasks", id, "status = 'done'")).toEqual(["ana", "bo", "eve"]);
+  });
+
+  it("a project task can't be filed under another LC's project", async () => {
+    const P2 = (await db.query<{ id: string }>("insert into sub_projects (project_id, name, created_by) values ($1, 'Other', $2) returning id", [lc2.id, u.dan])).rows[0].id;
+    await db.query("insert into sub_project_members (sub_project_id, user_id) values ($1, $2)", [P2, u.bo]);
+    await expect(insertAs("bo", "insert into tasks (project_id, title, scope, sub_project_id, created_by) values ($1, 'x', 'project', $2, $3)", [lc1.id, P2, u.bo])).rejects.toThrow();
   });
 });
 
@@ -141,6 +148,10 @@ describe("LC Drive links (bookmarks)", () => {
   it("LC: everyone in the LC", async () => {
     expect(await readers("bookmarks", await add("ana", "lab", null))).toEqual(["ana", "bo", "cy"]);
   });
+
+  it("project: the project's members", async () => {
+    expect(await readers("bookmarks", await add("bo", "project", P))).toEqual(["ana", "bo", "eve"]);
+  });
 });
 
 describe("chat", () => {
@@ -153,6 +164,11 @@ describe("chat", () => {
   it("a DM: just the two people", async () => {
     const channel = `dm:${[u.ana, u.bo].sort().join(":")}`;
     expect(await readers("chat_messages", await post("ana", channel))).toEqual(["ana", "bo"]);
+  });
+
+  it("a project channel: the project's members, outside collaborators included", async () => {
+    expect(await readers("chat_messages", await post("eve", `project:${P}`))).toEqual(["ana", "bo", "eve"]);
+    await expect(post("cy", `project:${P}`)).rejects.toThrow();
   });
 
   it("nobody posts into an LC they're not in", async () => {
