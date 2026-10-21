@@ -327,7 +327,8 @@ export default function ChatDock() {
 
   if (covered && !dockOpen) return null;
   return (
-    <div style={{ position: "fixed", bottom: "clamp(12px, 3vw, 24px)", right: "clamp(12px, 3vw, 24px)", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
+    // Phones get a chat icon in the top bar instead (AppShell): a floating button there covers the end of every page.
+    <div className="flex max-sm:hidden" style={{ position: "fixed", bottom: "clamp(12px, 3vw, 24px)", right: "clamp(12px, 3vw, 24px)", zIndex: 1000, flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
       {/* Expanded dock panel */}
       {dockOpen && (
         <div style={{ width: "min(340px, calc(100vw - 24px))", height: activeConv ? "min(460px, calc(100dvh - 120px))" : 320, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px 12px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "visible" }}>

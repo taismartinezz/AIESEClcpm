@@ -1405,6 +1405,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Tooltip>
             )}
 
+            {/* Chat (phones only: on bigger screens the floating Messaging button does this) */}
+            <Link href="/chat" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}
+              className="sm:hidden relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
+              style={{ width: 44, height: 44 }}>
+              <MessageSquare size={18} color="var(--color-body)" />
+              <NotifDot count={chatUnread} />
+            </Link>
+
             {/* Notification bell */}
             <div className="relative">
               <Tooltip label="Notifications" placement="bottom">

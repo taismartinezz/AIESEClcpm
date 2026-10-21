@@ -230,3 +230,16 @@ test('Find a time suggests slots from the server and says who is free', async ({
   const pad = (n: number) => String(n).padStart(2, '0')
   await expect(page.locator('input[type="date"]')).toHaveValue(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`)
 })
+
+test.describe('on a phone, chat lives in the top bar', () => {
+  test.use({ viewport: { width: 390, height: 780 } })
+
+  test('there is no floating chat button covering the page, and the top-bar icon opens Chat', async ({ page }) => {
+    await setupAuthMocks(page, 'president')
+    await page.goto('/settings')
+    await expect(page.getByRole('link', { name: 'Chat', exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Open messaging' })).toBeHidden()
+    await page.getByRole('banner').getByRole('link', { name: 'Chat', exact: true }).click()
+    await expect(page).toHaveURL(/\/chat$/)
+  })
+})
