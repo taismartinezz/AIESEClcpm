@@ -8,8 +8,8 @@ import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
-import { WorkingHoursEditor, DEFAULT_WORKING_HOURS } from "@/components/ui/WorkingHoursEditor";
-import type { WorkingHours, PromptCategory } from "@/types";
+import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
+import type { PromptCategory } from "@/types";
 import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -484,11 +484,9 @@ export default function OnboardingPage() {
   const [piTimezone, setPiTimezone] = useState<string>(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch { return "America/New_York"; }
   });
-  const [piWorkingHours, setPiWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
   const [resTimezone, setResTimezone] = useState<string>(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch { return "America/New_York"; }
   });
-  const [resWorkingHours, setResWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
 
   // University search (create-LC step 2)
   const [institutionQuery, setInstitutionQuery] = useState("");
@@ -997,8 +995,6 @@ export default function OnboardingPage() {
           <WorkingHoursEditor
             timezone={piTimezone}
             onTimezoneChange={setPiTimezone}
-            workingHours={piWorkingHours}
-            onWorkingHoursChange={setPiWorkingHours}
             showDetectedBanner
             hideWorkingHours
           />
@@ -1440,8 +1436,6 @@ export default function OnboardingPage() {
           <WorkingHoursEditor
             timezone={resTimezone}
             onTimezoneChange={setResTimezone}
-            workingHours={resWorkingHours}
-            onWorkingHoursChange={setResWorkingHours}
             showDetectedBanner
             hideWorkingHours
           />

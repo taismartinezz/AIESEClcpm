@@ -192,8 +192,8 @@ const DEFAULT_WORKING_HOURS: WorkingHours = {
 export interface WorkingHoursEditorProps {
   timezone: string;
   onTimezoneChange: (tz: string) => void;
-  workingHours: WorkingHours;
-  onWorkingHoursChange: (wh: WorkingHours) => void;
+  workingHours?: WorkingHours;
+  onWorkingHoursChange?: (wh: WorkingHours) => void;
   /** When true, shows a "Detected: X — looks right?" banner */
   showDetectedBanner?: boolean;
   /** Time zone only (onboarding): availability comes from Scheduling, not a fixed weekly grid. */
@@ -203,8 +203,8 @@ export interface WorkingHoursEditorProps {
 export function WorkingHoursEditor({
   timezone,
   onTimezoneChange,
-  workingHours,
-  onWorkingHoursChange,
+  workingHours = DEFAULT_WORKING_HOURS,
+  onWorkingHoursChange = () => {},
   showDetectedBanner = false,
   hideWorkingHours = false,
 }: WorkingHoursEditorProps) {

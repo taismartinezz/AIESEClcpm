@@ -13,9 +13,10 @@ import { computeInitials } from "@/lib/utils";
 import { toUserRole } from "@/lib/permissions";
 import type {
   User, WeeklyAvailability, MeetingProposal, MeetingResponse,
-  ScheduleEvent, MeetingResponseStatus, SubProject, UserSettings,
+  ScheduleEvent, MeetingResponseStatus, SubProject,
 } from "@/types";
 import AvailabilityGrid from "@/components/scheduling/AvailabilityGrid";
+import { normaliseSlots } from "@/lib/availability";
 import TeamOverlapView from "@/components/scheduling/TeamOverlapView";
 import MeetingProposalModal from "@/components/scheduling/MeetingProposalModal";
 import Avatar from "@/components/ui/Avatar";
@@ -835,7 +836,7 @@ function AvailabilityTab({
               title={
                 subProjects.length > 0
                   ? `My Availability: ${availSubProjectId ? (subProjects.find(sp => sp.id === availSubProjectId)?.name ?? "Project") : "Whole LC"}`
-                  : "My Weekly Availability"
+                  : "When I'm usually free for AIESEC"
               }
               action={
                 <div className="flex items-center gap-2">
@@ -848,6 +849,9 @@ function AvailabilityTab({
               }
             />
             <div className="p-5">
+              <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 12px" }}>
+                Used by &ldquo;Find a time&rdquo; when you haven&apos;t connected Google Calendar. With Google connected, your real busy times are used instead (never what they are).
+              </p>
               {subProjects.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap mb-4">
                   <span style={{ fontSize: 12, color: "var(--color-secondary)", fontWeight: 600, flexShrink: 0 }}>Scope:</span>
@@ -1068,7 +1072,6 @@ export default function SchedulingPage() {
 
   // Scheduling data
   const [allAvailabilities, setAllAvailabilities] = useState<WeeklyAvailability[]>([]);
-  const [allUserSettings, setAllUserSettings] = useState<UserSettings[]>([]);
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [lcEvents, setLcEvents] = useState<LcEventLite[]>([]);
@@ -1156,26 +1159,9 @@ export default function SchedulingPage() {
           userId: row.user_id as string,
           projectId: row.project_id as string,
           subProjectId: (row.sub_project_id as string | null) === LAB_AVAILABILITY_ID ? null : ((row.sub_project_id as string | null) ?? null),
-          slots: (row.slots as string[]) ?? [],
+          slots: normaliseSlots((row.slots as string[]) ?? []),   // old Mon–Fri keys → current format
           updatedAt: row.updated_at as string,
         })));
-      }
-
-      // Fetch user settings (timezone + working hours) for all team members
-      const memberIds = (members ?? []).map(m => m.user_id as string);
-      if (memberIds.length > 0) {
-        const { data: settingsData } = await supabase
-          .from("user_settings")
-          .select("*")
-          .in("user_id", memberIds);
-        if (settingsData) {
-          setAllUserSettings(settingsData.map(row => ({
-            userId: row.user_id as string,
-            timezone: (row.timezone as string) ?? "America/New_York",
-            workingHours: (row.working_hours as UserSettings["workingHours"]) ?? {},
-            updatedAt: row.updated_at as string,
-          })));
-        }
       }
 
       if (propData) {
@@ -1217,7 +1203,7 @@ export default function SchedulingPage() {
               userId: row.user_id as string,
               projectId: row.project_id as string,
               subProjectId: (row.sub_project_id as string | null) === LAB_AVAILABILITY_ID ? null : ((row.sub_project_id as string | null) ?? null),
-              slots: (row.slots as string[]) ?? [],
+              slots: normaliseSlots((row.slots as string[]) ?? []),   // old Mon–Fri keys → current format
               updatedAt: row.updated_at as string,
             };
             setAllAvailabilities((prev) => {
@@ -1568,11 +1554,8 @@ export default function SchedulingPage() {
         {showProposalModal && (
           <MeetingProposalModal
             currentUserId={currentUserId}
+            projectId={projectId ?? ""}
             teamMembers={teamMembers}
-            allAvailabilities={allAvailabilities}
-            allUserSettings={allUserSettings}
-            proposals={proposals}
-            events={events}
             onSubmit={handleProposal}
             onClose={() => setShowProposalModal(false)}
           />

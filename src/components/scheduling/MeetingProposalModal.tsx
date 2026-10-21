@@ -2,22 +2,9 @@
 
 import { useState } from "react";
 import { X, Sparkles } from "lucide-react";
-import type { User, MeetingProposal, WeeklyAvailability, ScheduleEvent, UserSettings, WorkingHours } from "@/types";
+import type { User, MeetingProposal } from "@/types";
 import Avatar from "@/components/ui/Avatar";
-
-// Mirror slot constants from AvailabilityGrid - grid covers 9:00–16:30 in 30-min steps
-const HOUR_START = 9;
-const SLOT_COUNT = 16;
-
-const DEFAULT_WORKING_HOURS: WorkingHours = {
-  "0": { start: "09:00", end: "17:00" },
-  "1": { start: "09:00", end: "17:00" },
-  "2": { start: "09:00", end: "17:00" },
-  "3": { start: "09:00", end: "17:00" },
-  "4": { start: "09:00", end: "17:00" },
-  "5": null,
-  "6": null,
-};
+import { supabase } from "@/lib/supabase";
 
 const DURATION_OPTIONS = [
   { label: "15 min", value: 15 },
@@ -42,142 +29,29 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-// ── Time-finding helpers ───────────────────────────────────────────────────────
-
-function parseTimeToMin(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function minToTimeStr(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
-
-function minToLabel(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
-}
-const FULL_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// ── Find a time (server: Google free/busy, weekly grids, LC events) ───────────
 
 interface SuggestedSlot {
-  date: string;       // YYYY-MM-DD
-  startMin: number;   // minutes from midnight
-  endMin: number;
-  dayLabel: string;   // e.g. "Tuesday, Aug 12"
+  start: string;      // ISO
+  end: string;
+  free: string[];
+  busy: string[];
+  unknown: string[];
 }
+type Source = "google" | "grid" | "none";
 
-function findSuggestedTimes(
-  attendeeIds: string[],
-  durationMinutes: number,
-  allAvailabilities: WeeklyAvailability[],
-  allUserSettings: UserSettings[],
-  proposals: MeetingProposal[],
-  events: ScheduleEvent[],
-): { slots: SuggestedSlot[]; noAvailData: boolean } {
-  if (attendeeIds.length === 0) return { slots: [], noAvailData: false };
-
-  const requiredSlots = Math.ceil(durationMinutes / 30);
-  const BUFFER_MIN = 15;
-
-  // Build per-attendee slot sets
-  const availSets = attendeeIds.map(id => {
-    const avail = allAvailabilities.find(a => a.userId === id);
-    return new Set(avail?.slots ?? []);
-  });
-
-  // If nobody has set availability at all, flag it
-  const noAvailData = availSets.every(s => s.size === 0);
-
-  // Per-attendee working hours (falls back to 9AM-5PM default)
-  const attendeeWorkingHours = attendeeIds.map(id => {
-    const s = allUserSettings.find(u => u.userId === id);
-    return s?.workingHours ?? DEFAULT_WORKING_HOURS;
-  });
-
-  const suggestions: SuggestedSlot[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let offset = 1; offset <= 14 && suggestions.length < 3; offset++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offset);
-    const jsDay = d.getDay(); // 0=Sun…6=Sat
-    const gridDay = jsDay - 1; // 0=Mon…4=Fri (jsDay 0=Sun would give -1, filtered below)
-
-    // Skip weekend days (any attendee off) or days where any attendee has no working hours
-    const anyoneOff = attendeeWorkingHours.some(wh => {
-      const dayKey = String(gridDay >= 0 ? gridDay : 6); // Sun = key "6"
-      return wh[dayKey] === null || wh[dayKey] === undefined;
-    });
-    if (jsDay === 0 || jsDay === 6 || anyoneOff) continue;
-
-    const dateStr = d.toISOString().split("T")[0];
-    const dayLabel = `${FULL_DAY_NAMES[gridDay]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
-
-    // Gather events/proposals on this date involving any attendee
-    const busy: { startMin: number; endMin: number }[] = [];
-    for (const ev of events) {
-      if (ev.date !== dateStr || !ev.time) continue;
-      busy.push({
-        startMin: parseTimeToMin(ev.time),
-        endMin: ev.endTime ? parseTimeToMin(ev.endTime) : parseTimeToMin(ev.time) + 60,
-      });
-    }
-    for (const p of proposals) {
-      if (p.proposedDate !== dateStr || !p.proposedTime) continue;
-      const involves = attendeeIds.some(id => id === p.proposerId || p.inviteeIds.includes(id));
-      if (!involves) continue;
-      const sm = parseTimeToMin(p.proposedTime);
-      busy.push({ startMin: sm, endMin: sm + p.durationMinutes });
-    }
-
-    // Compute the intersection of working-hour windows for this day across all attendees
-    const dayKey = String(gridDay);
-    const workWindowStart = Math.max(...attendeeWorkingHours.map(wh => parseTimeToMin((wh[dayKey] as { start: string; end: string }).start)));
-    const workWindowEnd   = Math.min(...attendeeWorkingHours.map(wh => parseTimeToMin((wh[dayKey] as { start: string; end: string }).end)));
-
-    for (let s = 0; s <= SLOT_COUNT - requiredSlots && suggestions.length < 3; s++) {
-      const startMin = HOUR_START * 60 + s * 30;
-      const endMin = startMin + durationMinutes;
-
-      // Skip if outside any attendee's working hours
-      if (startMin < workWindowStart || endMin > workWindowEnd) continue;
-
-      // All attendees must have every required consecutive slot available
-      const allFree = availSets.every(avail => {
-        for (let i = s; i < s + requiredSlots; i++) {
-          if (!avail.has(`${gridDay}-${i}`)) return false;
-        }
-        return true;
-      });
-      if (!allFree) continue;
-
-      // 15-min buffer around any existing event
-      const blocked = busy.some(b => startMin < b.endMin + BUFFER_MIN && endMin > b.startMin - BUFFER_MIN);
-      if (blocked) continue;
-
-      suggestions.push({ date: dateStr, startMin, endMin, dayLabel });
-    }
-  }
-
-  return { slots: suggestions.slice(0, 3), noAvailData };
-}
+const pad = (n: number) => String(n).padStart(2, "0");
+const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const dayLabel = (d: Date) => d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+const timeLabel = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   currentUserId: string;
+  projectId: string;
   teamMembers: User[];
-  allAvailabilities: WeeklyAvailability[];
-  allUserSettings: UserSettings[];
-  proposals: MeetingProposal[];
-  events: ScheduleEvent[];
   onSubmit: (proposal: Omit<MeetingProposal, "id" | "createdAt" | "responses">) => void;
   onClose: () => void;
 }
@@ -185,7 +59,7 @@ interface Props {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MeetingProposalModal({
-  currentUserId, teamMembers, allAvailabilities, allUserSettings, proposals, events, onSubmit, onClose,
+  currentUserId, projectId, teamMembers, onSubmit, onClose,
 }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -197,7 +71,8 @@ export default function MeetingProposalModal({
 
   // Find-a-time state
   const [suggestions, setSuggestions] = useState<SuggestedSlot[] | null>(null);
-  const [noAvailData, setNoAvailData] = useState(false);
+  const [sources, setSources] = useState<Record<string, Source>>({});
+  const [findError, setFindError] = useState<string | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<SuggestedSlot | null>(null);
   const [finding, setFinding] = useState(false);
 
@@ -208,25 +83,42 @@ export default function MeetingProposalModal({
     // Reset suggestions when attendees change
     setSuggestions(null);
     setSelectedSuggestion(null);
-    setNoAvailData(false);
   }
 
-  function handleFindTime() {
+  async function handleFindTime() {
     setFinding(true);
-    const allAttendees = [currentUserId, ...invitees];
-    const result = findSuggestedTimes(allAttendees, duration, allAvailabilities, allUserSettings, proposals, events);
-    setSuggestions(result.slots);
-    setNoAvailData(result.noAvailData);
+    setFindError(null);
     setSelectedSuggestion(null);
-    setFinding(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/scheduling/find-time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
+        body: JSON.stringify({ projectId, userIds: invitees, durationMinutes: duration, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      setSuggestions(body.suggestions ?? []);
+      setSources(body.sources ?? {});
+    } catch (e) {
+      setFindError(`Couldn't look for times: ${e instanceof Error ? e.message : String(e)}`);
+      setSuggestions(null);
+    } finally {
+      setFinding(false);
+    }
   }
 
   function pickSuggestion(s: SuggestedSlot) {
     setSelectedSuggestion(s);
-    setDate(s.date);
-    setTime(minToTimeStr(s.startMin));
+    const d = new Date(s.start);
+    setDate(localDate(d));
+    setTime(localTime(d));
     setError("");
   }
+
+  const firstName = (id: string) => (id === currentUserId ? "you" : (teamMembers.find((m) => m.id === id)?.name.split(" ")[0] ?? "someone"));
+  const names = (ids: string[]) => ids.map(firstName).join(", ");
+  const noInfo = Object.entries(sources).filter(([, src]) => src === "none").map(([id]) => id);
 
   function handleSubmit() {
     if (!title.trim()) { setError("Please enter a meeting title."); return; }
@@ -353,7 +245,7 @@ export default function MeetingProposalModal({
               <div>
                 <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: 0, letterSpacing: "0.03em" }}>FIND A TIME</p>
                 <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "2px 0 0", opacity: 0.8 }}>
-                  Checks everyone&apos;s availability and suggests open slots.
+                  Uses Google Calendar (busy times only, never details) or each person&apos;s weekly availability.
                 </p>
               </div>
               <button
@@ -375,9 +267,7 @@ export default function MeetingProposalModal({
             {suggestions !== null && suggestions.length === 0 && (
               <div style={{ backgroundColor: "rgba(27,46,75,0.04)", borderRadius: 8, padding: "10px 14px" }}>
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
-                  {noAvailData
-                    ? "No availability data found. Ask your team to set their availability in the Availability tab, then try again."
-                    : "No common availability found in the next 14 days for the selected attendees and duration. Try a shorter duration or check the Availability tab."}
+                  No time in the next 14 days works for anyone you picked. Try a shorter meeting, or ask people to connect Google Calendar or fill in their availability in Scheduling.
                 </p>
               </div>
             )}
@@ -385,7 +275,11 @@ export default function MeetingProposalModal({
             {suggestions !== null && suggestions.length > 0 && (
               <div className="space-y-2">
                 {suggestions.map((s, i) => {
-                  const isSelected = selectedSuggestion?.date === s.date && selectedSuggestion?.startMin === s.startMin;
+                  const isSelected = selectedSuggestion?.start === s.start;
+                  const start = new Date(s.start), end = new Date(s.end);
+                  const who = s.busy.length === 0 && s.unknown.length === 0 ? "Everyone's free"
+                    : s.busy.length === 0 ? `Free for everyone we can check (no info for ${names(s.unknown)})`
+                    : `Busy: ${names(s.busy)}`;
                   return (
                     <button key={i} onClick={() => pickSuggestion(s)}
                       className="w-full text-left rounded-lg transition-all"
@@ -394,9 +288,9 @@ export default function MeetingProposalModal({
                         <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? "#fff" : "var(--color-navy)" }}>{i + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>{s.dayLabel}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>{dayLabel(start)}</p>
                         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "1px 0 0" }}>
-                          {minToLabel(s.startMin)} – {minToLabel(s.endMin)}
+                          {timeLabel(start)} – {timeLabel(end)} · <span style={{ color: s.busy.length ? "var(--color-warning)" : "var(--color-success, #00A86B)" }}>{who}</span>
                         </p>
                       </div>
                       {isSelected && (
@@ -411,6 +305,13 @@ export default function MeetingProposalModal({
               </div>
             )}
           </div>
+
+          {findError && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "-8px 0 0" }}>{findError}</p>}
+          {suggestions !== null && noInfo.length > 0 && (
+            <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "-8px 0 0" }}>
+              No calendar or availability for {names(noInfo)}: they can connect Google Calendar or fill in their availability in Scheduling.
+            </p>
+          )}
 
           {/* Date + Time (manual entry / fallback) */}
           <div>

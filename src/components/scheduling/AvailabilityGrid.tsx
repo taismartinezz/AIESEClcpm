@@ -1,16 +1,19 @@
 "use client";
 
 import { Fragment, useState, useRef, useCallback, useEffect } from "react";
+import { GRID_DAYS, GRID_SLOTS, GRID_START_MIN, GRID_STEP_MIN, slotKey as gridKey } from "@/lib/availability";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-// 9:00 AM – 4:30 PM in 30-min steps = 16 slots (slot 0 = 9:00, slot 15 = 4:30)
-export const SLOT_COUNT = 16;
-export const HOUR_START = 9;
+// "When I'm usually free for AIESEC": every day, 8:00–22:00 in 30-minute steps
+// (it used to be Mon–Fri 9:00–16:30, office hours, which missed evenings and
+// weekends). Keys come from @/lib/availability, which also reads the old ones.
+export const DAYS = GRID_DAYS;
+export const SLOT_COUNT = GRID_SLOTS;
+export const HOUR_START = GRID_START_MIN / 60;
 
 export function slotToLabel(slot: number): string {
-  const totalMins = HOUR_START * 60 + slot * 30;
+  const totalMins = GRID_START_MIN + slot * GRID_STEP_MIN;
   const h = Math.floor(totalMins / 60);
   const m = totalMins % 60;
   const suffix = h >= 12 ? "PM" : "AM";
@@ -18,8 +21,9 @@ export function slotToLabel(slot: number): string {
   return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
 
+/** Key for row `slot` of day `day` (0 = Monday). */
 export function slotKey(day: number, slot: number): string {
-  return `${day}-${slot}`;
+  return gridKey(day, GRID_START_MIN + slot * GRID_STEP_MIN);
 }
 
 // ── AvailabilityGrid ─────────────────────────────────────────────────────────
