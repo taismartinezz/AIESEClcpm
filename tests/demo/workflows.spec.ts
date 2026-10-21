@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 const routes = ['/', '/tasks', '/chat', '/reminders', '/scheduling', '/pipeline', '/outreach',
   '/goals', '/partners', '/team', '/members', '/attendance', '/tabling', '/finance', '/drive',
-  '/handover', '/import', '/checkin', '/journal', '/help', '/settings', '/profile', '/mc', '/privacy']
+  '/handover', '/import', '/checkin', '/help', '/settings', '/profile', '/mc', '/privacy']
 
 for (const mobile of [false, true]) {
   test(`all demo routes render without crashes or overflow (${mobile ? 'mobile' : 'desktop'})`, async ({ page }) => {
@@ -65,19 +65,6 @@ test('submits and edits the current check-in', async ({ page }) => {
   await page.getByRole('button', { name: '5: Strongly agree', exact: true }).first().click()
   await page.getByRole('button', { name: 'Update my answers', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Your answers were updated.' })).toBeVisible()
-})
-
-test('demo journal warns about privacy, saves an entry and clears the editor', async ({ page }) => {
-  await page.goto('/journal')
-  await expect(page.getByText(/Demo only — do not enter private information/)).toBeVisible()
-  const input = page.getByPlaceholder(/Take a moment/)
-  await input.fill('Fictional reflection for QA')
-  await page.getByRole('button', { name: 'Save entry', exact: true }).click()
-  await expect(page.getByText('✓ Entry saved.', { exact: true })).toBeVisible()
-  await expect(page.getByText('Fictional reflection for QA', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'New Entry', exact: true }).click()
-  await expect(input).toHaveValue('')
-  await expect(page.getByText(/Encryption key unavailable/)).toHaveCount(0)
 })
 
 test('search opens an in-session task and closing it does not reopen it', async ({ page }) => {

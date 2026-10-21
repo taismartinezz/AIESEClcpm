@@ -20,7 +20,6 @@ export const GLOBAL_SHORTCUTS: Shortcut[] = [
   { category: "General",    keys: ["Esc"],           description: "Close modal / panel"       },
   { category: "Navigation", keys: ["Alt", "D"],      description: "Go to Dashboard"           },
   { category: "Navigation", keys: ["Alt", "T"],      description: "Go to Tasks"               },
-  { category: "Navigation", keys: ["Alt", "J"],      description: "Go to Journal"             },
   { category: "Navigation", keys: ["Alt", "C"],      description: "Go to Chat"                },
   { category: "Navigation", keys: ["Alt", "R"],      description: "Go to Reminders"           },
   { category: "Navigation", keys: ["Alt", "B"],      description: "Go to LC Drive"             },

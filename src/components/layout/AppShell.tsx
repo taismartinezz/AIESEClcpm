@@ -7,7 +7,7 @@ import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CheckSquare, BookOpen, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send, CalendarDays,
+  LayoutDashboard, CheckSquare, FolderOpen, ScrollText, Users, UserPlus, FileSpreadsheet, Globe2, Send, CalendarDays,
   Bell, ChevronDown, ChevronLeft, ChevronRight, LogOut, User as UserIcon, MoreHorizontal,
   Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet, UserCheck, Store, LifeBuoy, HeartPulse, Plane, Target, Handshake,
 } from "lucide-react";
@@ -64,7 +64,6 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/handover",   "Handover",   ScrollText     ],
   ["/import",     "Import",     FileSpreadsheet],
   ["/checkin",    "Check-in",   HeartPulse     ],
-  ["/journal",    "Journal",    BookOpen       ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
@@ -1113,7 +1112,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }
       if (e.altKey && !e.metaKey && !e.ctrlKey) {
         const nav: Record<string, string> = {
-          d: "/", t: "/tasks", j: "/journal", c: "/chat",
+          d: "/", t: "/tasks", c: "/chat",
           r: "/reminders",
           b: "/drive", m: "/team",
         };

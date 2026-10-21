@@ -4,15 +4,13 @@ import type { UserProfileRecord, ProjectRecord } from "@/types/database-records"
 
 import { useState, useEffect, useCallback } from "react";
 import { APP_NAME } from "@/lib/brand";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Moon, Sun, Keyboard, BellOff, Plus, Pencil, Trash2, X, ChevronDown, Compass, Globe2, HeartPulse } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
-import type { LabRole, PromptCategory } from "@/types";
+import type { LabRole } from "@/types";
 import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
-import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
@@ -21,14 +19,6 @@ import GoogleCalendarSettings from "@/components/scheduling/GoogleCalendarSettin
 import WellbeingSettings from "@/components/wellbeing/WellbeingSettings";
 import CategoriesManager from "@/components/finance/CategoriesManager";
 import type { UserRole } from "@/types";
-
-const PROMPT_CATEGORY_LABELS: Record<PromptCategory, string> = {
-  emotional_processing: "Emotional Processing",
-  purpose_growth: "Purpose & Growth",
-  team_support: "Team & Support",
-  boundaries_workload: "Boundaries & Workload",
-  looking_forward: "Looking Forward",
-};
 
 const sectionStyle: React.CSSProperties = {
   backgroundColor: "var(--color-surface)",
@@ -118,10 +108,6 @@ export default function SettingsPage() {
   const [lcCurrency, setLcCurrency] = useState("EUR");
   const [senderName, setSenderName] = useState("");
   const [termStart, setTermStart] = useState("");
-  const [activePromptIds, setActivePromptIds] = useState<string[]>(ACTIVE_PROMPT_IDS);
-  const [customPrompts, setCustomPrompts] = useState<{ id: string; text: string }[]>([]);
-  const [customPromptInput, setCustomPromptInput] = useState("");
-  const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [savingLabSettings, setSavingLabSettings] = useState(false);
 
   // DND / quiet hours
@@ -160,12 +146,6 @@ export default function SettingsPage() {
             setSenderName((proj.email_sender_name as string | null) ?? "");
             setLcCurrency((proj.currency as string) ?? "EUR");
             setTermStart((proj.term_start_date as string) ?? "");
-            const loadedIds = proj.active_prompt_ids as string[] | null | undefined;
-            if (Array.isArray(loadedIds)) {
-              // NULL/undefined = not yet set; keep defaults. [] = president chose none.
-              setActivePromptIds(loadedIds);
-            }
-            if (proj.custom_prompts) setCustomPrompts(proj.custom_prompts as { id: string; text: string }[]);
           }
 
           // Load working hours + timezone
@@ -277,8 +257,6 @@ export default function SettingsPage() {
         currency: lcCurrency.trim().toUpperCase(),
         term_start_date: termStart || null,
         email_sender_name: senderName.trim() || null,
-        active_prompt_ids: activePromptIds,
-        custom_prompts: customPrompts,
       }).eq("id", project.id);
       if (error) throw new Error(error.message);
       showToast("LC settings saved.");
@@ -287,7 +265,7 @@ export default function SettingsPage() {
     } finally {
       setSavingLabSettings(false);
     }
-  }, [project, projectName, projectInstitution, lcCurrency, senderName, termStart, activePromptIds, customPrompts]);
+  }, [project, projectName, projectInstitution, lcCurrency, senderName, termStart]);
 
   const handleSendEmailInvites = useCallback(async () => {
     if (!project?.id) return;
@@ -905,15 +883,6 @@ export default function SettingsPage() {
               <label style={labelStyle}>Finance categories</label>
               {activeLcId && <CategoriesManager projectId={activeLcId} />}
             </div>
-            <div>
-              <label style={labelStyle}>Journal Prompts</label>
-              <button
-                onClick={() => setPromptModalOpen(true)}
-                style={{ height: 40, padding: "0 18px", backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, color: "var(--color-navy)", cursor: "pointer" }}
-              >
-                Manage prompts ({(activePromptIds ?? []).length} active)
-              </button>
-            </div>
             <button onClick={handleSaveLabSettings} disabled={savingLabSettings}
               style={{ alignSelf: "flex-start", minHeight: 44, height: 40, padding: "0 22px", backgroundColor: savingLabSettings ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingLabSettings ? "default" : "pointer" }}>
               {savingLabSettings ? "Saving…" : "Save LC settings"}
@@ -1123,100 +1092,6 @@ export default function SettingsPage() {
       </section>
     </div>
 
-    {promptModalOpen && createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-        style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
-        onClick={() => setPromptModalOpen(false)}>
-        <div style={{ backgroundColor: "var(--color-surface)", maxWidth: 560, width: "100%", borderRadius: 10, border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(2,99,196,0.14)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
-          onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
-            <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 16, color: "var(--color-navy)", margin: 0 }}>Manage Journal Prompts</h2>
-            <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", marginTop: 4 }}>Select which prompts are available to your team.</p>
-          </div>
-          <div style={{ overflowY: "auto", flex: 1, padding: "16px 24px" }}>
-            {Array.from(new Set(JOURNAL_PROMPTS.map(p => p.category))).map(cat => (
-              <div key={cat} style={{ marginBottom: 20 }}>
-                <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
-                  {PROMPT_CATEGORY_LABELS[cat]}
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {JOURNAL_PROMPTS.filter(p => p.category === cat).map(prompt => {
-                    const active = (activePromptIds ?? []).includes(prompt.id);
-                    return (
-                      <button key={prompt.id}
-                        onClick={() => setActivePromptIds(prev => prev.includes(prompt.id) ? prev.filter(x => x !== prompt.id) : [...prev, prompt.id])}
-                        style={{ textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", backgroundColor: active ? "rgba(2,99,196,0.04)" : "var(--color-surface)", border: active ? "1px solid var(--color-navy)" : "1px solid var(--color-border)", transition: "border-color 120ms ease" }}>
-                        {prompt.text}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {/* Custom prompts */}
-            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-              <p style={{ fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-secondary)", marginBottom: 8 }}>
-                Custom Prompts
-              </p>
-              {customPrompts.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
-                  {customPrompts.map((cp) => (
-                    <div key={cp.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: "rgba(2,99,196,0.04)", border: "1px solid var(--color-navy)" }}>
-                      <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}>{cp.text}</span>
-                      <button
-                        onClick={() => setCustomPrompts(prev => prev.filter(p => p.id !== cp.id))}
-                        style={{ flexShrink: 0, height: 24, width: 24, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", border: "none", cursor: "pointer", borderRadius: 4 }}
-                        aria-label="Remove custom prompt"
-                      >
-                        <X size={13} color="var(--color-secondary)" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  value={customPromptInput}
-                  onChange={(e) => setCustomPromptInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && customPromptInput.trim()) {
-                      setCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: customPromptInput.trim() }]);
-                      setCustomPromptInput("");
-                    }
-                  }}
-                  placeholder="Type a custom prompt and press Enter or Add"
-                  style={{ flex: 1, height: 38, border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none", boxSizing: "border-box" }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-navy)"; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
-                />
-                <button
-                  onClick={() => {
-                    if (!customPromptInput.trim()) return;
-                    setCustomPrompts(prev => [...prev, { id: `cp-${Date.now()}`, text: customPromptInput.trim() }]);
-                    setCustomPromptInput("");
-                  }}
-                  style={{ height: 38, padding: "0 14px", backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-                >
-                  Add
-                </button>
-              </div>
-              <p style={{ fontSize: 11, color: "var(--color-secondary)", marginTop: 6 }}>
-                Custom prompts appear alongside presets for all team members.
-              </p>
-            </div>
-          </div>
-          <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
-            <button onClick={() => { setPromptModalOpen(false); handleSaveLabSettings(); }}
-              style={{ height: 44, padding: "0 24px", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              Done
-            </button>
-            <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Saves along with the other LC settings</span>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
     </>
   );
 }

@@ -10,7 +10,6 @@ export const ENV_VARS: EnvVar[] = [
   { name: "SUPABASE_SERVICE_ROLE_KEY", required: true, effect: "invites, event invites, announcements, reminders and the weekly digest can't be sent" },
   { name: "NEXT_PUBLIC_APP_URL", required: true, publicVar: true, effect: "invite links point to http://localhost:3000" },
   { name: "APP_URL", required: true, effect: "links in emails point to http://localhost:3000" },
-  { name: "JOURNAL_KEY_SECRET", required: true, effect: "private journal entries can't be saved or read" },
   { name: "CRON_SECRET", required: true, effect: "the reminder job (/api/cron/notify) refuses to run, so no reminders or digests" },
   { name: "RSVP_SECRET", required: false, effect: "Going / Not going and unsubscribe links in emails fall back to INTERNAL_API_SECRET, and fail if that is missing too" },
   { name: "INTERNAL_API_SECRET", required: false, effect: "server-to-server email calls are refused" },

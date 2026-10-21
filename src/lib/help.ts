@@ -43,7 +43,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     steps: [
       "Every two weeks, six questions, about a minute.",
       "Your VP and LCP only see averages, and only when enough people answered.",
-      "Nobody can see whether you did the check-in, or your answers. The Journal is private to you.",
+      "Nobody can see whether you did the check-in, or your answers.",
     ],
   },
   {
