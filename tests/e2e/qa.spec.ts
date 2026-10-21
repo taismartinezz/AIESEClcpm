@@ -191,3 +191,42 @@ test('a brand-new LC shows one next step instead of empty pulse and wins cards',
   await expect(next).toContainText('Invite your VPs', { timeout: 10000 })
   await expect(next.getByRole('link', { name: 'Invite people' })).toHaveAttribute('href', '/settings#invite')
 })
+
+test('creating an LC: the university is optional and there are no working hours to fill in', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  await page.goto('/onboarding')
+  await page.getByText('Create a Local Committee').click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Porto')
+  await page.getByPlaceholder('Full name').fill('Tais Martinez')
+  await expect(page.getByText('University (optional)')).toBeVisible()
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await expect(page.getByText('Your time zone')).toBeVisible()
+  await expect(page.getByText('Working hours')).toHaveCount(0)
+})
+
+test('Find a time suggests slots from the server and says who is free', async ({ page }) => {
+  const team = [
+    { project_id: 'project-abc', user_id: 'mock-user-id', role: 'president', department_id: null, joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' }, user_profiles: { name: 'Test User' } },
+    { project_id: 'project-abc', user_id: 'diego', role: 'member', department_id: null, joined_at: '2024-01-01T00:00:00.000Z', projects: { name: 'AIESEC in Test City' }, user_profiles: { name: 'Diego Ramos' } },
+  ]
+  await setupAuthMocks(page, 'president', { tables: { team_members: team } })
+  const start = new Date(Date.now() + 2 * 86_400_000); start.setHours(18, 0, 0, 0)
+  const end = new Date(start.getTime() + 30 * 60_000)
+  let asked: Record<string, unknown> | null = null
+  await page.route('**/api/scheduling/find-time', async (route) => {
+    asked = route.request().postDataJSON()
+    await route.fulfill({ json: { timeZone: 'UTC', sources: { 'mock-user-id': 'google', diego: 'grid' },
+      suggestions: [{ start: start.toISOString(), end: end.toISOString(), free: ['mock-user-id', 'diego'], busy: [], unknown: [] }] } })
+  })
+  await page.goto('/scheduling')
+  await page.getByRole('button', { name: /Meetings/ }).first().click({ timeout: 10000 })
+  await page.getByRole('button', { name: /Propose/ }).first().click()
+  await page.getByRole('button', { name: /Diego/ }).first().click()
+  await page.getByRole('button', { name: 'Find best times' }).click()
+  await expect(page.getByText("Everyone's free")).toBeVisible()
+  expect(asked).toMatchObject({ projectId: 'project-abc', userIds: ['diego'], durationMinutes: 30 })
+  await page.getByText("Everyone's free").click()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  await expect(page.locator('input[type="date"]')).toHaveValue(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`)
+})

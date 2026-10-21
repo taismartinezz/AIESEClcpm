@@ -8,8 +8,8 @@ import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
-import { WorkingHoursEditor, DEFAULT_WORKING_HOURS } from "@/components/ui/WorkingHoursEditor";
-import type { WorkingHours, PromptCategory } from "@/types";
+import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
+import type { PromptCategory } from "@/types";
 import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -484,11 +484,9 @@ export default function OnboardingPage() {
   const [piTimezone, setPiTimezone] = useState<string>(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch { return "America/New_York"; }
   });
-  const [piWorkingHours, setPiWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
   const [resTimezone, setResTimezone] = useState<string>(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch { return "America/New_York"; }
   });
-  const [resWorkingHours, setResWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
 
   // University search (create-LC step 2)
   const [institutionQuery, setInstitutionQuery] = useState("");
@@ -709,7 +707,8 @@ export default function OnboardingPage() {
           ? inviteEmails.map((email) => ({ email, code: emailCodes[email], roleName: emailRoles[email] ?? "Member" }))
           : undefined,
         timezone: role === "president" ? piTimezone : resTimezone,
-        workingHours: role === "president" ? piWorkingHours : resWorkingHours,
+        // No working hours at sign-up: availability comes from Scheduling (and Google Calendar).
+        workingHours: undefined,
         activePromptIds: role === "president" ? piActivePromptIds : undefined,
         customPrompts: role === "president" ? piCustomPrompts : undefined,
       });
@@ -893,7 +892,6 @@ export default function OnboardingPage() {
   if (step === 2 && role === "president") {
     const canContinue =
       piProjectName.trim().length > 0 &&
-      piInstitution.trim().length > 0 &&
       piUserName.trim().length > 0;
 
     return (
@@ -912,7 +910,7 @@ export default function OnboardingPage() {
           </Field>
 
           {/* Institution search */}
-          <Field label="University">
+          <Field label="University (optional)">
             <div ref={institutionRef} style={{ position: "relative" }}>
               <div style={{ position: "relative" }}>
                 <Search size={14} color="var(--color-secondary)" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
@@ -991,15 +989,14 @@ export default function OnboardingPage() {
           <StepDots current={3} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
-            title="Your schedule"
-            subtitle="Used for quiet hours and your weekly digest."
+            title="Your time zone"
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
           />
           <WorkingHoursEditor
             timezone={piTimezone}
             onTimezoneChange={setPiTimezone}
-            workingHours={piWorkingHours}
-            onWorkingHoursChange={setPiWorkingHours}
             showDetectedBanner
+            hideWorkingHours
           />
           <NavButton large={isLarge} onClick={() => setStep(4)}>
             Continue
@@ -1433,15 +1430,14 @@ export default function OnboardingPage() {
           <StepDots current={4} total={JOIN_STEPS} />
           <SectionTitle
             large={isLarge}
-            title="Your schedule"
-            subtitle="Used for quiet hours and your weekly digest."
+            title="Your time zone"
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
           />
           <WorkingHoursEditor
             timezone={resTimezone}
             onTimezoneChange={setResTimezone}
-            workingHours={resWorkingHours}
-            onWorkingHoursChange={setResWorkingHours}
             showDetectedBanner
+            hideWorkingHours
           />
           <NavButton large={isLarge} onClick={() => setStep(5)}>
             Continue

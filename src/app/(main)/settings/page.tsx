@@ -10,8 +10,8 @@ import { Copy, Check, RefreshCw, User, Lock, Bell, Building2, Clock, Monitor, Mo
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { showToast } from "@/components/ui/Toast";
 import { useTheme } from "@/context/ThemeContext";
-import type { WorkingHours, LabRole, PromptCategory } from "@/types";
-import { WorkingHoursEditor, DEFAULT_WORKING_HOURS } from "@/components/ui/WorkingHoursEditor";
+import type { LabRole, PromptCategory } from "@/types";
+import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
 import { JOURNAL_PROMPTS, ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
@@ -110,7 +110,6 @@ export default function SettingsPage() {
 
   // Working hours + timezone
   const [timezone, setTimezone] = useState("America/New_York");
-  const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_WORKING_HOURS);
   const [savingSchedule, setSavingSchedule] = useState(false);
 
   // LC settings (president only)
@@ -174,7 +173,6 @@ export default function SettingsPage() {
             .from("user_settings").select("*").eq("user_id", user.id).maybeSingle();
           if (userSettings) {
             setTimezone((userSettings.timezone as string) ?? "America/New_York");
-            setWorkingHours((userSettings.working_hours as WorkingHours) ?? DEFAULT_WORKING_HOURS);
             setDndEnabled((userSettings.dnd_enabled as boolean) ?? false);
             setQuietHoursStart((userSettings.quiet_hours_start as string) ?? "22:00");
             setQuietHoursEnd((userSettings.quiet_hours_end as string) ?? "08:00");
@@ -379,13 +377,13 @@ export default function SettingsPage() {
     const userId = session?.user?.id;
     if (!userId) { setSavingSchedule(false); return; }
     const { error } = await supabase.from("user_settings").upsert(
-      { user_id: userId, timezone, working_hours: workingHours, updated_at: new Date().toISOString() },
+      { user_id: userId, timezone, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
     setSavingSchedule(false);
     if (error) { showToast("Failed to save. " + error.message); }
-    else { showToast("Schedule settings saved."); }
-  }, [timezone, workingHours]);
+    else { showToast("Time zone saved."); }
+  }, [timezone]);
 
   const handleSaveDnd = useCallback(async () => {
     if (!isSupabaseConfigured) { showToast("Demo mode -- settings not persisted."); return; }
@@ -929,16 +927,14 @@ export default function SettingsPage() {
         <div style={sectionHeaderStyle}>
           <Clock size={16} color="var(--color-secondary)" />
           <h2 id="settings-schedule-heading" style={{ fontFamily: "var(--font-lora)", fontWeight: 500, fontSize: 15, color: "var(--color-body)", margin: 0 }}>
-            Time zone &amp; working hours
+            Time zone
           </h2>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
-          <WorkingHoursEditor
-            timezone={timezone}
-            onTimezoneChange={setTimezone}
-            workingHours={workingHours}
-            onWorkingHoursChange={setWorkingHours}
-          />
+          <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
+            Reminders, the weekly email and tabling times show in this time zone. For when you&apos;re free, connect Google Calendar or fill in your availability in <a href="/scheduling" style={{ color: "var(--color-navy)" }}>Scheduling</a>.
+          </p>
+          <WorkingHoursEditor timezone={timezone} onTimezoneChange={setTimezone} hideWorkingHours />
           <button onClick={handleSaveSchedule} disabled={savingSchedule}
             style={{ alignSelf: "flex-start", minHeight: 44, height: 38, padding: "0 20px", backgroundColor: savingSchedule ? "var(--color-border)" : "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-roboto)", fontWeight: 600, fontSize: 13, cursor: savingSchedule ? "default" : "pointer" }}>
             {savingSchedule ? "Saving…" : "Save time zone"}
