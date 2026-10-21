@@ -35,6 +35,13 @@ describe("demo LC", () => {
     const emails = (await db.query<{ email: string }>("select u.email from auth.users u join demo_people d on d.user_id = u.id where d.project_id = $1", [demo])).rows;
     expect(emails).toHaveLength(7);
     expect(emails.every((e) => e.email.endsWith("@demo.invalid"))).toBe(true);
+    // Its sample finance entries are filed under their categories.
+    const finance = (await db.query<{ description: string; category: string | null }>(
+      "select e.description, c.name as category from finance_entries e left join finance_categories c on c.id = e.category_id where e.project_id = $1 order by 1", [demo])).rows;
+    expect(finance).toEqual([
+      { description: "Posters for the info session", category: "Marketing" },
+      { description: "Sponsorship: Demo Bank", category: "Sponsorship" },
+    ]);
     const { rows } = await db.query<{ approved: number }>("select current from goal_progress($1) limit 0", [demo]);
     expect(rows).toEqual([]);
   });

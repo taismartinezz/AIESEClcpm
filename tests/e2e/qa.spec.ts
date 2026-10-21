@@ -270,3 +270,23 @@ test.describe('on a phone, chat lives in the top bar', () => {
     await expect(page).toHaveURL(/\/chat$/)
   })
 })
+
+test('before the history migration, an exchange still shows its stage dates and no error', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { departments: [OGV_DEP], tables: { exchanges: [exchange({})] } })
+  // The mocks answer inside the page, so the missing-table error is injected there too.
+  await page.addInitScript(() => {
+    const inner = window.fetch
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (url.includes('/rest/v1/exchange_history')) {
+        return Promise.resolve(new Response(JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.exchange_history' in the schema cache" }), { status: 404, headers: { 'Content-Type': 'application/json' } }))
+      }
+      return inner.call(this, input, init)
+    }
+  })
+  await page.goto('/pipeline')
+  await page.getByRole('button', { name: 'Nadia Farah' }).first().click({ timeout: 10000 })
+  const history = page.getByRole('dialog', { name: 'Nadia Farah' }).getByRole('region', { name: 'History' })
+  await expect(history).toContainText('Applied')
+  await expect(history.getByRole('alert')).toHaveCount(0)
+})

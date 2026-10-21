@@ -26,6 +26,9 @@ export default function ExchangeHistory({ exchange, roster }: { exchange: Exchan
       .eq("exchange_id", exchange.id).order("changed_at")
       .then(({ data, error: err }) => {
         if (cancelled) return;
+        // Before the history migration is run there's no table yet: show the stage dates
+        // (they come from the exchange itself) without an error.
+        if (err && (err.code === "PGRST205" || err.code === "42P01" || /exchange_history/.test(err.message))) { setChanges([]); return; }
         if (err) { setError(err.message); return; }
         setChanges((data ?? []).map((r) => ({ kind: r.kind as Change["kind"], from: r.from_value as string | null, to: r.to_value as string | null, by: r.changed_by as string | null, at: r.changed_at as string })));
       });
