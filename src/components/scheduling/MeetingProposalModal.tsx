@@ -267,7 +267,7 @@ export default function MeetingProposalModal({
             {suggestions !== null && suggestions.length === 0 && (
               <div style={{ backgroundColor: "rgba(27,46,75,0.04)", borderRadius: 8, padding: "10px 14px" }}>
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
-                  No time in the next 14 days works for anyone you picked. Try a shorter meeting, or ask people to connect Google Calendar or fill in their availability in Scheduling.
+                  No time in the next 14 days works for anyone you picked. Try a shorter meeting, or ask people to connect Google Calendar or fill in their availability in the Calendar.
                 </p>
               </div>
             )}
@@ -309,7 +309,7 @@ export default function MeetingProposalModal({
           {findError && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "-8px 0 0" }}>{findError}</p>}
           {suggestions !== null && noInfo.length > 0 && (
             <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "-8px 0 0" }}>
-              No calendar or availability for {names(noInfo)}: they can connect Google Calendar or fill in their availability in Scheduling.
+              No calendar or availability for {names(noInfo)}: they can connect Google Calendar or fill in their availability in the Calendar.
             </p>
           )}
 

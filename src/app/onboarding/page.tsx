@@ -974,7 +974,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your time zone"
-            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect Google Calendar later in the Calendar."
           />
           <WorkingHoursEditor
             timezone={piTimezone}
@@ -1326,7 +1326,7 @@ export default function OnboardingPage() {
           <SectionTitle
             large={isLarge}
             title="Your time zone"
-            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect your calendar later in Scheduling."
+            subtitle="So reminders, the weekly email and tabling times show in your time. You can connect Google Calendar later in the Calendar."
           />
           <WorkingHoursEditor
             timezone={resTimezone}

@@ -48,7 +48,7 @@ export default function GoogleCalendarCard({ connected, email, onChanged, return
             : <AlertCircle size={13} color="var(--color-secondary)" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />}
           <p style={{ fontSize: 12, color: "var(--color-body)", margin: 0, lineHeight: 1.5 }}>
             {connected
-              ? <>Connected{email ? <> as <strong>{email}</strong></> : null}. Your Google events show in your Scheduling calendar.</>
+              ? <>Connected{email ? <> as <strong>{email}</strong></> : null}. Your Google events show in your Calendar.</>
               : "Not connected. Connect to see your Google Calendar events next to your LC's schedule."}
           </p>
         </div>

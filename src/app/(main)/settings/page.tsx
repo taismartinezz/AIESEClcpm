@@ -67,6 +67,35 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { activeScope, projectId: activeLcId, role: myRole } = useProject();
   const isPresident = myRole === "president";
+
+  // One tab at a time instead of one long page. Old links (#departments, #invite…) open the right tab.
+  type SettingsTab = "profile" | "lc" | "invites" | "wellbeing" | "notifications";
+  const TAB_FOR_HASH: Record<string, SettingsTab> = {
+    departments: "lc", national: "lc", lc: "lc", invite: "invites", invites: "invites",
+    wellbeing: "wellbeing", support: "wellbeing", notifications: "notifications", "google-calendar": "profile",
+  };
+  const [chosenTab, setTab] = useState<SettingsTab>("profile");
+  useEffect(() => {
+    const fromHash = () => {
+      const t = TAB_FOR_HASH[window.location.hash.slice(1)];
+      if (t) setTab(t);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const settingsTabs: { id: SettingsTab; label: string }[] = [
+    { id: "profile", label: "Profile" },
+    ...(isPresident ? [
+      { id: "lc" as const, label: "LC & departments" },
+      { id: "invites" as const, label: "Invites" },
+      { id: "wellbeing" as const, label: "Wellbeing" },
+    ] : []),
+    { id: "notifications", label: "Notifications" },
+  ];
+  // A tab you can't see (e.g. a member following an old #invite link) falls back to Profile.
+  const tab: SettingsTab = settingsTabs.some((t) => t.id === chosenTab) ? chosenTab : "profile";
   const [profile, setProfile] = useState<UserProfileRecord | null>(null);
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; lab_role_id: string | null; invited_email: string | null; email_sent_at: string | null }[]>([]);
@@ -407,11 +436,22 @@ export default function SettingsPage() {
   return (
     <>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: isMobile ? "16px" : "32px 20px", fontFamily: "var(--font-roboto)" }}>
-      <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: "0 0 24px" }}>
+      <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: "0 0 16px" }}>
         Settings
       </h1>
+      <div role="tablist" aria-label="Settings" style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--color-border)", marginBottom: 20, overflowX: "auto" }}>
+        {settingsTabs.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id}
+            onClick={() => { setTab(t.id); try { history.replaceState(null, "", t.id === "profile" ? location.pathname : `#${t.id}`); } catch { /* ignore */ } }}
+            style={{ padding: "8px 12px", fontSize: 13, fontWeight: tab === t.id ? 700 : 500, whiteSpace: "nowrap", background: "none", border: "none", cursor: "pointer",
+              color: tab === t.id ? "var(--color-navy)" : "var(--color-secondary)", borderBottom: `2px solid ${tab === t.id ? "var(--color-navy)" : "transparent"}`, marginBottom: -1, fontFamily: "inherit" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {/* Profile section */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-profile-heading">
         <div style={sectionHeaderStyle}>
           <User size={16} color="var(--color-secondary)" />
@@ -456,8 +496,10 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Account section */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-account-heading">
         <div style={sectionHeaderStyle}>
           <Lock size={16} color="var(--color-secondary)" />
@@ -478,9 +520,10 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* LC & invites — president only, hidden in Personal workspace */}
-      {isPresident && activeScope !== "personal" && (
+      {tab === "invites" && isPresident && activeScope !== "personal" && (
         <section id="invite" style={sectionStyle} aria-labelledby="settings-invite-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
@@ -794,7 +837,7 @@ export default function SettingsPage() {
       )}
 
       {/* Departments — president only */}
-      {isPresident && activeScope !== "personal" && (
+      {tab === "lc" && isPresident && activeScope !== "personal" && (
         <section id="departments" style={sectionStyle} aria-labelledby="settings-departments-heading">
           <div style={sectionHeaderStyle}>
             <Building2 size={16} color="var(--color-secondary)" />
@@ -809,7 +852,7 @@ export default function SettingsPage() {
       )}
 
       {/* National (MC) — president only */}
-      {isPresident && activeScope !== "personal" && (
+      {tab === "lc" && isPresident && activeScope !== "personal" && (
         <section id="national" style={sectionStyle} aria-labelledby="settings-national-heading">
           <div style={sectionHeaderStyle}>
             <Globe2 size={16} color="var(--color-secondary)" />
@@ -824,7 +867,7 @@ export default function SettingsPage() {
       )}
 
       {/* Wellbeing — president only */}
-      {isPresident && activeScope !== "personal" && activeLcId && (
+      {tab === "wellbeing" && isPresident && activeScope !== "personal" && activeLcId && (
         <section style={sectionStyle} aria-labelledby="settings-wellbeing-heading">
           <div style={sectionHeaderStyle}>
             <HeartPulse size={16} color="var(--color-secondary)" />
@@ -839,7 +882,7 @@ export default function SettingsPage() {
       )}
 
       {/* Support resources (shown in "Get help") — president only; moved here from the Team page */}
-      {isPresident && activeLcId && (
+      {tab === "wellbeing" && isPresident && activeLcId && (
         <section id="support" style={sectionStyle} aria-label="Support resources">
           <div style={{ padding: "20px" }}>
             <SupportResourcesSettings projectId={activeLcId} />
@@ -848,7 +891,7 @@ export default function SettingsPage() {
       )}
 
       {/* LC settings section (president only, hidden in Personal workspace) */}
-      {isPresident && activeScope !== "personal" && (
+      {tab === "lc" && isPresident && activeScope !== "personal" && (
         <section style={sectionStyle} aria-labelledby="settings-lc-heading">
           <div style={sectionHeaderStyle}>
             <Globe2 size={16} color="var(--color-secondary)" />
@@ -902,6 +945,7 @@ export default function SettingsPage() {
       )}
 
       {/* Time zone section — used for notification quiet hours */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-schedule-heading">
         <div style={sectionHeaderStyle}>
           <Clock size={16} color="var(--color-secondary)" />
@@ -911,7 +955,7 @@ export default function SettingsPage() {
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
           <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
-            Reminders, the weekly email and tabling times show in this time zone. For when you&apos;re free, connect Google Calendar or fill in your availability in <a href="/scheduling" style={{ color: "var(--color-navy)" }}>Scheduling</a>.
+            Reminders, the weekly email and tabling times show in this time zone. For when you&apos;re free, connect Google Calendar or fill in your availability in the <a href="/scheduling" style={{ color: "var(--color-navy)" }}>Calendar</a>.
           </p>
           <WorkingHoursEditor timezone={timezone} onTimezoneChange={setTimezone} hideWorkingHours />
           <button onClick={handleSaveSchedule} disabled={savingSchedule}
@@ -920,8 +964,10 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Appearance section */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-appearance-heading">
         <div style={sectionHeaderStyle}>
           <Monitor size={16} color="var(--color-secondary)" />
@@ -959,8 +1005,10 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Notifications section */}
+      {tab === "notifications" && (
       <section id="notifications" style={sectionStyle} aria-labelledby="settings-notif-heading">
         <div style={sectionHeaderStyle}>
           <Bell size={16} color="var(--color-secondary)" />
@@ -1007,13 +1055,17 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Google Calendar — everyone */}
+      {tab === "profile" && (
       <section id="google-calendar" aria-label="Google Calendar settings" style={{ marginBottom: 24 }}>
         <GoogleCalendarSettings />
       </section>
+      )}
 
       {/* Focus / DND section */}
+      {tab === "notifications" && (
       <section style={sectionStyle} aria-labelledby="settings-focus-heading">
         <div style={sectionHeaderStyle}>
           <BellOff size={16} color="var(--color-secondary)" />
@@ -1056,8 +1108,10 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Keyboard shortcuts section */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-shortcuts-heading">
         <div style={sectionHeaderStyle}>
           <Keyboard size={16} color="var(--color-secondary)" />
@@ -1078,8 +1132,10 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Tour section */}
+      {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-tour-heading">
         <div style={sectionHeaderStyle}>
           <Compass size={16} color="var(--color-secondary)" />
@@ -1100,6 +1156,7 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
     </div>
 
     </>

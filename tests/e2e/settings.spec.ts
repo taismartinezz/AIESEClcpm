@@ -12,9 +12,9 @@ test.describe('Settings page — Issue #15', () => {
     await expect(page.getByRole('heading', { name: /account/i })).toBeVisible()
   })
 
-  test('the president sees the members & invites section', async ({ page }) => {
+  test('the president sees the members & invites section (old #invite links open its tab)', async ({ page }) => {
     await setupAuthMocks(page, 'president')
-    await page.goto('/settings')
+    await page.goto('/settings#invite')
     await expect(page.getByRole('heading', { name: /members.*invites/i })).toBeVisible({ timeout: 10000 })
   })
 
