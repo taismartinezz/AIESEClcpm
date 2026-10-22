@@ -14,6 +14,7 @@ import type { Partner, PartnerStage } from "@/types";
 import { Button, ErrorText, Panel, inputStyle, selectStyle } from "@/components/lc/ui";
 import PartnerModal from "@/components/partners/PartnerModal";
 import ImportWizard from "@/components/import/ImportWizard";
+import { formatDay } from "@/lib/dates";
 
 export default function PartnersPage() {
   const { projectId, userId, role, departments, departmentId, isLoading } = useProject();
@@ -156,7 +157,7 @@ export default function PartnersPage() {
                             <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(p.departmentId)}</td>
                             <td style={td}>{p.ownerId ? names[p.ownerId] ?? "-" : "-"}</td>
                             <td style={{ ...td, whiteSpace: "nowrap", color: f === "overdue" ? "var(--color-error)" : f === "soon" ? "var(--color-warning)" : "var(--color-body)", fontWeight: f ? 600 : 400 }}>
-                              {p.nextFollowUp ?? "-"}{f === "overdue" ? " · overdue" : ""}
+                              {formatDay(p.nextFollowUp)}{f === "overdue" ? " · overdue" : ""}
                             </td>
                           </tr>
                         );

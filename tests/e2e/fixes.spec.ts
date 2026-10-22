@@ -66,10 +66,10 @@ test.describe('8 · small UI bugs', () => {
   test('Escape closes the Messaging panel', async ({ page }) => {
     await setupAuthMocks(page, 'member')
     await page.goto('/')
-    await page.getByRole('button', { name: 'Open messaging' }).click({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Close messaging' })).toBeVisible()
+    await page.getByRole('banner').getByRole('button', { name: 'Chat', exact: true }).click({ timeout: 10000 })
+    await expect(page.getByRole('dialog', { name: 'Messaging' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Open messaging' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Messaging' })).toHaveCount(0)
   })
 
   test('the Notifications tooltip is gone after closing the panel', async ({ page }) => {

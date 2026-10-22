@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Mail, MessageCircleReply } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button, ErrorText } from "@/components/lc/ui";
+import { formatDay } from "@/lib/dates";
 
 interface Message { id: string; subject: string; sent_at: string; status: string; step_no: number | null }
 interface State { consent: boolean; source: string | null; unsubscribed: string | null; replied: string | null; active: number; messages: Message[] }
@@ -60,15 +61,15 @@ export default function OutreachPanel({ exchangeId }: { exchangeId: string }) {
           onChange={(e) => update({ email_consent: e.target.checked, consent_source: e.target.checked ? state.source ?? "confirmed in the app" : state.source }, "update consent")} />
         <span>Signed up with AIESEC and agreed to be contacted{state.source ? ` (${state.source})` : ""}</span>
       </label>
-      {state.unsubscribed && <p style={{ fontSize: 12, color: "var(--color-warning)", margin: "0 0 8px" }}>Unsubscribed on {new Date(state.unsubscribed).toLocaleDateString()}. No more outreach emails.</p>}
+      {state.unsubscribed && <p style={{ fontSize: 12, color: "var(--color-warning)", margin: "0 0 8px" }}>Unsubscribed on {formatDay(state.unsubscribed)}. No more outreach emails.</p>}
       {state.replied
-        ? <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Replied on {new Date(state.replied).toLocaleDateString()}; sequences stopped.</p>
+        ? <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Replied on {formatDay(state.replied)}; sequences stopped.</p>
         : <Button variant="secondary" disabled={busy} onClick={() => update({ replied_at: new Date().toISOString() }, "save the reply")}><MessageCircleReply size={13} aria-hidden="true" /> They replied: stop the emails</Button>}
       {state.messages.length > 0 && (
         <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, fontSize: 12, color: "var(--color-body)" }}>
           {state.messages.map((m) => (
             <li key={m.id} style={{ padding: "3px 0" }}>
-              {new Date(m.sent_at).toLocaleDateString()} · {m.subject}
+              {formatDay(m.sent_at)} · {m.subject}
               {m.status !== "sent" && <span style={{ color: "var(--color-error)" }}> (failed)</span>}
             </li>
           ))}

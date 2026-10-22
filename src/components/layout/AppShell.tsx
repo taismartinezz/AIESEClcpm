@@ -217,6 +217,13 @@ function SidebarBody({
   const navGroups = useNavGroups();
   const [folded, toggleFolded] = useCollapsed();
   const [wsOpen, setWsOpen] = useState(false);
+  // Escape closes the LC switcher (so a stray click doesn't switch LCs).
+  useEffect(() => {
+    if (!wsOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setWsOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [wsOpen]);
   const ICON_BTN = {
     width: 36, height: 36, display: "flex", alignItems: "center",
     justifyContent: "center", borderRadius: 8, flexShrink: 0,
@@ -375,7 +382,8 @@ function SidebarBody({
         <Tooltip label="Settings" placement="right">
           <button
             onClick={onSettings}
-            style={{ ...ICON_BTN, background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)" }}
+            aria-current={isActive("/settings") ? "page" : undefined}
+            style={{ ...ICON_BTN, background: isActive("/settings") ? "var(--color-navy-dim)" : "none", border: "none", cursor: "pointer", color: isActive("/settings") ? "var(--color-navy)" : "var(--color-secondary)" }}
             className="hover:bg-[var(--color-navy-dim)]"
             aria-label="Settings"
           >
@@ -556,8 +564,8 @@ function SidebarBody({
         <button
           onClick={onSettings}
           className="flex items-center gap-2.5 w-full rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
-          style={{ padding: "6px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)", fontSize: 13, minHeight: 36, textAlign: "left" }}
-          aria-label="Settings"
+          style={{ padding: "6px 10px", border: "none", background: isActive("/settings") ? "var(--color-navy-dim)" : "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: isActive("/settings") ? "var(--color-navy)" : "var(--color-secondary)", fontWeight: isActive("/settings") ? 600 : 400, fontSize: 13, minHeight: 36, textAlign: "left" }}
+          aria-label="Settings" aria-current={isActive("/settings") ? "page" : undefined}
         >
           <Settings size={14} />
           <span>Settings</span>
@@ -1253,13 +1261,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Tooltip>
             )}
 
-            {/* Chat (phones only: on bigger screens the floating Messaging button does this) */}
-            <Link href="/chat" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}
-              className="sm:hidden relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
-              style={{ width: 44, height: 44 }}>
-              <MessageSquare size={18} color="var(--color-body)" />
-              <NotifDot count={chatUnread} />
-            </Link>
+            {/* Search on phones (the wide search box is hidden there). */}
+            <button type="button" aria-label="Search"
+              onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
+              className="sm:hidden relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] w-[38px] sm:w-11"
+              style={{ height: 44, background: "none", border: "none", cursor: "pointer" }}>
+              <Search size={18} color="var(--color-body)" />
+            </button>
+
+            {/* Chat: on phones (and on the Chat page) it opens Chat; elsewhere it drops down quick messaging. */}
+            <Tooltip label="Messages" placement="bottom">
+              <button type="button" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}
+                onClick={() => {
+                  if (window.innerWidth < 640 || pathname.startsWith("/chat")) router.push("/chat");
+                  else window.dispatchEvent(new Event("chatdock:toggle"));
+                }}
+                className="relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] w-[38px] sm:w-11"
+                style={{ height: 44, background: "none", border: "none", cursor: "pointer" }}>
+                <MessageSquare size={18} color="var(--color-body)" />
+                <NotifDot count={chatUnread} />
+              </button>
+            </Tooltip>
 
             {/* Notification bell */}
             <div className="relative">
@@ -1269,8 +1291,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     setNotifOpen(v => !v);
                     setProfileOpen(false);
                   }}
-                  className="relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
-                  style={{ width: 44, height: 44 }}
+                  className="relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] w-[38px] sm:w-11"
+                  style={{ height: 44 }}
                   aria-label={isDnd ? "Notifications (quiet hours active)" : `Notifications, ${unreadCount} unread`}
                 >
                   <Bell size={18} color="var(--color-body)" />

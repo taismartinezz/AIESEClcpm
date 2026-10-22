@@ -9,6 +9,7 @@ import type { ClaimStatus, Department, ExpenseClaim } from "@/types";
 import { Button, ErrorText, Field, Modal, Panel, selectStyle } from "@/components/lc/ui";
 import ReceiptButton from "./ReceiptButton";
 import { askConfirm } from "@/components/ui/confirm";
+import { formatDay } from "@/lib/dates";
 
 const STATUS_STYLE: Record<ClaimStatus, { label: string; color: string; bg: string }> = {
   pending:  { label: "Pending",  color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
@@ -113,7 +114,7 @@ export default function ClaimsView({ claims, userId, departments, memberNames, i
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>{c.description}</p>
                 <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "2px 0 0" }}>
-                  {!mine && <>{memberNames[c.submittedBy] ?? "Someone"} · </>}{deptName(c.departmentId)} · {c.date}
+                  {!mine && <>{memberNames[c.submittedBy] ?? "Someone"} · </>}{deptName(c.departmentId)} · {formatDay(c.date)}
                 </p>
                 {c.status === "rejected" && c.rejectionReason && (
                   <p style={{ fontSize: 12, color: "var(--color-error)", margin: "4px 0 0" }}>Reason: {c.rejectionReason}</p>

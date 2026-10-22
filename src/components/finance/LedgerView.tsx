@@ -10,6 +10,7 @@ import { BarList, Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from
 import ReceiptButton from "./ReceiptButton";
 import EntryModal from "./EntryModal";
 import { askConfirm } from "@/components/ui/confirm";
+import { formatDay } from "@/lib/dates";
 
 interface Props {
   projectId: string;
@@ -160,7 +161,7 @@ export default function LedgerView({ projectId, userId, currency, entries, categ
               <tbody>
                 {filtered.map((e) => (
                   <tr key={e.id}>
-                    <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{e.date}</td>
+                    <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDay(e.date)}</td>
                     <td style={tdStyle}>
                       {e.description || <span style={{ color: "var(--color-secondary)" }}>-</span>}
                       {e.claimId && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: "var(--color-secondary)", border: "1px solid var(--color-border)", borderRadius: 4, padding: "0 4px" }}>Claim</span>}

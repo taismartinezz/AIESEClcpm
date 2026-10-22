@@ -381,18 +381,20 @@ export default function TasksPage() {
 
   /** Copy a task (title, details, priority, due date, department, assignees, subtasks) as a new to-do. */
   const duplicateTask = useCallback(async (task: Task) => {
+    // The copy stays in the same column, except a finished task's copy starts again.
+    const copyStatus: TaskStatus = task.status === "done" ? "todo" : task.status;
     if (!isSupabaseConfigured || !projectId || !currentUserId) {
-      const copy: Task = { ...task, id: crypto.randomUUID(), title: `${task.title} (copy)`, status: "todo", comments: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const copy: Task = { ...task, id: crypto.randomUUID(), title: `${task.title} (copy)`, status: copyStatus, comments: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       setTasks((prev) => [copy, ...prev]);
       return;
     }
     const { data, error } = await supabase.from("tasks").insert({
       project_id: projectId, created_by: currentUserId, title: `${task.title} (copy)`, description: task.description ?? "",
-      status: "todo", priority: task.priority, due_date: task.dueDate || null, archived: false,
+      status: copyStatus, priority: task.priority, due_date: task.dueDate || null, archived: false,
       scope: task.scope ?? "lab", sub_project_id: task.subProjectId ?? null, department_id: task.departmentId ?? null,
       links: task.links ?? [],
     }).select().single();
-    if (error || !data) { showToast(`Couldn't duplicate the task: ${error?.message ?? "no task returned"}`, "error"); return; }
+    if (error || !data?.id) { showToast(`Couldn't duplicate the task: ${error?.message ?? "no task returned"}`, "error"); return; }
     if (task.assigneeIds.length) {
       const { error: aErr } = await supabase.from("task_assignees").insert(task.assigneeIds.map((user_id) => ({ task_id: data.id, user_id })));
       if (aErr) showToast(`Duplicated, but the assignees weren't copied: ${aErr.message}`, "error");
@@ -426,7 +428,7 @@ export default function TasksPage() {
       }
     }
     const copy: Task = {
-      ...task, id: data.id as string, title: data.title as string, status: "todo", comments: [], files: [],
+      ...task, id: data.id as string, title: data.title as string, status: copyStatus, comments: [], files: [],
       createdAt: data.created_at as string, updatedAt: data.updated_at as string,
     };
     setTasks((prev) => [copy, ...prev]);
@@ -653,6 +655,7 @@ export default function TasksPage() {
               style={{ backgroundColor: "var(--color-navy)", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 7, border: "none", cursor: "pointer", height: 36 }}
             >
               <Plus size={13} />
+              <span className="sm:hidden">Add</span>
               <span className="hidden sm:inline">Add Task</span>
             </button>
           </>

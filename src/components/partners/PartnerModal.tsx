@@ -8,6 +8,7 @@ import type { LcMember } from "@/hooks/useLcMembers";
 import type { Department, Partner, PartnerActivity, PartnerContact, PartnerStage } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
 import { askConfirm } from "@/components/ui/confirm";
+import { formatDay } from "@/lib/dates";
 
 /** Add a partner, or edit one with its contacts and activity log. */
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -24,7 +25,8 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
   const [industry, setIndustry] = useState(partner?.industry ?? "");
   const [website, setWebsite] = useState(partner?.website ?? "");
   const [stage, setStage] = useState<PartnerStage>(partner?.stage ?? "lead");
-  const [departmentId, setDepartmentId] = useState(partner?.departmentId ?? allowedDepartmentIds[0] ?? "");
+  // Exec who may file partners under no department start there; others start in their own.
+  const [departmentId, setDepartmentId] = useState(partner ? (partner.departmentId ?? "") : allowNoDepartment ? "" : (allowedDepartmentIds[0] ?? ""));
   const [ownerId, setOwnerId] = useState(partner?.ownerId ?? userId);
   const [nextFollowUp, setNextFollowUp] = useState(partner?.nextFollowUp ?? "");
   const [notes, setNotes] = useState(partner?.notes ?? "");
@@ -198,7 +200,7 @@ export default function PartnerModal({ projectId, userId, departments, allowedDe
             {activities.length === 0 && <li style={{ fontSize: 12, color: "var(--color-secondary)" }}>Nothing logged yet.</li>}
             {activities.map((a) => (
               <li key={a.id} style={{ fontSize: 13, padding: "5px 0", borderTop: "1px solid var(--color-border)" }}>
-                <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{a.happenedOn} · {a.kind}{a.authorId && names[a.authorId] ? ` · ${names[a.authorId]}` : ""}</span>
+                <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{formatDay(a.happenedOn)} · {a.kind}{a.authorId && names[a.authorId] ? ` · ${names[a.authorId]}` : ""}</span>
                 <div style={{ color: "var(--color-body)" }}>{a.body}</div>
               </li>
             ))}

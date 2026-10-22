@@ -6,6 +6,7 @@ import { AUDIENCE_ROLE_LABELS } from "@/lib/attendance";
 import { authedPost, describeSend, type SendResult } from "@/lib/api-client";
 import type { Department } from "@/types";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
+import { formatDay } from "@/lib/dates";
 
 interface Past { id: string; subject: string; sent_at: string | null; sent_count: number | null; created_at: string }
 
@@ -93,7 +94,7 @@ export default function AnnouncementModal({ projectId, userId, departments, ledD
         <div style={{ marginTop: 10 }}>
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "0 0 4px" }}>Recent</p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, fontSize: 12, color: "var(--color-body)" }}>
-            {past.map((a) => <li key={a.id}>{a.subject} <span style={{ color: "var(--color-secondary)" }}>· {a.sent_at ? `${a.sent_count ?? 0} sent ${new Date(a.sent_at).toLocaleDateString()}` : "not sent"}</span></li>)}
+            {past.map((a) => <li key={a.id}>{a.subject} <span style={{ color: "var(--color-secondary)" }}>· {a.sent_at ? `${a.sent_count ?? 0} sent ${formatDay(a.sent_at)}` : "not sent"}</span></li>)}
           </ul>
         </div>
       )}

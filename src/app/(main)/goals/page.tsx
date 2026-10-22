@@ -8,6 +8,7 @@ import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Button, ErrorText, Panel } from "@/components/lc/ui";
 import { GoalBar, GoalModal, describeMetric, useGoals, type GoalWithProgress } from "@/components/goals/GoalsShared";
+import { formatDay } from "@/lib/dates";
 
 export default function GoalsPage() {
   const { projectId, userId, role, departments, ledDepartmentIds, isLoading } = useProject();
@@ -89,7 +90,7 @@ export default function GoalsPage() {
                     <li key={g.id} style={{ padding: "10px 0", borderTop: "1px solid var(--color-border)" }}>
                       <GoalBar goal={offsets[g.id] ? { ...g, current: g.current + offsets[g.id] } : g} color={s.color} />
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6, fontSize: 11, color: "var(--color-secondary)", flexWrap: "wrap" }}>
-                        <span>{describeMetric(g)} · {g.startsOn} → {g.endsOn}</span>
+                        <span>{describeMetric(g)} · {formatDay(g.startsOn)} → {formatDay(g.endsOn)}</span>
                         <span style={{ flex: 1 }} />
                         {canManage(g) && g.metric === "manual" && (
                           <span style={{ display: "inline-flex", gap: 4 }}>

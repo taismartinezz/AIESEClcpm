@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Plus, Trash2, Landmark } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
@@ -124,7 +124,8 @@ export default function DepartmentsManager() {
           </thead>
           <tbody>
             {departments.map((dep) => (
-              <tr key={dep.id} style={{ borderTop: "1px solid var(--color-border)", opacity: busyId === dep.id ? 0.6 : 1, backgroundColor: editingId === dep.id ? "var(--color-navy-dim)" : undefined }}>
+              <Fragment key={dep.id}>
+              <tr style={{ borderTop: "1px solid var(--color-border)", opacity: busyId === dep.id ? 0.6 : 1, backgroundColor: editingId === dep.id ? "var(--color-navy-dim)" : undefined }}>
                 <td style={{ padding: "8px 4px" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dep.color, flexShrink: 0 }} />
@@ -142,18 +143,14 @@ export default function DepartmentsManager() {
                   <button type="button" onClick={() => setEditingId(editingId === dep.id ? null : dep.id)} aria-expanded={editingId === dep.id}
                     aria-label={`${editingId === dep.id ? "Close" : "Edit"} ${dep.name}`}
                     style={{ fontSize: 12, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
-                    {editingId === dep.id ? "Done" : "Edit"}
+                    {editingId === dep.id ? "Close" : "Edit"}
                   </button>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {departments.filter((dep) => dep.id === editingId).map((dep) => (
-          <div key={dep.id} style={{ opacity: busyId === dep.id ? 0.6 : 1, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8, marginTop: 8 }}>
+              {editingId === dep.id && (
+                <tr>
+                  <td colSpan={4} style={{ padding: "0 4px 10px" }}>
+          <div style={{ opacity: busyId === dep.id ? 0.6 : 1, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8, backgroundColor: "var(--color-surface)" }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             <input
               type="color"
@@ -181,27 +178,6 @@ export default function DepartmentsManager() {
               <option value="">No VP assigned</option>
               {execs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
-            <button
-              type="button"
-              onClick={() => update(dep, { is_finance: !dep.isFinance })}
-              aria-pressed={dep.isFinance}
-              title={dep.isFinance ? "Handles finance" : "Mark as the finance department"}
-              style={{
-                height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center",
-                border: `1px solid ${dep.isFinance ? "var(--color-navy)" : "var(--color-border)"}`,
-                backgroundColor: dep.isFinance ? "var(--color-navy-dim)" : "transparent", borderRadius: 6, cursor: "pointer",
-              }}
-            >
-              <Landmark size={13} color={dep.isFinance ? "var(--color-navy)" : "var(--color-secondary)"} />
-            </button>
-            <button
-              type="button"
-              onClick={() => remove(dep)}
-              aria-label={`Delete ${dep.name}`}
-              style={{ height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)", backgroundColor: "transparent", borderRadius: 6, cursor: "pointer" }}
-            >
-              <Trash2 size={12} color="var(--color-secondary)" />
-            </button>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 6, paddingLeft: 38 }}>
           <div role="group" aria-label={`Exchange products run by ${dep.name}`} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -226,9 +202,28 @@ export default function DepartmentsManager() {
             <option value="support">Pulse area: Support</option>
           </select>
           </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--color-border)" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-body)", cursor: "pointer" }}>
+              <input type="checkbox" checked={dep.isFinance} onChange={() => update(dep, { is_finance: !dep.isFinance })} style={{ accentColor: "var(--color-navy)" }} />
+              <Landmark size={12} color="var(--color-secondary)" aria-hidden="true" /> Handles finance
+            </label>
+            <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>Changes save as you go.</span>
+            <button type="button" onClick={() => setEditingId(null)} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "1px solid var(--color-border)", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>Close</button>
+            <button type="button" onClick={() => remove(dep)} aria-label={`Delete ${dep.name}`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-error)", background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+              <Trash2 size={12} aria-hidden="true" /> Delete department
+            </button>
           </div>
-        ))}
-      </div>
+          </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <input
