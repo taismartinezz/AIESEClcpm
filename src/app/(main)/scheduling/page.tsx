@@ -253,8 +253,9 @@ function addDays(d: Date, n: number): Date {
   const r = new Date(d); r.setDate(r.getDate() + n); return r;
 }
 
+/** Weeks start on Monday, like Tabling and the dashboard's "This week". */
 function getWeekStart(d: Date): Date {
-  const r = new Date(d); r.setDate(r.getDate() - r.getDay()); return r;
+  const r = new Date(d); r.setDate(r.getDate() - ((r.getDay() + 6) % 7)); return r;
 }
 
 function minToTimeStr(min: number): string {
@@ -299,11 +300,15 @@ function CalendarTab({
   const timeBtnRef = useRef<HTMLButtonElement>(null);
 
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
+  const allCalEvents = useMemo(
+    () => [...toCalEvents(events, proposals), ...lcToCalEvents(lcEvents, currentUserId), ...tablingToCalEvents(tablingSlots, currentUserId), ...googleToCalEvents(googleEvents, currentUserId)],
+    [events, lcEvents, tablingSlots, proposals, googleEvents, currentUserId]);
   const calEvents = useMemo(() => {
-    const all = [...toCalEvents(events, proposals), ...lcToCalEvents(lcEvents, currentUserId), ...tablingToCalEvents(tablingSlots, currentUserId), ...googleToCalEvents(googleEvents, currentUserId)];
     const hiddenTypes = new Set<string>(CAL_KINDS.filter((k) => hiddenKinds.has(k.id)).flatMap((k) => [...k.types]));
-    return all.filter((e) => !hiddenTypes.has(e.type));
-  }, [events, lcEvents, tablingSlots, proposals, googleEvents, currentUserId, hiddenKinds]);
+    return allCalEvents.filter((e) => !hiddenTypes.has(e.type));
+  }, [allCalEvents, hiddenKinds]);
+  // How many items each filter chip covers, so an empty kind doesn't look broken.
+  const kindCounts = useMemo(() => Object.fromEntries(CAL_KINDS.map((k) => [k.id, allCalEvents.filter((e) => (k.types as readonly string[]).includes(e.type)).length])), [allCalEvents]);
 
   function navigate(dir: 1 | -1) {
     const d = new Date(anchor);
@@ -398,7 +403,7 @@ function CalendarTab({
     const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START_H + i);
     const totalHeight = TOTAL_HOURS * HOUR_H;
     return (
-      <div style={{ display: "flex", overflowY: "auto", maxHeight: 580 }}>
+      <div style={{ display: "flex", overflowY: "auto", maxHeight: 580, scrollbarGutter: "stable" }}>
         <div style={{ width: 50, flexShrink: 0 }}>
           <div style={{ height: 1 }} />
           {hours.map(h => (
@@ -409,7 +414,7 @@ function CalendarTab({
             </div>
           ))}
         </div>
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${days.length}, 1fr)`, borderLeft: "1px solid var(--color-border)" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, borderLeft: "1px solid var(--color-border)" }}>
           {days.map(day => {
             const ds = makeDateStr(day);
             const isToday = ds === todayStr;
@@ -441,13 +446,34 @@ function CalendarTab({
     );
   }
 
+  /** Events without a time (LC events, all-day Google events) sit in a row above the hours. */
+  function renderAllDayRow(days: Date[]) {
+    const byDay = days.map((d) => calEvents.filter((e) => e.date === makeDateStr(d) && e.startMin == null));
+    if (byDay.every((list) => list.length === 0)) return null;
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, borderBottom: "1px solid var(--color-border)", overflowY: "hidden", scrollbarGutter: "stable" }}>
+        <div style={{ fontSize: 9, color: "var(--color-secondary)", textAlign: "right", paddingRight: 8, paddingTop: 6 }}>ALL DAY</div>
+        {byDay.map((list, i) => (
+          <div key={i} style={{ minWidth: 0, padding: 3, borderLeft: "1px solid var(--color-border)" }}>
+            {list.map((ev) => (
+              <div key={ev.id} onClick={() => { setDetailEvent(ev); setShowForm(false); setConfirmDelete(false); }}
+                style={{ fontSize: 10, fontWeight: 600, color: ev.color, backgroundColor: ev.bgColor, borderRadius: 3, padding: "2px 4px", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>
+                {ev.title}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderWeekView() {
     const ws = getWeekStart(anchor);
     const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
     const hasEvents = days.some(d => calEvents.some(e => e.date === makeDateStr(d)));
     return (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "50px repeat(7, 1fr)", borderBottom: "1px solid var(--color-border)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "50px repeat(7, minmax(0, 1fr))", borderBottom: "1px solid var(--color-border)", overflowY: "hidden", scrollbarGutter: "stable" }}>
           <div />
           {days.map(day => {
             const ds = makeDateStr(day);
@@ -462,6 +488,7 @@ function CalendarTab({
             );
           })}
         </div>
+        {hasEvents && renderAllDayRow(days)}
         {hasEvents ? renderTimeGrid(days) : (
           <EmptyState
             icon={Calendar}
@@ -484,13 +511,14 @@ function CalendarTab({
     const hasEvents = calEvents.some(e => e.date === makeDateStr(anchor));
     return (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "50px 1fr", borderBottom: "1px solid var(--color-border)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "50px minmax(0, 1fr)", borderBottom: "1px solid var(--color-border)", overflowY: "hidden", scrollbarGutter: "stable" }}>
           <div />
           <div style={{ padding: "6px 16px", borderLeft: "1px solid var(--color-border)" }}>
             <div style={{ fontSize: 10, color: "var(--color-secondary)", fontWeight: 700, letterSpacing: "0.05em" }}>{DAY_HDR[anchor.getDay()]}</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: makeDateStr(anchor) === todayStr ? "var(--color-navy)" : "var(--color-body)" }}>{anchor.getDate()}</div>
           </div>
         </div>
+        {hasEvents && renderAllDayRow([anchor])}
         {hasEvents ? renderTimeGrid([anchor]) : (
           <EmptyState
             icon={Calendar}
@@ -511,18 +539,18 @@ function CalendarTab({
   function renderMonthView() {
     const year = anchor.getFullYear();
     const month = anchor.getMonth();
-    const startOffset = new Date(year, month, 1).getDay();
+    const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;   // Monday first
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
     const MAX_CHIPS = 3;
     return (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--color-border)" }}>
-          {DAY_HDR.map(d => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", borderBottom: "1px solid var(--color-border)" }}>
+          {[...DAY_HDR.slice(1), DAY_HDR[0]].map(d => (
             <div key={d} style={{ textAlign: "center", padding: "8px 0", fontSize: 10, fontWeight: 700, color: "var(--color-secondary)", letterSpacing: "0.06em" }}>{d}</div>
           ))}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
           {Array.from({ length: totalCells }, (_, i) => {
             const dayNum = i - startOffset + 1;
             const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
@@ -534,7 +562,7 @@ function CalendarTab({
               <div
                 key={i}
                 onClick={() => { if (ds) openAdd(ds); }}
-                style={{ minHeight: 88, borderRight: "1px solid var(--color-border)", borderBottom: "1px solid var(--color-border)", padding: 4, backgroundColor: inMonth ? "transparent" : "rgba(27,46,75,0.015)", cursor: inMonth ? "pointer" : "default" }}
+                style={{ minHeight: 88, minWidth: 0, overflow: "hidden", borderRight: "1px solid var(--color-border)", borderBottom: "1px solid var(--color-border)", padding: 4, backgroundColor: inMonth ? "transparent" : "rgba(27,46,75,0.015)", cursor: inMonth ? "pointer" : "default" }}
                 onMouseEnter={e => { if (inMonth) (e.currentTarget as HTMLDivElement).style.backgroundColor = "rgba(27,46,75,0.03)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = inMonth ? "transparent" : "rgba(27,46,75,0.015)"; }}
               >
@@ -565,7 +593,7 @@ function CalendarTab({
     return (
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
         {MONTH_NAMES_CAL.map((name, mi) => {
-          const startOff = new Date(year, mi, 1).getDay();
+          const startOff = (new Date(year, mi, 1).getDay() + 6) % 7;
           const dim = new Date(year, mi + 1, 0).getDate();
           const cells = Math.ceil((startOff + dim) / 7) * 7;
           return (
@@ -577,7 +605,7 @@ function CalendarTab({
             >
               <p style={{ fontSize: 11, fontWeight: 700, color: "var(--color-navy)", margin: "0 0 5px 0" }}>{name}</p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-                {"SMTWTFS".split("").map((d, i) => (
+                {"MTWTFSS".split("").map((d, i) => (
                   <div key={i} style={{ fontSize: 6.5, color: "var(--color-secondary)", textAlign: "center", fontWeight: 700, paddingBottom: 1 }}>{d}</div>
                 ))}
                 {Array.from({ length: cells }, (_, i) => {
@@ -735,6 +763,7 @@ function CalendarTab({
               style={{ height: 28, padding: "0 10px", borderRadius: 14, border: `1px solid ${on ? "var(--color-border)" : "transparent"}`, background: on ? "var(--color-surface)" : "transparent", cursor: "pointer", opacity: on ? 1 : 0.5 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: k.color, display: "inline-block" }} />
               <span style={{ fontSize: 12, color: "var(--color-body)", textDecoration: on ? "none" : "line-through" }}>{k.label}</span>
+              <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{kindCounts[k.id] ?? 0}</span>
             </button>
           );
         })}

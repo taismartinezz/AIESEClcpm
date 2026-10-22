@@ -27,6 +27,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   const [expaUrl, setExpaUrl] = useState(exchange?.expaUrl ?? "");
   // New exchanges start with you as owner; an existing unassigned one stays unassigned.
   const [ownerId, setOwnerId] = useState(exchange ? (exchange.ownerId ?? "") : userId);
+  const [ownerMissing, setOwnerMissing] = useState(false);
   const [notes, setNotes] = useState(exchange?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -36,7 +37,7 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
   async function save() {
     if (!personName.trim()) { setError("Add the person's name."); return; }
     // Someone has to own a new exchange, so stuck alerts reach a person.
-    if (!exchange && !ownerId) { setError("Choose who's responsible for this exchange."); return; }
+    if (!exchange && !ownerId) { setOwnerMissing(true); return; }
     if (expaUrl && !/^https:\/\//i.test(expaUrl.trim())) { setError("The EXPA link must start with https://"); return; }
     if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError("That email doesn't look right (e.g. name@example.com)."); return; }
     if (expaId.trim() && !/^\d+$/.test(expaId.trim())) { setError("The EXPA ID is a number (the digits in the application's EXPA link)."); return; }
@@ -115,10 +116,12 @@ export default function ExchangeModal({ projectId, userId, products, roster, exc
         <Field label="EXPA link" htmlFor="ex-expa-url"><input id="ex-expa-url" type="url" placeholder="https://expa.aiesec.org/…" value={expaUrl} onChange={(e) => setExpaUrl(e.target.value)} style={inputStyle} /></Field>
       </div>
       <Field label="Responsible member" htmlFor="ex-owner">
-        <select id="ex-owner" value={ownerId ?? ""} onChange={(e) => setOwnerId(e.target.value)} style={selectStyle}>
+        <select id="ex-owner" value={ownerId ?? ""} onChange={(e) => { setOwnerId(e.target.value); setOwnerMissing(false); }} aria-invalid={ownerMissing}
+          style={{ ...selectStyle, ...(ownerMissing ? { borderColor: "var(--color-error)" } : {}) }}>
           <option value="">Unassigned</option>
           {roster.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
+        {ownerMissing && <p role="alert" style={{ fontSize: 12, color: "var(--color-error)", margin: "4px 0 0" }}>Choose who&apos;s responsible for this exchange.</p>}
       </Field>
       <Field label="Notes" htmlFor="ex-notes">
         <textarea id="ex-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, height: "auto", padding: 10 }} />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, X, ChevronDown, Hash, Send } from "lucide-react";
+import { X, ChevronDown, Hash, Send } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
@@ -54,15 +54,12 @@ export default function ChatDock() {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
 
-  // The round launcher sits bottom-right, on top of other buttons (a task's
-  // comment "Add", a dialog's "Approve"); hide it while a dialog or side panel is open.
-  const [covered, setCovered] = useState(false);
+  // Opened from the chat icon in the top bar (AppShell). There's no floating
+  // button any more: it covered page content and could vanish under a click.
   useEffect(() => {
-    const check = () => setCovered(Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [data-hides-chat-launcher]')));
-    check();
-    const obs = new MutationObserver(check);
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
+    const toggle = () => setDockOpen((v) => !v);
+    window.addEventListener("chatdock:toggle", toggle);
+    return () => window.removeEventListener("chatdock:toggle", toggle);
   }, []);
 
   // Escape closes the panel (an open @mention list closes first).
@@ -208,7 +205,6 @@ export default function ChatDock() {
     })),
   ];
 
-  const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
   const activeConvInfo = activeConv ? conversations.find(c => c.id === activeConv) ?? null : null;
 
   // Fetch messages for active conversation
@@ -325,13 +321,13 @@ export default function ChatDock() {
 
   if (hidden) return null;
 
-  if (covered && !dockOpen) return null;
+  if (!dockOpen) return null;
   return (
-    // Phones get a chat icon in the top bar instead (AppShell): a floating button there covers the end of every page.
-    <div className="flex max-sm:hidden" style={{ position: "fixed", bottom: "clamp(12px, 3vw, 24px)", right: "clamp(12px, 3vw, 24px)", zIndex: 1000, flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
+    // Drops down under the top bar's chat icon, top right.
+    <div className="flex" role="dialog" aria-label="Messaging" style={{ position: "fixed", top: 60, right: 12, zIndex: 1000, flexDirection: "column", alignItems: "flex-end", gap: 0 }}>
       {/* Expanded dock panel */}
       {dockOpen && (
-        <div style={{ width: "min(340px, calc(100vw - 24px))", height: activeConv ? "min(460px, calc(100dvh - 120px))" : 320, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px 12px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "visible" }}>
+        <div style={{ width: "min(340px, calc(100vw - 24px))", height: activeConv ? "min(460px, calc(100dvh - 90px))" : 320, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, boxShadow: "0 8px 28px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "visible" }}>
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", flexShrink: 0, borderRadius: "12px 12px 0 0", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -472,33 +468,6 @@ export default function ChatDock() {
         </div>
       )}
 
-      {/* Dock tab button: icon-only FAB when closed, expands on hover/focus */}
-      {dockOpen ? (
-        // Open: full pill connecting to panel above
-        <button
-          onClick={() => setDockOpen(false)}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: "0 0 8px 8px", cursor: "pointer", fontSize: 13, fontWeight: 600, position: "relative", minWidth: 140, fontFamily: "var(--font-roboto)" }}
-          aria-label="Close messaging"
-        >
-          <MessageSquare size={15} />
-          <span>Messaging</span>
-          <ChevronDown size={13} style={{ marginLeft: "auto" }} />
-        </button>
-      ) : (
-        // Closed: 48px circular FAB, icon only
-        <button
-          onClick={() => setDockOpen(true)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--color-navy)", color: "#fff", border: "none", borderRadius: 24, cursor: "pointer", position: "relative", width: 48, height: 48 }}
-          aria-label="Open messaging"
-        >
-          <MessageSquare size={18} />
-          {totalUnread > 0 && (
-            <span style={{ position: "absolute", top: 4, right: 4, minWidth: 16, height: 16, backgroundColor: "#ef4444", borderRadius: 8, fontSize: 10, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", border: "2px solid var(--color-canvas)" }}>
-              {totalUnread > 9 ? "9+" : totalUnread}
-            </span>
-          )}
-        </button>
-      )}
     </div>
   );
 }

@@ -4,13 +4,15 @@ import type { CheckinQuestion, UserRole } from "@/types";
 // 1–5 agreement scale. IDs are stored with every answer and used by the SQL
 // pulse functions, so never reuse an ID for a different question.
 
-export const CHECKIN_QUESTIONS: (CheckinQuestion & { short: string; vpText?: string })[] = [
-  { id: "energy",    short: "Energy",     text: "I've had enough energy for my AIESEC responsibilities this week." },
-  { id: "workload",  short: "Workload",   text: "My AIESEC workload has felt manageable this week." },
-  { id: "purpose",   short: "Purpose",    text: "What I do in AIESEC has felt meaningful to me this week." },
-  { id: "support",   short: "Support",    text: "I've felt supported by my VP this week.",
-    vpText: "I've felt supported by my LCP this week." },
-  { id: "belonging", short: "Belonging",  text: "I've felt part of my team and my LC this week." },
+// "Lately", not "this week": check-ins are every two weeks by default.
+export const CHECKIN_QUESTIONS: (CheckinQuestion & { short: string; vpText?: string; presidentText?: string })[] = [
+  { id: "energy",    short: "Energy",     text: "I've had enough energy for my AIESEC responsibilities lately." },
+  { id: "workload",  short: "Workload",   text: "My AIESEC workload has felt manageable lately." },
+  { id: "purpose",   short: "Purpose",    text: "What I do in AIESEC has felt meaningful to me lately." },
+  { id: "support",   short: "Support",    text: "I've felt supported by my VP lately.",
+    vpText: "I've felt supported by my LCP lately.",
+    presidentText: "I've felt supported by my executive board lately." },
+  { id: "belonging", short: "Belonging",  text: "I've felt part of my team and my LC lately." },
   { id: "balance",   short: "Balance",    text: "I've been able to balance AIESEC with my studies, work and personal life." },
 ];
 
@@ -24,6 +26,7 @@ export const CHECKIN_LABELS: Record<number, string> = {
 
 /** Question text as the given role should read it. */
 export function questionText(q: (typeof CHECKIN_QUESTIONS)[number], role: UserRole | null): string {
+  if (role === "president" && q.presidentText) return q.presidentText;
   return role === "vp" && q.vpText ? q.vpText : q.text;
 }
 

@@ -439,7 +439,7 @@ export default function SettingsPage() {
       <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, color: "var(--color-navy)", margin: "0 0 16px" }}>
         Settings
       </h1>
-      <div role="tablist" aria-label="Settings" style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--color-border)", marginBottom: 20, overflowX: "auto" }}>
+      <div role="tablist" aria-label="Settings" style={{ display: "flex", flexWrap: "wrap", gap: 4, borderBottom: "1px solid var(--color-border)", marginBottom: 20 }}>
         {settingsTabs.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id}
             onClick={() => { setTab(t.id); try { history.replaceState(null, "", t.id === "profile" ? location.pathname : `#${t.id}`); } catch { /* ignore */ } }}

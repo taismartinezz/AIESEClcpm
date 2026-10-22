@@ -10,6 +10,7 @@ import type { LcMember } from "@/hooks/useLcMembers";
 import type { AttendanceRecord, Department, LcEvent, LcEventType } from "@/types";
 import { Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/components/lc/ui";
 import { askConfirm } from "@/components/ui/confirm";
+import { formatDay } from "@/lib/dates";
 
 // ── By event ──────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function RsvpBox({ event, rsvps, roster, userId, canManage, onChanged }: {
           {upcoming && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
               <Button variant="secondary" disabled={busy} onClick={emailInvites}><Mail size={13} aria-hidden="true" /> {event.invitesSentAt ? "Email people who haven't had the invite" : "Email the invite"}</Button>
-              {event.invitesSentAt && <span style={{ color: "var(--color-secondary)" }}>Invites sent {new Date(event.invitesSentAt).toLocaleDateString()}</span>}
+              {event.invitesSentAt && <span style={{ color: "var(--color-secondary)" }}>Invites sent {formatDay(event.invitesSentAt)}</span>}
             </div>
           )}
         </div>

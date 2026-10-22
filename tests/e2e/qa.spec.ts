@@ -259,16 +259,26 @@ test('Find a time suggests slots from the server and says who is free', async ({
   await expect(page.locator('input[type="date"]')).toHaveValue(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`)
 })
 
-test.describe('on a phone, chat lives in the top bar', () => {
-  test.use({ viewport: { width: 390, height: 780 } })
-
-  test('there is no floating chat button covering the page, and the top-bar icon opens Chat', async ({ page }) => {
+test.describe('chat lives in the top bar', () => {
+  test('on a phone: no floating chat button, and the top-bar icon opens Chat', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 })
     await setupAuthMocks(page, 'president')
     await page.goto('/settings')
-    await expect(page.getByRole('link', { name: 'Chat', exact: true }).first()).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Open messaging' })).toBeHidden()
-    await page.getByRole('banner').getByRole('link', { name: 'Chat', exact: true }).click()
+    await expect(page.getByRole('banner').getByRole('button', { name: 'Chat', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Open messaging' })).toHaveCount(0)
+    await page.getByRole('banner').getByRole('button', { name: 'Chat', exact: true }).click()
     await expect(page).toHaveURL(/\/chat$/)
+  })
+
+  test('on a laptop: nothing floats over the page; the top-bar icon drops quick messaging down and closes it', async ({ page }) => {
+    await setupAuthMocks(page, 'president')
+    await page.goto('/settings')
+    await expect(page.getByRole('button', { name: 'Open messaging' })).toHaveCount(0)
+    const chat = page.getByRole('banner').getByRole('button', { name: 'Chat', exact: true })
+    await chat.click({ timeout: 10000 })
+    await expect(page.getByRole('dialog', { name: 'Messaging' })).toBeVisible()
+    await chat.click()
+    await expect(page.getByRole('dialog', { name: 'Messaging' })).toHaveCount(0)
   })
 })
 
@@ -299,4 +309,35 @@ test("People counts only this LC's tasks, and not subtasks", async ({ page }) =>
   await page.goto('/team')
   await expect(page.getByText(/In progress:\s*1/).first()).toBeVisible({ timeout: 10000 })
   await expect(page.getByText(/In progress:\s*[23]/)).toHaveCount(0)
+})
+
+test('Calendar week view: weeks start on Monday and all-day LC events show in an "All day" row', async ({ page }) => {
+  const monday = new Date(); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const tue = new Date(monday); tue.setDate(monday.getDate() + 1)
+  await setupAuthMocks(page, 'president', { tables: { lc_events: [{ id: 'ev1', name: 'oGV info session', starts_on: day(tue), ends_on: day(tue) }], schedule_events: [], tabling_slots: [] } })
+  await page.goto('/scheduling')
+  await page.getByRole('button', { name: 'Week', exact: true }).click({ timeout: 10000 })
+  await expect(page.getByText('ALL DAY')).toBeVisible()
+  await expect(page.getByText('oGV info session').first()).toBeVisible()
+  await expect(page.getByText('Mon', { exact: true }).first()).toBeVisible()
+})
+
+test('Escape closes the LC switcher', async ({ page }) => {
+  await setupAuthMocks(page, 'president')
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Switch workspace', exact: true }).click({ timeout: 10000 })
+  await expect(page.getByText('Local Committees', { exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Local Committees', { exact: true })).toHaveCount(0)
+})
+
+test('duplicating a Backlog task keeps the copy in Backlog', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'Plan the GA')].map((t) => ({ ...t, status: 'backlog' })) } })
+  await recordWrites(page)
+  await page.goto('/tasks')
+  await page.getByText('Plan the GA').first().click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'More options' }).click()
+  await page.getByRole('menuitem', { name: 'Duplicate task' }).click()
+  await expect.poll(async () => (await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/tasks'))?.body ?? '').toContain('"status":"backlog"')
 })

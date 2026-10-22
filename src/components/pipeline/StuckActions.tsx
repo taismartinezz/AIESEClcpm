@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import { localIsoDate } from "@/lib/pipeline";
@@ -19,6 +19,17 @@ export default function StuckActions({ exchange: e, days, ownerName, onChanged }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const first = ownerName?.split(" ")[0] ?? null;
+  const taskPrefix = `Follow up: ${e.personName} (`;
+  // An open follow-up task already exists (made earlier, maybe by someone else): don't offer another.
+  const [openTask, setOpenTask] = useState(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !projectId) return;
+    let cancelled = false;
+    supabase.from("tasks").select("id").eq("project_id", projectId).neq("status", "done").eq("archived", false)
+      .like("title", `${taskPrefix.replace(/[%_]/g, "\\$&")}%`).limit(1)
+      .then(({ data }) => { if (!cancelled) setOpenTask((data ?? []).length > 0); });
+    return () => { cancelled = true; };
+  }, [projectId, taskPrefix]);
   const what = `${e.personName} has been ${STAGE_LABEL[e.stage].toLowerCase()} for ${days} days`;
 
   async function run(label: string, fn: () => PromiseLike<{ error: { message: string } | null }>) {
@@ -53,7 +64,9 @@ export default function StuckActions({ exchange: e, days, ownerName, onChanged }
     <span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
       {e.ownerId && e.ownerId !== userId && <button type="button" disabled={busy} onClick={nudge} style={btn}>Nudge {first ?? "the owner"}</button>}
       {!e.ownerId && <button type="button" disabled={busy} onClick={takeIt} style={btn}>No owner: take it</button>}
-      <button type="button" disabled={busy} onClick={followUp} style={btn}>Make a follow-up task</button>
+      {openTask
+        ? <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>Follow-up task open</span>
+        : <button type="button" disabled={busy} onClick={followUp} style={btn}>Make a follow-up task</button>}
       {error && <span role="alert" style={{ fontSize: 11, color: "var(--color-error)" }}>{error}</span>}
     </span>
   );

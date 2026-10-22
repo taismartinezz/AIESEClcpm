@@ -15,7 +15,7 @@ import type { OverdueReminder } from "./NeedsAttentionWidget";
 type AgendaItem = {
   id: string;
   title: string;
-  kind: "task" | "reminder" | "event";
+  kind: "task" | "reminder" | "event" | "shift" | "follow-up";
   /** A personal reminder: yours in every LC, so it's labelled as such. */
   personal?: boolean;
   dateIso: string;
@@ -32,6 +32,8 @@ const KIND_CFG = {
   task:     { label: "Task",     color: "var(--color-navy)",     bg: "rgba(2,99,196,0.09)" },
   reminder: { label: "Reminder", color: "var(--color-body)",     bg: "rgba(0,0,0,0.06)"   },
   event:    { label: "Event",    color: "var(--color-secondary)", bg: "rgba(0,0,0,0.05)"  },
+  shift:    { label: "Tabling",  color: "#B45F06",                bg: "rgba(244,137,36,0.12)" },
+  "follow-up": { label: "Follow-up", color: "var(--color-navy)",  bg: "rgba(2,99,196,0.09)" },
 };
 
 // ── Section config ─────────────────────────────────────────────────────────────
@@ -107,9 +109,10 @@ export function categorize(
 
   for (const ev of events) {
     const evDate = new Date(ev.date + "T00:00:00");
-    if (evDate < todayStart) continue;
     const time = ev.time?.slice(0, 5);
-    const item: AgendaItem = { id: ev.id, title: ev.title, kind: "event", dateIso: time ? `${ev.date}T${time}:00` : ev.date, time, href: ev.href ?? "/attendance", assigneeIds: [], canComplete: false };
+    const item: AgendaItem = { id: ev.id, title: ev.title, kind: ev.kind ?? "event", dateIso: time ? `${ev.date}T${time}:00` : ev.date, time, href: ev.href ?? "/attendance", assigneeIds: [], canComplete: false };
+    // A follow-up you missed is overdue; a past event or shift just drops off.
+    if (evDate < todayStart) { if (ev.kind === "follow-up") overdue.push(item); continue; }
     if (evDate <= todayEnd) today.push(item);
     else if (evDate <= weekEnd) upcoming.push(item);
   }

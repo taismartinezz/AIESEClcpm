@@ -30,7 +30,8 @@ export default function EventModal({ projectId, userId, departments, roster, eve
   const [departmentId, setDepartmentId] = useState(event?.departmentId ?? departments[0]?.id ?? "");
   const [audienceRole, setAudienceRole] = useState<NonNullable<LcEvent["audienceRole"]>>(event?.audienceRole ?? "exec");
   const [people, setPeople] = useState<Set<string>>(new Set());
-  const [emailInvite, setEmailInvite] = useState(!event);
+  // Off until you tick it: saving an event should never email people by surprise.
+  const [emailInvite, setEmailInvite] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);

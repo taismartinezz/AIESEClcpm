@@ -20,6 +20,7 @@ export default function SupportResourcesSettings({ projectId }: { projectId: str
   const [newResource, setNewResource] = useState<Partial<LabResource>>({ contact_type: "phone" });
   const [savingResource, setSavingResource] = useState(false);
   const [resourceError, setResourceError] = useState("");
+  const [lcUniversity, setLcUniversity] = useState("");
 
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
@@ -32,18 +33,20 @@ export default function SupportResourcesSettings({ projectId }: { projectId: str
           .order("sort_order"),
         supabase
           .from("projects")
-          .select("institution_key")
+          .select("institution_key, institution")
           .eq("id", projectId)
           .maybeSingle(),
       ]);
       setAdminResources((resQ.data ?? []) as LabResource[]);
       if (projQ.data?.institution_key) setInstitutionKey(projQ.data.institution_key as string);
+      setLcUniversity((projQ.data?.institution as string | null) ?? "");
     })();
   }, [projectId]);
 
   return (
     <SupportResourcesAdmin
       projectId={projectId}
+      lcUniversity={lcUniversity}
       piRows={adminResources}
       institutionKey={institutionKey}
       savingInstitution={savingInstitution}
@@ -111,11 +114,12 @@ const CATEGORY_OPTIONS = ["urgent", "counseling", "academic", "workplace", "heal
 const CONTACT_TYPE_OPTIONS = ["phone", "url", "email", "in_person"] as const;
 
 function SupportResourcesAdmin({
-  piRows, institutionKey, savingInstitution,
+  lcUniversity, piRows, institutionKey, savingInstitution,
   showAddResource, newResource, savingResource, resourceError,
   onSetInstitution, onOverride, onSetNewResource, onToggleAddResource, onSaveResource, onDeleteResource,
 }: {
   projectId: string;
+  lcUniversity: string;
   piRows: LabResource[];
   institutionKey: string | null;
   savingInstitution: boolean;
@@ -164,7 +168,8 @@ function SupportResourcesAdmin({
           style={{ ...inputStyle, width: "auto", minWidth: 200 }}
         >
           <option value="">None (add your own below)</option>
-          {INSTITUTION_OPTIONS.map(o => (
+          {/* Only this LC's own university (or what's already chosen), not every university we know. */}
+          {INSTITUTION_OPTIONS.filter(o => o.key === institutionKey || sameUniversity(o.name, lcUniversity)).map(o => (
             <option key={o.key} value={o.key}>{o.name}</option>
           ))}
         </select>
@@ -282,3 +287,10 @@ function SupportResourcesAdmin({
   );
 }
 
+
+/** "Northwestern University" ~ "Northwestern", ignoring case and punctuation. */
+function sameUniversity(a: string, b: string): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\buniversity\b|\bof\b|\bthe\b/g, "").trim();
+  const [x, y] = [norm(a), norm(b)];
+  return Boolean(x && y) && (x.includes(y) || y.includes(x));
+}

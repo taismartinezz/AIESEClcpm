@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { RECRUIT_STAGES, mapRecruit, type Recruit, type RecruitStage } from "@/lib/lifecycle";
 import type { Department } from "@/types";
 import { Button, ErrorText, Field, Modal, Panel, inputStyle, selectStyle } from "@/components/lc/ui";
+import { formatDay } from "@/lib/dates";
 
 /** Recruitment intake: applications to join the LC, Applied → Joined. Exec board only. */
 export default function RecruitmentTab({ projectId, userId, departments, onImport, version }: {
@@ -93,7 +94,7 @@ export default function RecruitmentTab({ projectId, userId, departments, onImpor
                     </td>
                     <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(r.departmentId)}</td>
                     <td style={{ ...td, color: "var(--color-secondary)" }}>{r.source ?? "-"}</td>
-                    <td style={{ ...td, whiteSpace: "nowrap" }}>{r.appliedOn}</td>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>{formatDay(r.appliedOn)}</td>
                     <td style={td}>
                       <select aria-label={`Stage for ${r.name}`} value={r.stage} disabled={busyId === r.id} onChange={(e) => move(r, e.target.value as RecruitStage)} style={{ ...selectStyle, height: 30, fontSize: 12, width: 130 }}>
                         {RECRUIT_STAGES.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}

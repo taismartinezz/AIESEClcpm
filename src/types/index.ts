@@ -198,6 +198,8 @@ export interface CalendarEvent {
   time?: string;           // "HH:MM" when the event has a start time
   projectId: string;
   href?: string;           // where the event lives (Events page or Scheduling)
+  /** Your own tabling shift, or a partner follow-up you own (shown on the dashboard agenda). */
+  kind?: "shift" | "follow-up";
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────

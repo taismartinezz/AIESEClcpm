@@ -257,7 +257,7 @@ export default function DashboardPage() {
         const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         const todayIso = localDay(new Date());
         const in30 = localDay(new Date(Date.now() + 30 * 86_400_000));
-        const [{ data: evRows, error: evError }, { data: schedRows, error: schedError }] = await Promise.all([
+        const [{ data: evRows, error: evError }, { data: schedRows, error: schedError }, { data: shiftRows }, { data: followRows }] = await Promise.all([
           supabase
             .from("lc_events")
             .select("id, name, starts_on, project_id")
@@ -273,6 +273,17 @@ export default function DashboardPage() {
             .gte("date", todayIso)
             .lte("date", in30)
             .order("date"),
+          // Your own tabling shifts, and the partner follow-ups you own (overdue ones too).
+          supabase
+            .from("tabling_signups")
+            .select("slot_id, tabling_slots!inner(starts_at, purpose, location)")
+            .eq("project_id", pid).eq("user_id", user.id)
+            .gte("tabling_slots.starts_at", new Date(todayIso + "T00:00:00").toISOString()),
+          supabase
+            .from("partners")
+            .select("id, name, next_follow_up")
+            .eq("project_id", pid).eq("owner_id", user.id)
+            .not("next_follow_up", "is", null).lte("next_follow_up", in30),
         ]);
         if (evError) console.error("[Dashboard] events error:", evError);
         if (schedError) console.error("[Dashboard] schedule events error:", schedError);
@@ -282,6 +293,18 @@ export default function DashboardPage() {
           })),
           ...(schedRows ?? []).map((row) => ({
             id: row.id as string, title: row.title as string, date: row.date as string, time: (row.time as string | null) ?? undefined, projectId: row.project_id as string, href: "/scheduling",
+          })),
+          ...(shiftRows ?? []).map((row) => {
+            const slot = (Array.isArray(row.tabling_slots) ? row.tabling_slots[0] : row.tabling_slots) as { starts_at: string; purpose: string; location: string };
+            const start = new Date(slot.starts_at);
+            return {
+              id: `shift:${row.slot_id as string}`, title: `${slot.purpose} (${slot.location})`, kind: "shift" as const, href: "/tabling", projectId: pid,
+              date: localDay(start), time: `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`,
+            };
+          }),
+          ...(followRows ?? []).map((row) => ({
+            id: `follow:${row.id as string}`, title: `Follow up with ${row.name as string}`, kind: "follow-up" as const, href: "/partners", projectId: pid,
+            date: row.next_follow_up as string,
           })),
         ]);
 
