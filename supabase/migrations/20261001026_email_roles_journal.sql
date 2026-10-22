@@ -24,7 +24,7 @@ UPDATE projects
 SET active_prompt_ids = ARRAY['jp2', 'jp7', 'jp11']
 WHERE active_prompt_ids IS NULL;
 
--- 5. Expanded default lab roles — insert missing roles for each existing project.
+-- 5. Expanded default lab roles: insert missing roles for each existing project.
 INSERT INTO lab_roles (project_id, name, permission_level, is_system)
 SELECT p.id, r.name, r.permission_level, true
 FROM projects p
@@ -57,7 +57,7 @@ WHERE checkin_scores IS NULL
 
 -- 7. Update get_wellbeing_rollup to read from checkin_scores when present,
 --    falling back to content->'checkin' for legacy plaintext rows.
---    Signature is identical to the one in 20260816024 — no DROP needed.
+--    Signature is identical to the one in 20260816024: no DROP needed.
 CREATE OR REPLACE FUNCTION get_wellbeing_rollup(p_project_id uuid)
 RETURNS TABLE (
   week_start       date,

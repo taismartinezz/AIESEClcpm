@@ -81,7 +81,7 @@ export default function OutreachPage() {
   const pending = templates.filter((t) => t.status === "pending" && canApprove(t));
   const tplName = (id: string) => templates.find((t) => t.id === id);
   const loading = isLoading || (enabled && !loaded);
-  const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
+  const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "-");
 
   return (
     <div className="flex flex-col h-full">

@@ -29,7 +29,7 @@ async function resolveUser(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization") ?? "";
   const internalSecret = process.env.INTERNAL_API_SECRET ?? "";
 
-  // Internal secret path: caller is the server itself — no user identity
+  // Internal secret path: caller is the server itself: no user identity
   if (internalSecret && authHeader === `Bearer ${internalSecret}`) {
     return "internal";
   }
@@ -45,7 +45,7 @@ async function resolveUser(request: Request): Promise<string | null> {
 // POST /api/email/send
 // Body for task_assigned: { type: "task_assigned", taskId: string, recipientId: string }
 // Body for lab_win:       { type: "lab_win",       labWinId: string, recipientId: string }
-// senderId is always taken from the verified JWT — never from the body.
+// senderId is always taken from the verified JWT: never from the body.
 export async function POST(request: Request) {
   const callerId = await resolveUser(request);
   if (!callerId) {
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "taskId required for task_assigned" }, { status: 400 });
     }
 
-    // Load task from DB — verify data, never trust client payload
+    // Load task from DB: verify data, never trust client payload
     const { data: task } = await db
       .from("tasks")
       .select("id, title, project_id, projects(name)")

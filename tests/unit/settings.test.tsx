@@ -101,7 +101,7 @@ async function renderSettings() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('Settings page — Issue #15', () => {
+describe('Settings page: Issue #15', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -163,7 +163,7 @@ describe('Settings page — Issue #15', () => {
   it('does not crash when all table queries return null data', async () => {
     // Simulates a new user who has no project, no settings, no invite codes yet.
     mockRole = 'member'
-    // All tables return null via the default makeQuery(null) fallback — only user_profiles
+    // All tables return null via the default makeQuery(null) fallback: only user_profiles
     // returns a row so the page doesn't redirect to /login.
     await renderSettings()
     expect(screen.getByRole('heading', { level: 1, name: /^settings$/i })).toBeInTheDocument()

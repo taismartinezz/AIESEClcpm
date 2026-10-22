@@ -48,7 +48,7 @@ create policy "creator can delete sub_projects" on sub_projects
 
 -- ── Sub-project Members ───────────────────────────────────────────────────────
 -- Each (sub_project_id, user_id) pair is unique.
--- Membership here is independent of lab team_members — only listed users
+-- Membership here is independent of lab team_members: only listed users
 -- belong to the sub-project and can see its project-scoped content.
 
 create table if not exists sub_project_members (

@@ -3,7 +3,7 @@ import { setupAuthMocks } from './helpers/mocks'
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test.describe('Settings page — Issue #15', () => {
+test.describe('Settings page: Issue #15', () => {
   test('settings page loads and shows profile and account sections', async ({ page }) => {
     await setupAuthMocks(page, 'president')
     await page.goto('/settings')

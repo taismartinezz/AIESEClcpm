@@ -109,7 +109,7 @@ export default function WellbeingSettings({ projectId }: { projectId: string }) 
                 onChange={(e) => setDisabled((prev) => e.target.checked ? prev.filter((id) => id !== q.id) : [...prev, q.id])}
                 style={{ marginTop: 2, accentColor: "var(--color-navy)" }}
               />
-              <span><strong style={{ fontWeight: 600 }}>{q.short}</strong> — {q.text}</span>
+              <span><strong style={{ fontWeight: 600 }}>{q.short}</strong>: {q.text}</span>
             </label>
           ))}
         </div>

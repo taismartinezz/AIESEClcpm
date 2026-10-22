@@ -4,7 +4,7 @@ import { sendEventInvites } from "@/lib/notify-server";
 
 export const maxDuration = 300;
 
-// POST /api/events/invite { eventId } — email the event's audience an invite
+// POST /api/events/invite { eventId }: email the event's audience an invite
 // with RSVP buttons and a calendar file. President or VP of the event's LC.
 export async function POST(request: Request) {
   const userId = await requireAuth(request);

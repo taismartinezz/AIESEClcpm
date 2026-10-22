@@ -217,7 +217,7 @@ export default function PipelinePage() {
                               <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>{e.personName}</span>
                               {(e.opportunity || e.hostEntity) && <span style={{ display: "block", fontSize: 11, color: "var(--color-secondary)", marginTop: 2 }}>{[e.opportunity, e.hostEntity].filter(Boolean).join(" · ")}</span>}
                               <span style={{ display: "block", fontSize: 11, color: "var(--color-secondary)", marginTop: 2 }}>
-                                {e.ownerId ? names[e.ownerId] ?? "—" : "Unassigned"}{days != null ? ` · ${days}d here` : ""}
+                                {e.ownerId ? names[e.ownerId] ?? "-" : "Unassigned"}{days != null ? ` · ${days}d here` : ""}
                               </span>
                             </button>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>

@@ -23,7 +23,7 @@ beforeAll(async () => {
 describe("LC Drive", () => {
   it("seeds the default folders for every LC", async () => {
     const { rows } = await db.query<{ name: string }>("select name from drive_folders where project_id = $1 order by sort_order", [lc.id]);
-    expect(rows.map((r) => r.name)).toEqual(["Templates", "Brand kit", "Job descriptions", "Important links", "Handover"]);
+    expect(rows.map((r) => r.name)).toEqual(["Templates", "Brand kit", "Job descriptions", "Important links"]);   // Handover is a Drive tab, not a folder
   });
 
   it("only the exec board manages folders", async () => {

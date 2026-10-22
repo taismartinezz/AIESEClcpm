@@ -2,7 +2,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { serviceClient } from "@/lib/server-db";
 import { tokenInfo } from "@/lib/google-server";
 
-// POST /api/google/connect { accessToken, refreshToken } — store the caller's
+// POST /api/google/connect { accessToken, refreshToken }: store the caller's
 // Google Calendar tokens (checked with Google first) where only the server can
 // read them.
 export async function POST(request: Request) {

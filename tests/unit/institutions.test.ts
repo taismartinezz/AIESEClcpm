@@ -28,7 +28,7 @@ function makeRow(overrides: Partial<LabResource> = {}): LabResource {
 
 // ── Guard: contact values must match what was written in this prompt ───────────
 
-describe("Northwestern registry — contact value guard", () => {
+describe("Northwestern registry: contact value guard", () => {
   it("contains 847-491-2151 in the CAPS on-call entry", () => {
     const oncall = INSTITUTION_REGISTRY.northwestern.resources.find(
       (r) => r.id === "__reg__northwestern_caps_oncall",
@@ -53,7 +53,7 @@ describe("Northwestern registry — contact value guard", () => {
 
 // ── Scenario 1: Northwestern lab with zero PI rows ────────────────────────────
 
-describe("resolveResources — Northwestern, no PI rows", () => {
+describe("resolveResources: Northwestern, no PI rows", () => {
   const result = resolveResources([], "northwestern", "US");
 
   it("includes the CAPS on-call urgent entry", () => {
@@ -82,7 +82,7 @@ describe("resolveResources — Northwestern, no PI rows", () => {
 
 // ── Scenario 2: PI counseling row suppresses registry counseling ───────────────
 
-describe("resolveResources — PI counseling row suppresses registry", () => {
+describe("resolveResources: PI counseling row suppresses registry", () => {
   const piCounseling = makeRow({ category: "counseling", label: "Lab counselor" });
   const result = resolveResources([piCounseling], "northwestern", "US");
 
@@ -115,7 +115,7 @@ describe("resolveResources — PI counseling row suppresses registry", () => {
 
 // ── Scenario 3: Unrecognized institution_key ──────────────────────────────────
 
-describe("resolveResources — unrecognized institution_key", () => {
+describe("resolveResources: unrecognized institution_key", () => {
   const result = resolveResources([], "unknown_university", "US");
 
   it("includes 988 as the sole urgent entry", () => {
@@ -131,7 +131,7 @@ describe("resolveResources — unrecognized institution_key", () => {
 
 // ── Scenario 4: Zero contact actions invariant ────────────────────────────────
 
-describe("resolveResources — zero urgent entries impossible", () => {
+describe("resolveResources: zero urgent entries impossible", () => {
   it("always has at least one urgent entry even with no PI rows and null institution", () => {
     const result = resolveResources([], null, "US");
     const urgent = result.filter((r) => r.category === "urgent" || r.is_pinned);

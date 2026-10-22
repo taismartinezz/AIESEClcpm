@@ -13,7 +13,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 /** Long form used in profile/settings copy. */
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   president: "Local Committee President (LCP)",
-  vp: "Vice President — Executive Board",
+  vp: "Vice President (Executive Board)",
   member: "Member",
 };
 
@@ -30,7 +30,7 @@ export function isPresident(role: UserRole | null | undefined): boolean {
   return role === "president";
 }
 
-/** President or VP — the executive board. */
+/** President or VP: the executive board. */
 export function isExec(role: UserRole | null | undefined): boolean {
   return role === "president" || role === "vp";
 }
@@ -48,7 +48,7 @@ export function ledDepartmentIds(
 /**
  * In charge of finance: the president, or a VP who leads a department flagged
  * as the finance department (Finance & Legality by default). Mirrors the SQL
- * function is_finance_lead() — keep the two in step.
+ * function is_finance_lead(): keep the two in step.
  */
 export function isFinanceLead(
   role: UserRole | null | undefined,

@@ -3,7 +3,7 @@
 -- ROOT CAUSE (500s):
 --   "sub-project co-members can read profiles" (user_profiles SELECT) queries
 --   sub_project_members, whose own SELECT policy queries team_members, which
---   PostgREST resolves via the FK join back to user_profiles — infinite loop.
+--   PostgREST resolves via the FK join back to user_profiles: infinite loop.
 --
 -- FIX: Replace the inline sub_project_members subquery with a SECURITY DEFINER
 --   helper function. SECURITY DEFINER runs as the function owner (bypasses RLS),
@@ -15,7 +15,7 @@
 alter table user_profiles
   add column if not exists avatar_url text;
 
--- ── 2. SECURITY DEFINER helper — checks sub-project co-membership ─────────────
+-- ── 2. SECURITY DEFINER helper: checks sub-project co-membership ─────────────
 -- Runs as the definer (bypasses RLS), so it reads sub_project_members directly
 -- without triggering sub_project_members' SELECT policy, which would re-enter
 -- user_profiles and recurse.

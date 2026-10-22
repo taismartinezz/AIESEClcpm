@@ -51,7 +51,7 @@ export default function RecruitmentTab({ projectId, userId, departments, onImpor
 
   const openStages = RECRUIT_STAGES.filter((s) => s.open).map((s) => s.code);
   const shown = recruits.filter((r) => (stage === "open" ? openStages.includes(r.stage) : r.stage === stage));
-  const deptName = (id: string | null) => departments.find((d) => d.id === id)?.name ?? "—";
+  const deptName = (id: string | null) => departments.find((d) => d.id === id)?.name ?? "-";
   const th: React.CSSProperties = { textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
   const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)" };
 
@@ -92,7 +92,7 @@ export default function RecruitmentTab({ projectId, userId, departments, onImpor
                       {(r.email || r.phone) && <div style={{ fontSize: 11, color: "var(--color-secondary)" }}>{[r.email, r.phone].filter(Boolean).join(" · ")}</div>}
                     </td>
                     <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(r.departmentId)}</td>
-                    <td style={{ ...td, color: "var(--color-secondary)" }}>{r.source ?? "—"}</td>
+                    <td style={{ ...td, color: "var(--color-secondary)" }}>{r.source ?? "-"}</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{r.appliedOn}</td>
                     <td style={td}>
                       <select aria-label={`Stage for ${r.name}`} value={r.stage} disabled={busyId === r.id} onChange={(e) => move(r, e.target.value as RecruitStage)} style={{ ...selectStyle, height: 30, fontSize: 12, width: 130 }}>

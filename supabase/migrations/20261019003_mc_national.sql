@@ -1,4 +1,4 @@
--- Migration 042: Member Committees (MC) — the national view.
+-- Migration 042: Member Committees (MC): the national view.
 --
 --   mcs               a national entity (e.g. "AIESEC in Portugal"). Has two
 --                     codes: member_code (MC members join with it) and

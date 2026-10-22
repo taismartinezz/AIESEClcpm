@@ -112,18 +112,15 @@ test('availability autosaves keyboard edits and survives tab changes', async ({ 
   await expect(page.getByText('Saving…', { exact: true })).toHaveCount(0)
 })
 
-test('folded navigation sections and collapsed sidebar preferences are independent', async ({ page }) => {
+test('the president has one menu (no "More"), and collapsing the sidebar is remembered on its own', async ({ page }) => {
   await page.goto('/')
-  // The sidebar shows each role's own pages, with the rest under "More" (folded until opened).
-  const more = page.getByRole('button', { name: 'More', exact: true })
-  await expect(more).toHaveAttribute('aria-expanded', 'false')
-  await more.click()
-  await expect(more).toHaveAttribute('aria-expanded', 'true')
-  const sections = await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))
-  expect(sections).not.toBeNull()
-  expect(JSON.parse(sections!)).toContain('more')
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  for (const item of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'Pipeline', 'Partners', 'People', 'Finance', 'Drive', 'Check-in']) {
+    await expect(nav.getByRole('link', { name: item, exact: true })).toBeVisible()
+  }
+  await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+  expect(await page.evaluate(() => localStorage.getItem('aiesec_nav_collapsed'))).toBe('true')
   await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
-  expect(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections'))).toBe(sections)
   expect(await page.evaluate(() => localStorage.getItem('aiesec_nav_collapsed'))).toBe('false')
 })

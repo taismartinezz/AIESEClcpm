@@ -19,8 +19,8 @@ export const SECTIONS: { id: string; label: string; tabs: { href: string; label:
     { href: "/goals",    label: "Goals" },
   ] },
   { id: "people", label: "People", tabs: [
-    { href: "/team",    label: "Team" },
-    { href: "/members", label: "Members" },
+    { href: "/team",    label: "Directory" },
+    { href: "/members", label: "Recruitment & onboarding" },
   ] },
   { id: "drive", label: "Drive", tabs: [
     { href: "/drive",    label: "Files" },

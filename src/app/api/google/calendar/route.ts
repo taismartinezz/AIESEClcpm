@@ -2,7 +2,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { serviceClient } from "@/lib/server-db";
 import { accessTokenFor } from "@/lib/google-server";
 
-// GET /api/google/calendar?timeMin=ISO&timeMax=ISO — the caller's own primary
+// GET /api/google/calendar?timeMin=ISO&timeMax=ISO: the caller's own primary
 // Google Calendar events (read-only), for their own Scheduling view.
 export async function GET(request: Request) {
   const userId = await requireAuth(request);

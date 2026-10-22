@@ -143,7 +143,7 @@ export default function HandoverPage() {
                       </>
                     ) : note ? (
                       <>
-                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-body)" }}>{note.body ? <SimpleMarkdown text={note.body} /> : "—"}</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-body)" }}>{note.body ? <SimpleMarkdown text={note.body} /> : "-"}</div>
                         <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "12px 0 0" }}>
                           Last updated {new Date(note.updatedAt).toLocaleDateString()}{note.updatedBy && names[note.updatedBy] ? ` by ${names[note.updatedBy]}` : ""}
                         </p>

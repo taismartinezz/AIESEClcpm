@@ -136,7 +136,7 @@ export default function DepartmentsManager() {
                   {execs.find((x) => x.id === dep.vpUserId)?.name ?? "No VP"}
                 </td>
                 <td style={{ padding: "8px 4px", color: "var(--color-secondary)" }}>
-                  {dep.products.length ? PRODUCTS.filter((p) => dep.products.includes(p.code)).map((p) => p.label).join(", ") : "—"}
+                  {dep.products.length ? PRODUCTS.filter((p) => dep.products.includes(p.code)).map((p) => p.label).join(", ") : "-"}
                 </td>
                 <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
                   <button type="button" onClick={() => setEditingId(editingId === dep.id ? null : dep.id)} aria-expanded={editingId === dep.id}

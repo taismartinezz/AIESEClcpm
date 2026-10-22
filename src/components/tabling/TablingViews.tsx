@@ -94,7 +94,7 @@ export function WeekView({ slots, mySignups, canCreate, canManage, departments, 
               {day.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })}
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {daySlots.length === 0 && <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>—</p>}
+              {daySlots.length === 0 && <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>-</p>}
               {daySlots.map((s) => (
                 <SlotCard
                   key={s.id} slot={s} departments={departments}
@@ -201,7 +201,7 @@ export function TablingReport({ rows, people, departments, from, to, onRange }: 
             {shown.map(({ person, row }) => (
               <tr key={person.id}>
                 <td style={td}>{person.name}</td>
-                <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(person.departmentId) || "—"}</td>
+                <td style={{ ...td, color: "var(--color-secondary)" }}>{deptName(person.departmentId) || "-"}</td>
                 <td style={{ ...num, fontWeight: 600 }}>{formatHours(row?.hours ?? 0)}</td>
                 <td style={num}>{row?.attended ?? 0}</td>
                 <td style={{ ...num, color: (row?.noShows ?? 0) > 0 ? "var(--color-warning)" : undefined }}>{row?.noShows ?? 0}</td>

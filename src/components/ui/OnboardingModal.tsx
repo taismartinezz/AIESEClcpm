@@ -173,7 +173,7 @@ export default function OnboardingModal({ role, onClose }: { role: TourRole; onC
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.55)" }} />
       )}
 
-      {/* Spotlight ring — creates dark overlay via box-shadow */}
+      {/* Spotlight ring: creates dark overlay via box-shadow */}
       {targetRect && (
         <div
           style={{

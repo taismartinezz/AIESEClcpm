@@ -9,7 +9,7 @@ export interface EventForEmail {
   location: string | null; meeting_url: string | null; description: string | null;
 }
 
-/** "Tue 20 Oct, 17:00 UTC" / "Sat 1 – Sun 2 Nov" — UTC because recipients' time zones vary. */
+/** "Tue 20 Oct, 17:00 UTC" / "Sat 1 – Sun 2 Nov": UTC because recipients' time zones vary. */
 export function whenText(ev: EventForEmail): string {
   const fmt = (d: Date, withTime: boolean) => d.toLocaleString("en-GB", {
     weekday: "short", day: "numeric", month: "short", timeZone: "UTC",

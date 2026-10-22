@@ -338,7 +338,7 @@ function WellbeingPreview({ role }: { role: "president" | "member" }) {
 // Creating an LC: insert the project (DB triggers seed the President/VP/Member
 // roles), then join it as president. The president creates departments later.
 // Joining an LC: save the profile, then call join_lc_with_code(), which checks the
-// code server-side and assigns the invite's role — never a client-chosen one.
+// code server-side and assigns the invite's role: never a client-chosen one.
 
 async function syncOnboardingToSupabase({
   projectName, institution,
@@ -363,7 +363,7 @@ async function syncOnboardingToSupabase({
       : nameParts.length === 1 ? nameParts[0][0].toUpperCase()
       : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 
-    // 1. Profile first — joining an LC requires it to exist.
+    // 1. Profile first: joining an LC requires it to exist.
     const profilePayload: Record<string, string> = {
       id: user.id, name: userName, avatar_initials: avatarInitials, avatar_color: "#B4D4E3",
     };
@@ -508,7 +508,7 @@ export default function OnboardingPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const checked = useRef(false);
 
-  // Responsive breakpoint — true on screens ≥ 960px
+  // Responsive breakpoint: true on screens ≥ 960px
   const [isLarge, setIsLarge] = useState(() => typeof window !== "undefined" && window.innerWidth >= 960);
   useEffect(() => {
     function check() { setIsLarge(window.innerWidth >= 960); }
@@ -544,7 +544,7 @@ export default function OnboardingPage() {
       const pendingInvite = localStorage.getItem("pendingInviteCode");
       if (pendingInvite) {
         setInviteCode(pendingInvite);
-        // Auto-detect the join path — skip the choice screen
+        // Auto-detect the join path: skip the choice screen
         setRole("member");
         setStep(2);
       }

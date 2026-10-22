@@ -311,7 +311,7 @@ export function AttendanceTable({ events, records, people, departments }: {
             {rows.map((r) => (
               <tr key={r.id}>
                 <td style={{ padding: "8px 10px", borderTop: "1px solid var(--color-border)", fontSize: 13 }}>{r.name}</td>
-                <td style={{ padding: "8px 10px", borderTop: "1px solid var(--color-border)", fontSize: 13, color: "var(--color-secondary)" }}>{deptName(r.departmentId) || "—"}</td>
+                <td style={{ padding: "8px 10px", borderTop: "1px solid var(--color-border)", fontSize: 13, color: "var(--color-secondary)" }}>{deptName(r.departmentId) || "-"}</td>
                 <td style={{ padding: "8px 10px", borderTop: "1px solid var(--color-border)", fontSize: 13, textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{r.total}</td>
               </tr>
             ))}

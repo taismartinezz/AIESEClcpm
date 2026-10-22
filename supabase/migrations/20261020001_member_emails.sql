@@ -1,4 +1,4 @@
--- Migration 044: Emails to members — event invites with RSVP, reminders,
+-- Migration 044: Emails to members: event invites with RSVP, reminders,
 -- announcements, preferences.
 --
 --   lc_events        + start/end time, online link, description, and an

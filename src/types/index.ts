@@ -2,10 +2,10 @@
 
 /**
  * Permission level inside one Local Committee (LC). A person can hold a different
- * level in each LC they belong to — always read it for the active LC.
- *   president — the LCP: manages the LC, roles, invites, departments and settings
- *   vp        — executive board member; leads one or more departments
- *   member    — team member who reports to a VP
+ * level in each LC they belong to: always read it for the active LC.
+ *   president : the LCP: manages the LC, roles, invites, departments and settings
+ *   vp        : executive board member; leads one or more departments
+ *   member    : team member who reports to a VP
  */
 export type UserRole = "president" | "vp" | "member";
 

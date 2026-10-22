@@ -1,4 +1,4 @@
--- Migration 047: Scheduling is back — availability and meeting proposals.
+-- Migration 047: Scheduling is back: availability and meeting proposals.
 --
 -- The Scheduling page (team availability, finding a time, proposing meetings,
 -- the LC calendar) was hidden in migration 028's clean-up; schedule_events

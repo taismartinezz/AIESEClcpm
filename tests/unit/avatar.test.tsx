@@ -8,7 +8,7 @@ const baseUser = {
   avatarInitials: 'TS',
 }
 
-describe('Avatar — Issue #14: profile picture display', () => {
+describe('Avatar: Issue #14: profile picture display', () => {
   it('renders initials when no avatarUrl is provided', () => {
     render(<Avatar user={baseUser} />)
     const initialsEl = screen.getByTestId('avatar-initials')

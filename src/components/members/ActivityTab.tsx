@@ -81,7 +81,7 @@ export default function ActivityTab({ projectId, names, departments }: { project
                       <div style={{ fontSize: 11, color: "var(--color-secondary)" }}>{departments.find((d) => d.id === a.departmentId)?.name ?? "No department"} · {a.role}</div>
                     </td>
                     <td style={td}>
-                      {flags.length === 0 ? <span style={{ color: "var(--color-secondary)" }}>—</span> : flags.map((f) => (
+                      {flags.length === 0 ? <span style={{ color: "var(--color-secondary)" }}>-</span> : flags.map((f) => (
                         <div key={f.kind} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-warning)" }}>
                           <AlertTriangle size={11} aria-hidden="true" /> {f.label}
                         </div>

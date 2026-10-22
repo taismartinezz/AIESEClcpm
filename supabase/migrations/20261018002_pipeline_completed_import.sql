@@ -1,4 +1,4 @@
--- Migration 039: Exchange pipeline — "Completed" stage and EXPA CSV import.
+-- Migration 039: Exchange pipeline: "Completed" stage and EXPA CSV import.
 --
 --   * Stages are now Signed up → Applied → Accepted → Approved → Realized →
 --     Finished → Completed (exchanges.completed_at, goals can target it).

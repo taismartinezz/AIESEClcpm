@@ -3,7 +3,7 @@ import { runScheduledEmails } from "@/lib/notify-server";
 
 export const maxDuration = 300;
 
-// GET /api/cron/notify — event reminders (24 h / 1 h), task due/overdue
+// GET /api/cron/notify: event reminders (24 h / 1 h), task due/overdue
 // emails, check-in open/nudge and the Monday digest. Safe to run as often as
 // every 15 minutes: every email is logged and sent once.
 export async function GET(request: Request) {

@@ -1,4 +1,4 @@
--- Migration 045: oGX outreach — approved templates and email sequences tied to
+-- Migration 045: oGX outreach: approved templates and email sequences tied to
 -- the pipeline.
 --
 --   exchanges            + email_consent / consent_source (only people who

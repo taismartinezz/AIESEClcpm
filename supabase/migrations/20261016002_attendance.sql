@@ -1,4 +1,4 @@
--- Migration 032: Attendance — LC events and who attended them.
+-- Migration 032: Attendance: LC events and who attended them.
 --
 --   lc_events          every LC member can see the event list; the president
 --                      and VPs create, edit and delete events.

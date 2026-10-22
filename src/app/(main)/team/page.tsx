@@ -314,7 +314,7 @@ function TeamWorkspace() {
 
         const { data: assigneeWithTasks, error: joinError } = await (supabase
           .from("task_assignees")
-          .select("user_id, task_id, tasks(id, status, archived)")
+          .select("user_id, task_id, tasks(id, status, archived, project_id, parent_id)")
           .in("user_id", memberIds));
 
         if (joinError) console.error("[Team] assignee+task join error:", joinError);
@@ -325,6 +325,8 @@ function TeamWorkspace() {
           const task = Array.isArray(taskArr) ? taskArr[0] : taskArr;
           if (!task) continue;           // task deleted or RLS-hidden
           if (task.archived) continue;   // skip archived tasks
+          // Count what the board shows: this LC's tasks (not other LCs you're in), no subtasks.
+          if (task.project_id !== projectId || task.parent_id) continue;
           const status = task.status as TaskStatus;
           const uid = row.user_id as string;
           if (!countMap[uid]) countMap[uid] = emptyTaskCounts();
@@ -420,7 +422,8 @@ function TeamWorkspace() {
         .from("tasks")
         .select("id, status, archived, task_assignees(user_id)")
         .eq("sub_project_id", subProjectId)
-        .eq("archived", false));
+        .eq("archived", false)
+        .is("parent_id", null));
 
       const newCounts: Record<string, Record<TaskStatus, number>> = {};
       for (const task of (scopedTasks ?? []) as { status: string; task_assignees: { user_id: string }[] }[]) {
@@ -455,7 +458,7 @@ function TeamWorkspace() {
     <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-roboto)" }}>
 
       <PageHeader
-        title="Team"
+        title="People"
         badge={teamBadgeName ? (
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", backgroundColor: "var(--color-navy-dim)", color: "var(--color-navy)", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>
             {teamBadgeName}

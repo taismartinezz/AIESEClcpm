@@ -43,7 +43,7 @@ export function escapeHtml(s: string): string {
 
 export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; error?: string }> {
   if (!RESEND_KEY) {
-    console.info("[email] RESEND_API_KEY not set — logging instead of sending");
+    console.info("[email] RESEND_API_KEY not set: logging instead of sending");
     console.info(`[email] TO: ${payload.to} | SUBJECT: ${payload.subject}`);
     console.info(`[email] TEXT: ${payload.text}`);
     return { ok: true };
@@ -124,7 +124,7 @@ export function buildInviteEmail(opts: {
   to: string; labName: string; inviterName: string; role: string; inviteCode: string;
 }): EmailPayload {
   const { to, labName, inviterName, role, inviteCode } = opts;
-  // Build URL from APP_URL + encoded code only — never interpolate caller-supplied URLs
+  // Build URL from APP_URL + encoded code only: never interpolate caller-supplied URLs
   const inviteUrl = `${APP_URL}/login?invite=${encodeURIComponent(inviteCode)}`;
   const html = baseHtml(`
     ${p(`Hi there,`)}
@@ -201,5 +201,5 @@ export function buildDigestEmail(opts: {
     ${btn(`Open ${APP_NAME}`, url)}
   `);
   const text = `Hi ${recipientName},\n\nWeekly digest for ${projectName}:\n\nTasks completed: ${tasksCompleted}\nNew tasks: ${newTasks}\nWins: ${labWins.join(", ") || "none"}\n\nOpen ${APP_NAME}: ${url}\n\nManage preferences: ${APP_URL}/settings#notifications`;
-  return { to, subject: `Your weekly ${APP_NAME} digest — ${projectName}`, html, text };
+  return { to, subject: `Your weekly ${APP_NAME} digest: ${projectName}`, html, text };
 }

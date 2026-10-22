@@ -76,7 +76,7 @@ export function pipelineStats(exchanges: Exchange[], from: string, to: string): 
 }
 
 export function formatPct(ratio: number | null): string {
-  return ratio == null ? "—" : `${Math.round(ratio * 100)}%`;
+  return ratio == null ? "-" : `${Math.round(ratio * 100)}%`;
 }
 
 /** Days after which an exchange counts as stuck in a stage. */

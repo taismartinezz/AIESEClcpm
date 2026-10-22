@@ -1,4 +1,4 @@
--- Migration 005: Literature RLS — additive OR-branch for sub-project members
+-- Migration 005: Literature RLS: additive OR-branch for sub-project members
 -- Mirrors the tasks/bookmarks pattern from migration 004.
 -- Never drops lab-member access; only adds the external-member path.
 

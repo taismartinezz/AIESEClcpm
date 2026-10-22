@@ -2,7 +2,7 @@ import { serviceClient } from "@/lib/server-db";
 import { verifyUnsubscribeToken } from "@/lib/outreach-token";
 
 // Unsubscribe from outreach emails. GET shows a confirm button (mail scanners
-// open links); POST — from the button or a one-click List-Unsubscribe — records it.
+// open links); POST: from the button or a one-click List-Unsubscribe: records it.
 
 function page(body: string, status = 200) {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe</title></head>

@@ -1,4 +1,4 @@
--- Migration 030: Wellbeing — Exec Pulse and Member Pulse.
+-- Migration 030: Wellbeing: Exec Pulse and Member Pulse.
 --
 -- Weekly check-in scores (journal_entries.checkin_scores, plaintext 1–5 values;
 -- journal text stays encrypted and owner-only) feed two aggregate views:
@@ -12,7 +12,7 @@
 -- (a member, a VP asking for another department, a non-member) gets zero rows.
 -- The president's own scores are never counted. A (group, week) with fewer
 -- opted-in respondents than the LC's threshold comes back as one row with
--- suppressed = true and no numbers — not even the respondent count.
+-- suppressed = true and no numbers: not even the respondent count.
 --
 -- Also: per-LC thresholds and disabled questions, and a self-rolling
 -- "Weekly check-in" reminder for every VP and member.
@@ -32,7 +32,7 @@ alter table projects drop constraint if exists projects_min_exec_respondents_che
 alter table projects add constraint projects_min_exec_respondents_check
   check (min_exec_respondents between 2 and 50);
 
--- ── 2. The old rollups had no caller check — any signed-in user could read any
+-- ── 2. The old rollups had no caller check: any signed-in user could read any
 --      LC's numbers. They are superseded; close them off.
 revoke execute on function get_wellbeing_rollup(uuid) from public, anon, authenticated;
 revoke execute on function get_overdue_signal(uuid)   from public, anon, authenticated;

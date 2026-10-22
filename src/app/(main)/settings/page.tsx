@@ -522,7 +522,7 @@ export default function SettingsPage() {
       </section>
       )}
 
-      {/* LC & invites — president only, hidden in Personal workspace */}
+      {/* LC & invites: president only, hidden in Personal workspace */}
       {tab === "invites" && isPresident && activeScope !== "personal" && (
         <section id="invite" style={sectionStyle} aria-labelledby="settings-invite-heading">
           <div style={sectionHeaderStyle}>
@@ -836,7 +836,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Departments — president only */}
+      {/* Departments : president only */}
       {tab === "lc" && isPresident && activeScope !== "personal" && (
         <section id="departments" style={sectionStyle} aria-labelledby="settings-departments-heading">
           <div style={sectionHeaderStyle}>
@@ -851,7 +851,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* National (MC) — president only */}
+      {/* National (MC): president only */}
       {tab === "lc" && isPresident && activeScope !== "personal" && (
         <section id="national" style={sectionStyle} aria-labelledby="settings-national-heading">
           <div style={sectionHeaderStyle}>
@@ -866,7 +866,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Wellbeing — president only */}
+      {/* Wellbeing : president only */}
       {tab === "wellbeing" && isPresident && activeScope !== "personal" && activeLcId && (
         <section style={sectionStyle} aria-labelledby="settings-wellbeing-heading">
           <div style={sectionHeaderStyle}>
@@ -881,7 +881,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Support resources (shown in "Get help") — president only; moved here from the Team page */}
+      {/* Support resources (shown in "Get help"): president only; moved here from the Team page */}
       {tab === "wellbeing" && isPresident && activeLcId && (
         <section id="support" style={sectionStyle} aria-label="Support resources">
           <div style={{ padding: "20px" }}>
@@ -944,7 +944,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Time zone section — used for notification quiet hours */}
+      {/* Time zone section: used for notification quiet hours */}
       {tab === "profile" && (
       <section style={sectionStyle} aria-labelledby="settings-schedule-heading">
         <div style={sectionHeaderStyle}>
@@ -1057,7 +1057,7 @@ export default function SettingsPage() {
       </section>
       )}
 
-      {/* Google Calendar — everyone */}
+      {/* Google Calendar: everyone */}
       {tab === "profile" && (
       <section id="google-calendar" aria-label="Google Calendar settings" style={{ marginBottom: 24 }}>
         <GoogleCalendarSettings />

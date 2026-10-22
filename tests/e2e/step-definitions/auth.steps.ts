@@ -17,7 +17,7 @@ Before(async () => {
   const context = await browser.newContext()
   page = await context.newPage()
 
-  // Mock Supabase session — no user logged in
+  // Mock Supabase session: no user logged in
   await page.route('**/auth/v1/session**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   )
@@ -40,7 +40,7 @@ Given('I am on the login page', async () => {
 // ── When ──────────────────────────────────────────────────────────────────────
 
 When('I look at the sign up toggle', async () => {
-  // Step is a lookup — actual assertion is in Then
+  // Step is a lookup: actual assertion is in Then
 })
 
 When('I click {string}', async (buttonText: string) => {

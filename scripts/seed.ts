@@ -11,7 +11,7 @@ import { resetSeed } from "./reset";
 // eight check-in periods of scores so the wellbeing dashboards have data.
 //
 // Run: SEED_PASSWORD='…' npm run db:seed
-// Never point this at a production project — it creates real auth accounts.
+// Never point this at a production project: it creates real auth accounts.
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -22,7 +22,7 @@ if (!url || !serviceKey) {
   process.exit(1);
 }
 if (!password || password.length < 10) {
-  console.error("Set SEED_PASSWORD (10+ characters) — it becomes the password of every demo account.");
+  console.error("Set SEED_PASSWORD (10+ characters): it becomes the password of every demo account.");
   process.exit(1);
 }
 

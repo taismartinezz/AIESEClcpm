@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── AIESEClcpm design system — AIESEC brand palette ── */
+  /* ── AIESEClcpm design system: AIESEC brand palette ── */
 
   /* Canvas & surfaces */
   --color-canvas:   #F6F8FC;
@@ -9,7 +9,7 @@
   --color-strip:    #D8DCE3;
   --color-surface:  #FFFFFF;
 
-  /* Accent — AIESEC blue. The token keeps its historical "navy" name so every
+  /* Accent : AIESEC blue. The token keeps its historical "navy" name so every
      component picks it up. #0263C4 is AIESEC blue deepened to pass WCAG AA
      for text and white-on-blue buttons; --color-brand is the pure #037EF3 for
      logos, dots and charts. */
@@ -36,7 +36,7 @@
   --color-warning-bg: #FDEFD4;
   --color-success-bg: #D4EDE0;
 
-  /* ── Task status — unified palette used everywhere ── */
+  /* ── Task status: unified palette used everywhere ── */
   /* dot = small indicator, text = label text, bg = badge background */
   --status-backlog-dot:     #CBD5E1;
   --status-backlog-text:    #94A3B8;
@@ -54,7 +54,7 @@
   --status-done-text:       #2E7D52;
   --status-done-bg:         rgba(46,125,82,0.10);
 
-  /* ── Priority colors — unified ── */
+  /* ── Priority colors: unified ── */
   --priority-high-dot:    #B91C1C;
   --priority-high-text:   #B91C1C;
   --priority-high-bg:     #FCA5A5;
@@ -65,7 +65,7 @@
   --priority-low-text:    #166534;
   --priority-low-bg:      #A7D7BC;
 
-  /* Typography — Lato (AIESEC's brand typeface), 4 sizes.
+  /* Typography : Lato (AIESEC's brand typeface), 4 sizes.
      --font-lato is set by next/font in app/layout.tsx; the older token names
      (--font-inter/--font-lora/--font-roboto) all point at it. */
   --font-inter: var(--font-lato), system-ui, sans-serif;
@@ -127,7 +127,7 @@ body {
 .font-lora   { font-family: var(--font-inter); }
 .font-roboto { font-family: var(--font-inter); }
 
-/* ── Section label — used for SUBTASKS, DESCRIPTION etc. ── */
+/* ── Section label: used for SUBTASKS, DESCRIPTION etc. ── */
 .label-section {
   font-size: var(--text-xs);
   font-weight: 700;
@@ -210,7 +210,7 @@ body {
  *   Background:   #000000  (system)
  *   Cards/panels: #1C1C1E  (secondary)
  *   Strip/strips: #2C2C2E  (tertiary)
- *   Modals:       #3A3A3C  (quaternary — used by popover/dialog surfaces)
+ *   Modals:       #3A3A3C  (quaternary: used by popover/dialog surfaces)
  *   Primary text: #F5F5F7  (off-white, not pure #FFFFFF)
  *   Secondary:    #8E8E93  (Apple secondaryLabel)
  *   Separator:    rgba(84,84,88,0.65)  (Apple separator)
@@ -224,7 +224,7 @@ body {
  *
  * Dark overrides apply via:
  *   @media prefers-color-scheme:dark  (system default)
- *   :root[data-theme="dark"]          (manual toggle — wins over MQ)
+ *   :root[data-theme="dark"]          (manual toggle: wins over MQ)
  *
  * --color-navy-dim is also used for hover/active tints in Tailwind classes.
  * In dark mode it flips to a white-tinted value so hovers remain visible.
@@ -404,7 +404,7 @@ body {
 }
 
 /* ── Global form-element dark mode styles ─────────────────────────────────────
- * Browsers default inputs to white — override so they sit on the dark surface.
+ * Browsers default inputs to white: override so they sit on the dark surface.
  * Excludes checkboxes, radios, range, and color pickers (browser-native UI).
  */
 @media (prefers-color-scheme: dark) {

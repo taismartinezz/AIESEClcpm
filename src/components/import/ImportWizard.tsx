@@ -189,7 +189,7 @@ export default function ImportWizard({ target: initialTarget, targets, projectId
                     <select aria-label={`Column for ${label}`} value={mapping[field] ?? -1}
                       onChange={(e) => setMapping({ ...mapping, [field]: Number(e.target.value) })}
                       style={{ ...selectStyle, height: 30, fontSize: 12 }}>
-                      <option value={-1}>—</option>
+                      <option value={-1}>-</option>
                       {header.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
                     </select>
                   </label>

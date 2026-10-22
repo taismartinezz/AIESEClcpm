@@ -2,13 +2,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // ── Feature flag ─────────────────────────────────────────────────────────────
 // Set SEND_INVITE_EMAILS=true in Supabase → Project Settings → Edge Functions
-// secrets to enable actual sending. Off by default — the client falls back to
+// secrets to enable actual sending. Off by default: the client falls back to
 // copy-link without any change when this is false or absent.
 const ENABLED = Deno.env.get("SEND_INVITE_EMAILS") === "true";
 
 // ── Secrets (set these in Supabase → Project Settings → Edge Functions) ──────
-// RESEND_API_KEY  — your Resend API key (starts with re_...)
-// INVITE_FROM     — verified sender address, e.g. "AIESEClcpm <invites@yourdomain.com>"
+// RESEND_API_KEY : your Resend API key (starts with re_...)
+// INVITE_FROM    : verified sender address, e.g. "AIESEClcpm <invites@yourdomain.com>"
 //                   During setup you can use Resend's test address:
 //                   "AIESEClcpm <onboarding@resend.dev>" (only delivers to your own account)
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -66,7 +66,7 @@ serve(async (req) => {
     );
   }
 
-  // Accept link — same URL pattern the copy-link uses on the client
+  // Accept link: same URL pattern the copy-link uses on the client
   const acceptUrl = `${Deno.env.get("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000"}/login?project_invite=${token}`;
 
   const emailBody = {

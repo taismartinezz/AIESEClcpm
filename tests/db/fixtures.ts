@@ -66,7 +66,7 @@ export async function addMember(
   }
 }
 
-/** Like asUser but commits — for fixture setup that must go through RLS. */
+/** Like asUser but commits: for fixture setup that must go through RLS. */
 export async function asUserCommit<T>(db: PGlite, userId: string, fn: () => Promise<T>): Promise<T> {
   await db.exec("set role authenticated");
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [userId]);
