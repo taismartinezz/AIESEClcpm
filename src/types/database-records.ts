@@ -8,6 +8,7 @@ export interface UserProfileRecord {
   avatar_url?: string | null;
   avatar_color?: string | null;
   avatar_initials?: string | null;
+  country_code?: string | null;
   created_at?: string;
 }
 
