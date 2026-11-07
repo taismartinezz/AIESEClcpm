@@ -41,6 +41,8 @@ export interface MockOptions {
   departments?: Record<string, unknown>[]
   /** Rows returned for other REST tables, keyed by table name. */
   tables?: Record<string, unknown[]>
+  /** Overrides on the signed-in user's profile row (e.g. { country_code: null }). */
+  profile?: Record<string, unknown>
 }
 
 export async function setupAuthMocks(page: Page, role: MockRole, options: MockOptions = {}) {
@@ -48,7 +50,8 @@ export async function setupAuthMocks(page: Page, role: MockRole, options: MockOp
   const profileData = {
     id: MOCK_USER_ID, name: 'Test User', role,
     avatar_color: '#B4D4E3', avatar_initials: 'TU',
-    email: MOCK_EMAIL, bio: '',
+    email: MOCK_EMAIL, bio: '', country_code: 'US',
+    ...(options.profile ?? {}),
   }
   const membershipData = {
     project_id: 'project-abc', user_id: MOCK_USER_ID, role, department_id: null,

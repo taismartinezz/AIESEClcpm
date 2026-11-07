@@ -224,7 +224,7 @@ test('creating an LC: the university is optional and there are no working hours 
   await setupAuthMocks(page, 'president')
   await page.goto('/onboarding')
   await page.getByText('Create a Local Committee').click({ timeout: 10000 })
-  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Continue' }).click()     // (this user already has a country, so that step is skipped)
   await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Porto')
   await page.getByPlaceholder('Full name').fill('Tais Martinez')
   await expect(page.getByText('University (optional)')).toBeVisible()
@@ -340,4 +340,52 @@ test('duplicating a Backlog task keeps the copy in Backlog', async ({ page }) =>
   await page.getByRole('button', { name: 'More options' }).click()
   await page.getByRole('menuitem', { name: 'Duplicate task' }).click()
   await expect.poll(async () => (await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/tasks'))?.body ?? '').toContain('"status":"backlog"')
+})
+
+
+test.describe('country', () => {
+  test('onboarding asks for the country before the LC, from AIESEC countries only, and suggests LCs already there', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { profile: { country_code: null }, rpc: { lcs_in_country: [{ id: 'lc-lis', name: 'AIESEC in Lisbon' }] } })
+    await page.goto('/onboarding')
+    await page.getByText('Create a Local Committee').click({ timeout: 10000 })
+    await page.getByRole('button', { name: 'Continue' }).click()
+    await expect(page.getByRole('heading', { name: 'Where is your LC?' })).toBeVisible()
+    const next = page.getByRole('button', { name: 'Continue' })
+    await expect(next).toBeDisabled()                                   // required
+    const box = page.getByRole('combobox')
+    await box.fill('Narnia')
+    await expect(page.getByText(/No AIESEC country matches/)).toBeVisible()   // no free text
+    await box.fill('portugal')
+    await box.press('Enter')
+    await expect(box).toHaveValue(/Portugal/)
+    await next.click()
+    // The LC step suggests LCs already in Portugal; picking one points to joining instead.
+    await expect(page.getByRole('group', { name: 'LCs already on AIESEClcpm' })).toContainText('AIESEC in Lisbon')
+    await page.getByRole('button', { name: 'AIESEC in Lisbon' }).click()
+    await expect(page.getByRole('status')).toContainText('already on AIESEClcpm')
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Coimbra')   // a new one is fine
+    await page.getByPlaceholder('Full name').fill('Tais Martinez')
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled()
+  })
+
+  test('someone without a country is asked once, and it saves to their profile', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { profile: { country_code: null } })
+    await recordWrites(page)
+    await page.goto('/')
+    const ask = page.getByRole('dialog', { name: 'Which country is your LC in?' })
+    await expect(ask).toBeVisible({ timeout: 10000 })
+    await ask.getByRole('combobox').fill('spain')
+    await ask.getByRole('option', { name: /Spain/ }).click()
+    await ask.getByRole('button', { name: 'Save' }).click()
+    await expect(ask).toHaveCount(0)
+    expect((await writes(page)).find((w) => w.url.includes('/rest/v1/user_profiles') && w.method === 'PATCH')?.body).toContain('"country_code":"ES"')
+  })
+
+  test('people who have a country are not asked; Settings > Profile shows and changes it', async ({ page }) => {
+    await setupAuthMocks(page, 'member')
+    await page.goto('/settings')
+    await expect(page.getByRole('dialog', { name: 'Which country is your LC in?' })).toHaveCount(0)
+    await expect(page.getByLabel('Country')).toHaveValue(/United States/, { timeout: 10000 })
+  })
 })

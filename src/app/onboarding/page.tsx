@@ -10,6 +10,8 @@ import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
 import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
 import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
+import CountryCombobox from "@/components/ui/CountryCombobox";
+import { countryByCode } from "@/lib/aiesecCountries";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -17,8 +19,8 @@ type Role = "president" | "member";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CREATE_STEPS = 5;
-const JOIN_STEPS = 5;
+const CREATE_STEPS = 6;   // role, country, LC, time zone, invites, check-in preview
+const JOIN_STEPS = 6;     // role, country, code, profile, time zone, check-in preview
 
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -344,7 +346,7 @@ async function syncOnboardingToSupabase({
   projectName, institution,
   userName, userRole, inviteCode, enteredInviteCode, bio, inviteEmails,
   timezone, workingHours,
-  activePromptIds, customPrompts,
+  activePromptIds, customPrompts, countryCode,
 }: {
   projectName: string; institution: string;
   userName: string; userRole: "president" | "member"; inviteCode?: string;
@@ -352,6 +354,7 @@ async function syncOnboardingToSupabase({
   inviteEmails?: { email: string; code: string; roleName?: string }[];
   timezone?: string; workingHours?: Record<string, { start: string; end: string } | null>;
   activePromptIds?: string[]; customPrompts?: { id: string; text: string }[];
+  countryCode?: string;
 }): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -368,6 +371,7 @@ async function syncOnboardingToSupabase({
       id: user.id, name: userName, avatar_initials: avatarInitials, avatar_color: "#B4D4E3",
     };
     if (bio) profilePayload.bio = bio;
+    if (countryCode) profilePayload.country_code = countryCode;
     if (userRole === "president" && institution) profilePayload.institution = institution;
     const { error: profileError } = await supabase
       .from("user_profiles")
@@ -380,7 +384,7 @@ async function syncOnboardingToSupabase({
       const { data: created, error: createErr } = await supabase
         .from("projects")
         .insert({
-          name: projectName, institution, owner_id: user.id,
+          name: projectName, institution, owner_id: user.id, country_code: countryCode || null,
           active_prompt_ids: activePromptIds ?? ACTIVE_PROMPT_IDS,
           custom_prompts: customPrompts ?? [],
         })
@@ -458,6 +462,10 @@ export default function OnboardingPage() {
   const router = useRouter();
 
   const [step, setStep] = useState(1);
+  // Country comes right after choosing create / join (a gate before that path's first screen).
+  const [countryCode, setCountryCode] = useState("");
+  const [countryConfirmed, setCountryConfirmed] = useState(false);
+  const [countryLcs, setCountryLcs] = useState<{ id: string; name: string }[]>([]);
   const [role, setRole] = useState<Role | null>(null);
 
   // Create-LC step 2
@@ -552,7 +560,9 @@ export default function OnboardingPage() {
       // Pre-fill name from sign-up form, or from the existing profile when an
       // existing user is creating/joining another LC (/onboarding?add=1).
       const { data: existingProfile } = await supabase
-        .from("user_profiles").select("name").eq("id", session.user.id).maybeSingle();
+        .from("user_profiles").select("name, country_code").eq("id", session.user.id).maybeSingle();
+      // Someone adding another LC already told us their country.
+      if (existingProfile?.country_code) { setCountryCode(existingProfile.country_code as string); setCountryConfirmed(true); }
       const signupName = localStorage.getItem("aiesec_signup_name") ?? (existingProfile?.name as string | undefined) ?? "";
       if (signupName) {
         setPiUserName(signupName);
@@ -568,6 +578,15 @@ export default function OnboardingPage() {
   }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+
+  // LCs already on the app in the chosen country: suggestions for the LC name, and a guard against duplicates.
+  useEffect(() => {
+    if (!countryCode || !isSupabaseConfigured) return;
+    let cancelled = false;
+    supabase.rpc("lcs_in_country", { p_country: countryCode })
+      .then(({ data }) => { if (!cancelled) setCountryLcs(((data ?? []) as { id: string; name: string }[])); });
+    return () => { cancelled = true; };
+  }, [countryCode]);
 
   function handleStep1Continue() {
     if (!role) return;
@@ -693,6 +712,7 @@ export default function OnboardingPage() {
           ? inviteEmails.map((email) => ({ email, code: emailCodes[email], roleName: emailRoles[email] ?? "Member" }))
           : undefined,
         timezone: role === "president" ? piTimezone : resTimezone,
+        countryCode,
         // No working hours at sign-up: availability comes from Scheduling (and Google Calendar).
         workingHours: undefined,
       });
@@ -873,16 +893,42 @@ export default function OnboardingPage() {
 
   // ── Step 2A: President creates the LC ────────────────────────────────────────────
 
-  if (step === 2 && role === "president") {
-    const canContinue =
-      piProjectName.trim().length > 0 &&
-      piUserName.trim().length > 0;
-
+  if (step >= 2 && !countryConfirmed) {
     return (
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(1)} />
-          <StepDots current={2} total={CREATE_STEPS} />
+          <StepDots current={2} total={role === "president" ? CREATE_STEPS : JOIN_STEPS} />
+          <SectionTitle
+            large={isLarge}
+            title="Where is your LC?"
+            subtitle="Pick the country of your AIESEC entity. You can change it later in Settings."
+          />
+          <Field label="Country">
+            <CountryCombobox value={countryCode} onChange={setCountryCode} large={isLarge} autoFocus />
+          </Field>
+          <NavButton large={isLarge} onClick={() => setCountryConfirmed(true)} disabled={!countryCode}>
+            Continue
+          </NavButton>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 2 && role === "president") {
+    const typed = piProjectName.trim().toLowerCase();
+    const existingLc = countryLcs.find((l) => l.name.trim().toLowerCase() === typed) ?? null;
+    const lcSuggestions = typed ? countryLcs.filter((l) => l.name.toLowerCase().includes(typed) && l !== existingLc).slice(0, 5) : countryLcs.slice(0, 5);
+    const canContinue =
+      piProjectName.trim().length > 0 &&
+      piUserName.trim().length > 0 &&
+      !existingLc;
+
+    return (
+      <div style={PAGE_WRAP}>
+        <div style={cardStyle(isLarge)}>
+          <BackButton onClick={() => setCountryConfirmed(false)} />
+          <StepDots current={3} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Set up your Local Committee"
@@ -891,6 +937,30 @@ export default function OnboardingPage() {
 
           <Field label="Local Committee name">
             <TextInput large={isLarge} value={piProjectName} onChange={setPiProjectName} placeholder="e.g. AIESEC in Lisbon" />
+            {/* LCs already here in this country: pick one to join it instead of creating a copy. */}
+            {!existingLc && lcSuggestions.length > 0 && (
+              <div role="group" aria-label="LCs already on AIESEClcpm" style={{ marginTop: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 4px" }}>Already here in {countryByCode(countryCode)?.name}:</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {lcSuggestions.map((l) => (
+                    <button key={l.id} type="button" onClick={() => setPiProjectName(l.name)}
+                      style={{ fontSize: 12, padding: "4px 10px", borderRadius: 14, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-navy)", cursor: "pointer" }}>
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "6px 0 0" }}>Yours isn&apos;t listed? Type its name to add it.</p>
+              </div>
+            )}
+            {existingLc && (
+              <div role="status" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", fontSize: 13, color: "var(--color-body)" }}>
+                <strong>{existingLc.name}</strong> is already on AIESEClcpm. Ask its president for an invite link, or join with your code.
+                <button type="button" onClick={() => setRole("member")}
+                  style={{ display: "block", marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                  I have an invite code
+                </button>
+              </div>
+            )}
           </Field>
 
           {/* Institution search */}
@@ -970,7 +1040,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(2)} />
-          <StepDots current={3} total={CREATE_STEPS} />
+          <StepDots current={4} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Your time zone"
@@ -1012,8 +1082,8 @@ export default function OnboardingPage() {
     return (
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
-          <BackButton onClick={() => setStep(1)} />
-          <StepDots current={2} total={JOIN_STEPS} />
+          <BackButton onClick={() => setCountryConfirmed(false)} />
+          <StepDots current={3} total={JOIN_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Join your LC"
@@ -1050,7 +1120,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(3)} />
-          <StepDots current={4} total={CREATE_STEPS} />
+          <StepDots current={5} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Invite your executive board and members"
@@ -1243,7 +1313,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(4)} />
-          <StepDots current={5} total={CREATE_STEPS} />
+          <StepDots current={6} total={CREATE_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Team wellbeing check-ins"
@@ -1272,7 +1342,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(2)} />
-          <StepDots current={3} total={JOIN_STEPS} />
+          <StepDots current={4} total={JOIN_STEPS} />
           <SectionTitle large={isLarge} title="Set up your profile" />
 
           <Field label="Full name">
@@ -1322,7 +1392,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(3)} />
-          <StepDots current={4} total={JOIN_STEPS} />
+          <StepDots current={5} total={JOIN_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Your time zone"
@@ -1349,7 +1419,7 @@ export default function OnboardingPage() {
       <div style={PAGE_WRAP}>
         <div style={cardStyle(isLarge)}>
           <BackButton onClick={() => setStep(4)} />
-          <StepDots current={5} total={JOIN_STEPS} />
+          <StepDots current={6} total={JOIN_STEPS} />
           <SectionTitle
             large={isLarge}
             title="Check-ins"

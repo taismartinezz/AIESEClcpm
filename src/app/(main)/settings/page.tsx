@@ -12,6 +12,7 @@ import { useTheme } from "@/context/ThemeContext";
 import type { LabRole } from "@/types";
 import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
 import SupportResourcesSettings from "@/components/support/SupportResourcesSettings";
+import CountryCombobox from "@/components/ui/CountryCombobox";
 import { useProject } from "@/context/ProjectContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
@@ -97,6 +98,15 @@ export default function SettingsPage() {
   // A tab you can't see (e.g. a member following an old #invite link) falls back to Profile.
   const tab: SettingsTab = settingsTabs.some((t) => t.id === chosenTab) ? chosenTab : "profile";
   const [profile, setProfile] = useState<UserProfileRecord | null>(null);
+  const [countryNote, setCountryNote] = useState<string | null>(null);
+  async function saveCountry(code: string) {
+    const previous = profile?.country_code ?? null;
+    setProfile((p) => (p ? { ...p, country_code: code } : p));
+    if (!isSupabaseConfigured || !profile?.id) return;
+    const { error } = await supabase.from("user_profiles").update({ country_code: code }).eq("id", profile.id);
+    if (error) { setProfile((p) => (p ? { ...p, country_code: previous } : p)); setCountryNote(`Couldn't save: ${error.message}`); }
+    else setCountryNote("Saved.");
+  }
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [inviteCodes, setInviteCodes] = useState<{ id: string; code: string; used_by: string | null; lab_role_id: string | null; invited_email: string | null; email_sent_at: string | null }[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -479,6 +489,11 @@ export default function SettingsPage() {
                 {isPresident ? "You are the President (LCP) of this Local Committee." : "Ask your LCP to change your role or department."}
               </p>
             </div>
+          </div>
+          <div style={{ marginBottom: 16, maxWidth: isMobile ? undefined : "calc(50% - 8px)" }}>
+            <label htmlFor="settings-country" style={labelStyle}>Country</label>
+            <CountryCombobox id="settings-country" value={profile?.country_code ?? ""} onChange={saveCountry} />
+            {countryNote && <p role="status" style={{ fontSize: 11, color: countryNote.startsWith("Couldn") ? "var(--color-error)" : "var(--color-secondary)", margin: "4px 0 0" }}>{countryNote}</p>}
           </div>
           {profile?.bio && (
             <div style={{ marginBottom: 16 }}>

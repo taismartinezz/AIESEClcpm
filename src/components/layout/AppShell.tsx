@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
 import WhatsNew from "@/components/ui/WhatsNew";
 import { getStoredProject, getStoredUser } from "@/lib/mock-data";
@@ -21,6 +21,7 @@ import { ROLE_LABELS } from "@/lib/permissions";
 import { useProject } from "@/context/ProjectContext";
 import Toast from "@/components/ui/Toast";
 import SupportPanel from "@/components/support/SupportPanel";
+import CountryPrompt from "@/components/ui/CountryPrompt";
 import SectionTabs, { sectionFor } from "@/components/layout/SectionTabs";
 import Avatar from "@/components/ui/Avatar";
 import BrandLogo from "@/components/ui/BrandLogo";
@@ -1386,6 +1387,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     {projectId && <GlobalSearch projectId={projectId} />}
     {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} />}
     {showOnboarding && authed && tourRole && <OnboardingModal role={tourRole} onClose={closeOnboarding} />}
+    {/* People who joined before onboarding asked for a country: ask once. */}
+    {authed && isSupabaseConfigured && !isPreview && profile?.id && !profile.country_code && !pathname.startsWith("/onboarding") && (
+      <CountryPrompt userId={profile.id} projectId={projectId} isPresident={lcRole === "president"}
+        onSaved={(code) => setProfile((p) => (p ? { ...p, country_code: code } : p))} />
+    )}
     {authed && !showOnboarding && <WhatsNew />}
     <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     {authed && <ChatDock />}
