@@ -80,7 +80,9 @@ export default function TaskModal({
     task?.assigneeIds ?? (currentUserId ? [currentUserId] : [])
   );
   // Project selector: encoded as "lab" | "personal" | "<subProjectId>"
-  const defaultScopeKey = scope === "project" && subProjectId ? subProjectId : scope;
+  const defaultScopeKey = task
+    ? (task.scope === "project" && task.subProjectId ? task.subProjectId : task.scope ?? "lab")
+    : scope === "project" && subProjectId ? subProjectId : scope;
   const [scopeKey, setScopeKey] = useState<string>(defaultScopeKey);
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
@@ -98,6 +100,18 @@ export default function TaskModal({
     if (!title.trim()) { setError("Title is required."); return; }
     setError("");
     setSaving(true);
+    try {
+      await save();
+    } catch (e) {
+      const msg = `Couldn't save the task: ${e instanceof Error ? e.message : String(e)}`;
+      setError(msg);
+      showToast(msg, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function save() {
 
     const now = new Date().toISOString();
 
@@ -121,7 +135,6 @@ export default function TaskModal({
         links: [],
       };
       onSave(saved);
-      setSaving(false);
       return;
     }
 
@@ -153,9 +166,7 @@ export default function TaskModal({
 
       if (insertError) {
         console.error("[TaskModal] insert error:", insertError);
-        setError("Failed to save task. Please try again.");
-        showToast("Failed to save task. Please try again.", "error");
-        setSaving(false);
+        setError(`Couldn't save the task: ${insertError.message}`);
         return;
       }
 
@@ -224,6 +235,8 @@ export default function TaskModal({
 
       onSave(saved);
     } else if (mode === "edit" && task) {
+      const resolvedScope = scopeKey === "lab" || scopeKey === "personal" ? scopeKey : "project";
+      const resolvedSubProjectId = resolvedScope === "project" ? scopeKey : null;
       const { data, error: updateError } = await supabase
         .from("tasks")
         .update({
@@ -233,6 +246,8 @@ export default function TaskModal({
           due_date: dueDate || null,
           status,
           department_id: departmentId || null,
+          // Subtasks are a part of their parent; the DB moves them with it.
+          ...(task.parentId ? {} : { scope: resolvedScope, sub_project_id: resolvedSubProjectId }),
           updated_at: now,
         })
         .eq("id", task.id)
@@ -241,24 +256,26 @@ export default function TaskModal({
 
       if (updateError) {
         console.error("[TaskModal] update error:", updateError);
-        setError("Failed to save changes. Please try again.");
-        showToast("Failed to save changes. Please try again.", "error");
-        setSaving(false);
+        setError(`Couldn't save the changes: ${updateError.message}`);
         return;
       }
 
-      // Replace assignees: delete existing, insert new
-      await supabase.from("task_assignees").delete().eq("task_id", task.id);
-      if (assigneeIds.length > 0) {
-        const { error: assignError } = await supabase
-          .from("task_assignees")
-          .insert(assigneeIds.map((userId) => ({ task_id: task.id, user_id: userId })));
-        if (assignError) console.error("[TaskModal] task_assignees update error:", assignError);
-      }
+      // Assignees: remove only the people taken off and add only the new ones,
+      // so a failed step never leaves the task with nobody on it.
+      const prevIds = task.assigneeIds ?? [];
+      const removed = prevIds.filter((id) => !assigneeIds.includes(id));
+      const added = assigneeIds.filter((id) => !prevIds.includes(id));
+      const { error: delErr } = removed.length
+        ? await supabase.from("task_assignees").delete().eq("task_id", task.id).in("user_id", removed)
+        : { error: null };
+      const { error: insErr } = added.length
+        ? await supabase.from("task_assignees").upsert(added.map((uid) => ({ task_id: task.id, user_id: uid })), { onConflict: "task_id,user_id", ignoreDuplicates: true })
+        : { error: null };
+      const assignErr = delErr ?? insErr;
+      if (assignErr) showToast(`Saved, but the assignees didn't update: ${assignErr.message}`, "error");
 
       // Notify newly added assignees (use session userId, never undefined)
-      const prevIds = task.assigneeIds ?? [];
-      const newlyAdded = assigneeIds.filter((id) => !prevIds.includes(id) && id !== userId);
+      const newlyAdded = insErr ? [] : added.filter((id) => id !== userId);
       if (newlyAdded.length > 0) {
         const notifs = newlyAdded.map((aid) => ({
           user_id: aid,
@@ -291,14 +308,14 @@ export default function TaskModal({
         dueDate: (data.due_date as string) ?? undefined,
         status: data.status as TaskStatus,
         departmentId: (data.department_id as string | null) ?? null,
-        assigneeIds,
+        scope: (data.scope as Task["scope"]) ?? task.scope,
+        subProjectId: (data.sub_project_id as string | null) ?? undefined,
+        assigneeIds: assignErr ? prevIds : assigneeIds,
         updatedAt: data.updated_at as string,
       };
 
       onSave(saved);
     }
-
-    setSaving(false);
   }
 
   return (
@@ -306,8 +323,15 @@ export default function TaskModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       style={{ backgroundColor: "rgba(2,99,196,0.35)" }}
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !showCal) onClose();
+        else if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !saving) handleSave();
+      }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === "add" ? "Add task" : "Edit task"}
         style={{
           backgroundColor: "var(--color-surface)",
           maxWidth: 520,
@@ -422,8 +446,8 @@ export default function TaskModal({
             </div>
           )}
 
-          {/* Group - only shown in add mode when groups exist */}
-          {mode === "add" && subProjects.length > 0 && (
+          {/* Group - shown when groups exist; a subtask follows its parent */}
+          {subProjects.length > 0 && !task?.parentId && (
             <div>
               <label style={labelStyle}>Group</label>
               <select
@@ -487,6 +511,8 @@ export default function TaskModal({
                 return (
                   <button
                     key={user.id}
+                    type="button"
+                    aria-pressed={selected}
                     onClick={() => toggleAssignee(user.id)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all"
                     style={{

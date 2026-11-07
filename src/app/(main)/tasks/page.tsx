@@ -342,7 +342,9 @@ export default function TasksPage() {
     if (updates.description !== undefined) db.description  = updates.description;
     if (updates.priority    !== undefined) db.priority     = updates.priority;
     if (updates.status      !== undefined) db.status       = updates.status;
-    if (updates.dueDate     !== undefined) db.due_date     = updates.dueDate || null;
+    // Clearing the due date sends dueDate: undefined, so check for the key.
+    if ("dueDate" in updates)              db.due_date     = updates.dueDate || null;
+    if ("departmentId" in updates)         db.department_id = updates.departmentId || null;
     if (updates.comments    !== undefined) db.comments     = updates.comments;
     if (updates.files       !== undefined) db.files        = updates.files;
     if (Object.keys(db).length > 0)
@@ -884,6 +886,9 @@ export default function TasksPage() {
 
       {selectedTask && (
         <TaskDetailPanel
+          // Remount when another task opens or the edit form saves, so the
+          // panel's local copies (title, description, due date) aren't stale.
+          key={`${selectedTask.id}:${selectedTask.updatedAt}`}
           task={selectedTask}
           parentTask={taskNavStack.length > 0 ? taskNavStack[taskNavStack.length - 1] : undefined}
           onClose={() => {
