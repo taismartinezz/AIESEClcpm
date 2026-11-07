@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
-import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
@@ -485,7 +484,6 @@ export default function LoginPage() {
             gap: 12,
           }}
         >
-          <BrandLogo size={40} />
           <span
             aria-hidden="true"
             style={{

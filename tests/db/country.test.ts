@@ -31,3 +31,23 @@ describe("country", () => {
     await expect(asUser(db, null, (tx) => tx.query("select * from lcs_in_country('PT')"))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("currency follows the LC's country", () => {
+  it("a new LC in the Dominican Republic uses DOP; giving an LC its country later switches the old default", async () => {
+    const dr = await createLc(db, u.cy, "AIESEC in Santo Domingo");
+    await db.query("update projects set country_code = 'DO' where id = $1", [dr.id]);
+    expect((await db.query<{ currency: string }>("select currency from projects where id = $1", [dr.id])).rows[0].currency).toBe("DOP");
+  });
+
+  it("a currency someone chose stays", async () => {
+    const lc = await createLc(db, u.cy, "AIESEC in London");
+    await db.query("update projects set currency = 'GBP' where id = $1", [lc.id]);
+    await db.query("update projects set country_code = 'US' where id = $1", [lc.id]);
+    expect((await db.query<{ currency: string }>("select currency from projects where id = $1", [lc.id])).rows[0].currency).toBe("GBP");
+  });
+
+  it("maps every country to a three-letter currency", async () => {
+    const { rows } = await db.query<{ n: number }>("select count(*)::int as n from unnest(array['US','DO','PT','CI','BG','JP']) c where currency_for_country(c) ~ '^[A-Z]{3}$'");
+    expect(rows[0].n).toBe(6);
+  });
+});

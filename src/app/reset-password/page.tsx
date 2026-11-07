@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function ResetPasswordPage() {
@@ -67,7 +66,6 @@ export default function ResetPasswordPage() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 28 }}>
-          <BrandLogo size={36} />
           <h2 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "#0263C4", margin: 0 }}>
             Set a new password
           </h2>

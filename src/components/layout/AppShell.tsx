@@ -24,7 +24,6 @@ import SupportPanel from "@/components/support/SupportPanel";
 import CountryPrompt from "@/components/ui/CountryPrompt";
 import SectionTabs, { sectionFor } from "@/components/layout/SectionTabs";
 import Avatar from "@/components/ui/Avatar";
-import BrandLogo from "@/components/ui/BrandLogo";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import OnboardingModal, { useOnboarding, type TourRole } from "@/components/ui/OnboardingModal";
 import Tooltip from "@/components/ui/Tooltip";
@@ -239,10 +238,6 @@ function SidebarBody({
     return (
       <aside className="flex flex-col h-full items-center" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)", paddingTop: 6, paddingBottom: 6, gap: 2 }}>
 
-        {/* Product logo - static branding anchor */}
-        <div style={{ ...ICON_BTN, flexShrink: 0, pointerEvents: "none" }} aria-hidden="true">
-          <BrandLogo size={22} />
-        </div>
 
         {/* Expand toggle */}
         <button
@@ -1205,9 +1200,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Menu size={20} color="var(--color-navy)" />
           </button>
 
-          {/* Mobile wordmark + logo */}
+          {/* Mobile wordmark */}
           <div className="md:hidden flex items-center gap-2">
-            <BrandLogo size={24} />
             <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>
               {APP_NAME}
             </span>
