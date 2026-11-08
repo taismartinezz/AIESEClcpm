@@ -1,10 +1,11 @@
 import { requireAuth } from "@/lib/api-auth";
 import { serviceClient } from "@/lib/server-db";
 import { tokenInfo } from "@/lib/google-server";
+import { syncUpcomingForUser } from "@/lib/google-sync";
 
 // POST /api/google/connect { accessToken, refreshToken }: store the caller's
 // Google Calendar tokens (checked with Google first) where only the server can
-// read them.
+// read them, then add their upcoming LC events if they allowed that.
 export async function POST(request: Request) {
   const userId = await requireAuth(request);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,5 +26,9 @@ export async function POST(request: Request) {
     connected_at: now.toISOString(), updated_at: now.toISOString(),
   }, { onConflict: "user_id" });
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  // Allowed to add events: put their upcoming LC events in their calendar now.
+  if (info.scope.includes("calendar.events")) {
+    await syncUpcomingForUser(db, userId).catch((e) => console.error("[google] adding upcoming events failed:", e));
+  }
   return Response.json({ ok: true, email: info.email });
 }

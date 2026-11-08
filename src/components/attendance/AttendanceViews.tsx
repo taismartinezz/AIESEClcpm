@@ -11,6 +11,7 @@ import type { AttendanceRecord, Department, LcEvent, LcEventType } from "@/types
 import { Button, ErrorText, Panel, Stat, inputStyle, selectStyle } from "@/components/lc/ui";
 import { askConfirm } from "@/components/ui/confirm";
 import { formatDay } from "@/lib/dates";
+import { syncToGoogle } from "@/lib/google-calendar";
 
 // ── By event ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ function RsvpBox({ event, rsvps, roster, userId, canManage, onChanged }: {
     try {
       const { error: err } = await supabase.from("event_rsvps").upsert({ event_id: event.id, user_id: userId, response, responded_at: new Date().toISOString() }, { onConflict: "event_id,user_id" });
       if (err) throw new Error(err.message);
+      syncToGoogle(event.id);      // "Not going" takes it out of their Google Calendar
       onChanged();
     } catch (e) {
       setError(`Couldn't save your answer: ${e instanceof Error ? e.message : String(e)}`);
@@ -108,6 +110,7 @@ export function EventsView({ events, records, rsvps, userId, roster, departments
     try {
       const { error: err } = await supabase.from("lc_events").delete().eq("id", event.id);
       if (err) throw new Error(err.message);
+      syncToGoogle(event.id);      // and out of everyone's Google Calendar
       onChanged();
     } catch (e) {
       setError(`Couldn't delete the event: ${e instanceof Error ? e.message : String(e)}`);

@@ -110,7 +110,31 @@ test('the Calendar (formerly Scheduling) offers Connect Google Calendar', async 
   await page.getByRole('button', { name: 'Availability' }).first().click()
   const card = page.getByRole('region', { name: 'Google Calendar' })
   await expect(card.getByRole('button', { name: 'Connect Google Calendar' })).toBeVisible()
-  await expect(card.getByText(/Read-only. Only you see your Google events/)).toBeVisible()
+  await expect(card.getByText(/Only you see your Google events/)).toBeVisible()
+})
+
+test.describe('LC events in Google Calendar', () => {
+  test('a read-only connection is asked to reconnect to add LC events', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { rpc: { google_calendar_status: [{ connected_at: '2026-10-01', google_email: 'tais@gmail.com', can_add_events: false, add_events: true }] } })
+    await page.goto('/settings#google-calendar')
+    await expect(page.getByRole('button', { name: 'Reconnect to add LC events' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('checkbox', { name: /Add my LC's events/ })).toHaveCount(0)
+  })
+
+  test('a full connection gets the switch, and turning it off takes the events out', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { rpc: { google_calendar_status: [{ connected_at: '2026-10-01', google_email: 'tais@gmail.com', can_add_events: true, add_events: true }] } })
+    let body = ''
+    await page.route('**/api/google/add-events', async (route) => {
+      body = route.request().postData() ?? ''
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ added: 0, updated: 0, removed: 3, failed: 0, errors: [] }) })
+    })
+    await page.goto('/settings#google-calendar')
+    const box = page.getByRole('checkbox', { name: /Add my LC's events to my Google Calendar/ })
+    await expect(box).toBeChecked({ timeout: 10000 })
+    await box.uncheck()
+    await expect(page.getByText(/3 removed from your Google Calendar/)).toBeVisible()
+    expect(body).toBe('{"on":false}')
+  })
 })
 
 test('Google sign-in: the /auth/callback?code=… return lands in the app, not on a login error', async ({ page }) => {

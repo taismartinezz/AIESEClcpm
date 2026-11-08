@@ -2,6 +2,7 @@ import { serviceClient } from "@/lib/server-db";
 import { verifyRsvpToken } from "@/lib/rsvp-token";
 import { escapeHtml } from "@/lib/email";
 import { APP_NAME } from "@/lib/brand";
+import { syncEventToGoogle } from "@/lib/google-sync";
 
 // RSVP from an email without logging in. GET shows a confirmation button
 // (so link scanners that open every URL don't answer for people); POST records it.
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
   if (!db) return page("Not available", "<p>RSVPs aren't set up on this server.</p>", 503);
   const { error } = await db.from("event_rsvps").upsert({ event_id: e, user_id: u, response: a, responded_at: new Date().toISOString() }, { onConflict: "event_id,user_id" });
   if (error) return page("Couldn't save", `<h1 style="font-size:18px">Couldn't save your answer</h1><p>${escapeHtml(error.message)}</p>`, 500);
+  // "Not going" takes it out of their Google Calendar; "Going" puts it back.
+  await syncEventToGoogle(db, e, u).catch((err) => console.error("[rsvp] Google Calendar:", err));
   const name = (await eventName(e)) ?? "the event";
   return page("Thanks", `<h1 style="font-size:18px;margin:0 0 8px">${a === "going" ? "See you there!" : "Thanks for letting us know."}</h1><p style="margin:0">Your answer for ${escapeHtml(name)} is saved. You can change it from the email or in the app.</p>`);
 }
