@@ -13,7 +13,8 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: APP_NAME,
+  // Pages name themselves ("National · LC Manager"); the LC app sets its own from the nav.
+  title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: APP_TAGLINE,
 };
 

@@ -1,4 +1,4 @@
-# Glow
+# LC Manager
 
 Project management and wellbeing for **AIESEC Local Committees (LCs)**. One place for an LC's tasks, reminders, chat and shared links, plus a private check-in that shows the LCP and VPs how their teams are doing without ever exposing anyone's individual answers.
 
@@ -135,7 +135,7 @@ Event invites (with Going / Not going buttons and a calendar file), reminders,
 the Monday digest and announcements are sent through [Resend](https://resend.com).
 
 1. Verify your domain in Resend, then set `RESEND_API_KEY` and `EMAIL_FROM`
-   (e.g. `Glow <notifications@your-domain.org>`). Without a key, emails
+   (e.g. `LC Manager <notifications@your-domain.org>`). Without a key, emails
    are only logged to the server console.
 2. Set `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` and `RSVP_SECRET`.
 3. Each LC president can set the sender name (Settings → LC settings), e.g.
@@ -190,7 +190,7 @@ take effect after a new deployment.
 | `RSVP_SECRET` | Any long random string |
 | `INTERNAL_API_SECRET` | Any long random string |
 | `RESEND_API_KEY` | Resend → API Keys → Create API key (after verifying your domain in Resend → Domains) |
-| `EMAIL_FROM` | An address on the domain you verified, e.g. `Glow <notifications@your-domain.org>` |
+| `EMAIL_FROM` | An address on the domain you verified, e.g. `LC Manager <notifications@your-domain.org>` |
 
 Also in Supabase → Authentication → URL Configuration: set Site URL to your
 site's address and add `https://your-site/**` to Redirect URLs.

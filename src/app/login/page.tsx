@@ -205,7 +205,7 @@ function initialAuthError(): string | null {
   return params.get("reason") === "session_expired" ? "Your session expired. Please sign in again." : null;
 }
 
-// Glow is for AIESEC members: you sign in, and sign up, with EXPA. Accounts
+// The app is for AIESEC members: you sign in, and sign up, with EXPA. Accounts
 // made before that (email or Google) sign in under "Signed up before…", then
 // connect EXPA from the Pipeline page. Preview mode keeps the old form, since
 // EXPA needs the real server.

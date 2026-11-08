@@ -14,7 +14,7 @@
 --   expa_profile()      my EXPA name, photo, LC, entity and positions, so
 --                       onboarding can fill them in.
 --   disconnect_expa()   forget my tokens.
---   auth_user_id_by_email(email)  server only: is there already a Glow account
+--   auth_user_id_by_email(email)  server only: is there already an account
 --                       with this email? "Continue with EXPA" signs into an
 --                       account linked to that EXPA person, or creates a new
 --                       one; it never takes over an existing account by email.
@@ -37,11 +37,14 @@ create table if not exists expa_connections (
 
 alter table expa_connections add column if not exists profile jsonb not null default '{}'::jsonb;
 
--- One Glow account per EXPA person.
+-- One app account per EXPA person.
 create unique index if not exists expa_connections_person_idx on expa_connections (expa_person_id);
 
 alter table expa_connections enable row level security;   -- no policies: service role only
 revoke all on expa_connections from anon, authenticated;
+-- Granted explicitly: projects where new tables aren't exposed automatically
+-- would otherwise refuse the server too ("permission denied for table …").
+grant select, insert, update, delete on expa_connections to service_role;
 
 create table if not exists expa_oauth_states (
   state       text primary key check (length(state) >= 32),
@@ -53,6 +56,7 @@ create table if not exists expa_oauth_states (
 
 alter table expa_oauth_states enable row level security;  -- no policies: service role only
 revoke all on expa_oauth_states from anon, authenticated;
+grant select, insert, update, delete on expa_oauth_states to service_role;
 
 create or replace function expa_status()
 returns table (connected_at timestamptz, expa_name text, home_lc_name text, last_synced_at timestamptz)

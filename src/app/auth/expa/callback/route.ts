@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/server-db";
+import { APP_NAME } from "@/lib/brand";
 import { currentPerson, exchangeCode, expiresAt, fetchProfile, EXPA_STATE_COOKIE } from "@/lib/expa-server";
 import type { ExpaProfile } from "@/lib/expa-sync";
 
@@ -11,7 +12,7 @@ type Tokens = Awaited<ReturnType<typeof exchangeCode>>;
 // back, for both flows:
 //   connect  (Pipeline > Connect EXPA, already signed in): store the tokens,
 //            back to /pipeline?expa=connected or ?expa=error&reason=….
-//   login    (Continue with EXPA on the login page): find or create the Glow
+//   login    (Continue with EXPA on the login page): find or create the app
 //            account, store the tokens, and finish the sign-in on
 //            /auth/expa/finish with a one-time link. Errors go to /login.
 export async function GET(request: Request) {
@@ -72,12 +73,12 @@ async function saveConnection(db: SupabaseClient, userId: string, me: Person, to
     access_token: tokens.access_token, refresh_token: tokens.refresh_token ?? null, expires_at: expiresAt(tokens),
     profile, connected_at: now, updated_at: now,
   }, { onConflict: "user_id" });
-  if (error?.code === "23505") return "This EXPA account is already connected to another Glow account.";
+  if (error?.code === "23505") return `This EXPA account is already connected to another account on ${APP_NAME}.`;
   return error?.message ?? null;
 }
 
 /**
- * The Glow account for this EXPA person: the one already linked to them, or a
+ * The app account for this EXPA person: the one already linked to them, or a
  * new one with their EXPA email. An existing account with that email that was
  * never linked is not taken over: its owner signs in as usual and connects
  * EXPA from the Pipeline page.
@@ -86,15 +87,15 @@ async function accountFor(db: SupabaseClient, me: Person): Promise<{ userId: str
   const { data: linked } = await db.from("expa_connections").select("user_id").eq("expa_person_id", String(me.id)).maybeSingle();
   if (linked) {
     const { data, error } = await db.auth.admin.getUserById(linked.user_id as string);
-    if (error || !data.user?.email) return { error: error?.message ?? "Your Glow account has no email." };
+    if (error || !data.user?.email) return { error: error?.message ?? "Your account has no email." };
     return { userId: data.user.id, email: data.user.email, created: false };
   }
 
   const email = me.email?.trim().toLowerCase();
-  if (!email) return { error: "Your EXPA profile has no email, so Glow can't create an account for you." };
+  if (!email) return { error: `Your EXPA profile has no email, so ${APP_NAME} can't create an account for you.` };
   const { data: existing } = await db.rpc("auth_user_id_by_email", { p_email: email });
   if (existing) {
-    return { error: `There's already a Glow account for ${email}. Sign in with your password or Google, then press Connect EXPA on the Pipeline page. After that, Continue with EXPA works too.` };
+    return { error: `There's already an account for ${email} on ${APP_NAME}. Sign in with your password or Google, then press Connect EXPA on the Pipeline page. After that, Continue with EXPA works too.` };
   }
   const { data, error } = await db.auth.admin.createUser({
     email, email_confirm: true, user_metadata: { full_name: me.full_name ?? undefined, expa_person_id: String(me.id) },

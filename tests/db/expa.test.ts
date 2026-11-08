@@ -32,7 +32,7 @@ describe("EXPA connection", () => {
     expect(rows[0].id).toBe(u.ana);
   });
 
-  it("one EXPA person can be linked to only one Glow account", async () => {
+  it("one EXPA person can be linked to only one account", async () => {
     await db.query("update expa_connections set expa_person_id = '55' where user_id = $1", [u.ana]);
     await expect(db.query("insert into expa_connections (user_id, expa_person_id, access_token) values ($1, '55', 'x')", [u.bo])).rejects.toThrow(/duplicate key/);
   });

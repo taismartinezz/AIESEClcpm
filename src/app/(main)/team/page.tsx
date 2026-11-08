@@ -240,7 +240,8 @@ function TeamWorkspace() {
   const { activeScope, subProjectId, subProjects, projectId, role: myRole, departments } = useProject();
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const isPresident = myRole === "president";
-  const [storedProjectName, setStoredProjectName] = useState(() => getStoredProject().name);
+  // The sample LC's name only without a database; otherwise the real name once it loads.
+  const [storedProjectName, setStoredProjectName] = useState(() => (isSupabaseConfigured ? "" : getStoredProject().name));
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -455,7 +456,7 @@ function TeamWorkspace() {
     : null;
   const teamSubtitle = activeScope === "project"
     ? (teamBadgeName ? `Showing members of ${teamBadgeName}.` : `${visibleTeam.length} member${visibleTeam.length !== 1 ? "s" : ""}`)
-    : `${visibleTeam.length} member${visibleTeam.length !== 1 ? "s" : ""} · ${storedProjectName}`;
+    : `${visibleTeam.length} member${visibleTeam.length !== 1 ? "s" : ""}${storedProjectName ? ` · ${storedProjectName}` : ""}`;
   const canManageProject = activeScope === "project" && subProjectId && projectId
     && (isPresident || (subProjects.find((sp) => sp.id === subProjectId)?.createdBy === currentUserId));
 
