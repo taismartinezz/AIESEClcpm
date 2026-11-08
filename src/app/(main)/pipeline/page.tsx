@@ -5,7 +5,7 @@ import { AlertTriangle, Download, ExternalLink, Plus, Search, Upload } from "luc
 import PageHeader from "@/components/ui/PageHeader";
 import TeachingEmpty, { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { PRODUCTS, PRODUCT_BY_CODE, STAGES, STAGE_DATE_FIELD, STAGE_LABEL, type ExchangeStage, type ProductCode } from "@/lib/products";
 import { daysSince, formatPct, localIsoDate, mapExchange, pipelineStats, stuckExchanges } from "@/lib/pipeline";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -15,6 +15,7 @@ import { Button, ErrorText, Stat, inputStyle } from "@/components/lc/ui";
 import ExchangeModal from "@/components/pipeline/ExchangeModal";
 import StuckActions from "@/components/pipeline/StuckActions";
 import ImportWizard from "@/components/import/ImportWizard";
+import ExpaSync from "@/components/pipeline/ExpaSync";
 
 export default function PipelinePage() {
   const { projectId, userId, role, departments, departmentId, ledDepartmentIds, isLoading } = useProject();
@@ -114,6 +115,7 @@ export default function PipelinePage() {
         title="Exchange pipeline"
         subtitle="Every exchange from sign-up to completed, per product."
         action={<>
+          {myProducts.length > 0 && projectId && !isPreview && <ExpaSync projectId={projectId} onSynced={reload} />}
           <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
           {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
           {myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import { Users, BookOpen, Check, X, Search, ChevronDown } from "lucide-react";
-import BrandLogo from "@/components/ui/BrandLogo";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
@@ -792,7 +791,6 @@ export default function OnboardingPage() {
           <StepDots current={1} total={role === "president" ? CREATE_STEPS : JOIN_STEPS} />
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <BrandLogo size={32} />
           </div>
 
           <h1
@@ -939,7 +937,7 @@ export default function OnboardingPage() {
             <TextInput large={isLarge} value={piProjectName} onChange={setPiProjectName} placeholder="e.g. AIESEC in Lisbon" />
             {/* LCs already here in this country: pick one to join it instead of creating a copy. */}
             {!existingLc && lcSuggestions.length > 0 && (
-              <div role="group" aria-label="LCs already on AIESEClcpm" style={{ marginTop: 8 }}>
+              <div role="group" aria-label={`LCs already on ${APP_NAME}`} style={{ marginTop: 8 }}>
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 4px" }}>Already here in {countryByCode(countryCode)?.name}:</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {lcSuggestions.map((l) => (
@@ -954,7 +952,7 @@ export default function OnboardingPage() {
             )}
             {existingLc && (
               <div role="status" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", fontSize: 13, color: "var(--color-body)" }}>
-                <strong>{existingLc.name}</strong> is already on AIESEClcpm. Ask its president for an invite link, or join with your code.
+                <strong>{existingLc.name}</strong> is already on {APP_NAME}. Ask its president for an invite link, or join with your code.
                 <button type="button" onClick={() => setRole("member")}
                   style={{ display: "block", marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
                   I have an invite code
@@ -1070,7 +1068,6 @@ export default function OnboardingPage() {
       return (
         <div style={PAGE_WRAP}>
           <div style={{ ...cardStyle(isLarge), textAlign: "center", padding: isLarge ? "72px 56px" : "56px 40px" }}>
-            <BrandLogo size={28} />
             <p style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 18, color: "var(--color-navy)", marginTop: 20, marginBottom: 0 }}>
               Joined! Setting up your workspace...
             </p>

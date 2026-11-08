@@ -14,10 +14,10 @@ describe('API proxy authentication gate', () => {
   it('leaves bearer validation to the route handler', () => {
     expect(proxy(request('/api/invites/send', 'Bearer test-token')).headers.get('x-middleware-next')).toBe('1')
   })
-  it.each(['/api/cron/notify', '/api/rsvp', '/api/unsubscribe', '/settings'])('preserves the separately authenticated/public route %s', path => {
+  it.each(['/api/cron/notify', '/api/rsvp', '/api/unsubscribe', '/api/expa/login', '/settings'])('preserves the separately authenticated/public route %s', path => {
     expect(proxy(request(path)).headers.get('x-middleware-next')).toBe('1')
   })
-  it.each(['/api/rsvp-private', '/api/unsubscribe-private', '/api/cron-private'])('does not bypass authentication for a lookalike path %s', path => {
+  it.each(['/api/rsvp-private', '/api/unsubscribe-private', '/api/cron-private', '/api/expa/sync', '/api/expa/connect'])('does not bypass authentication for a lookalike path %s', path => {
     expect(proxy(request(path)).status).toBe(401)
   })
 })

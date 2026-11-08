@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test'
+import { APP_NAME } from '../../src/lib/brand'
 
 // ── Shared: mock Supabase and skip auth redirect ──────────────────────────────
 
@@ -28,7 +29,7 @@ test.describe('Auth page: Issue #16: accessible heading', () => {
     await mockSupabaseAndVisitLogin(page)
     const h1 = page.locator('h1').first()
     await expect(h1).toBeAttached()
-    await expect(h1).toContainText(/sign in to aiesec ?lcpm/i)
+    await expect(h1).toContainText(new RegExp(`sign in to ${APP_NAME}`, 'i'))
   })
 })
 
@@ -112,5 +113,13 @@ test.describe('Auth page: password visibility toggle', () => {
     await expect(toggleBtn).toBeVisible()
     await toggleBtn.click()
     await expect(passwordInput).toHaveAttribute('type', 'text')
+  })
+})
+
+test.describe('Auth page: Continue with EXPA', () => {
+  test('an EXPA sign-in error comes back with its own message', async ({ page }) => {
+    await page.route('**/rest/v1/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+    await page.goto('/login?error=expa&error_description=' + encodeURIComponent("There's already a Torch account for ana@x.org."))
+    await expect(page.getByText("There's already a Torch account for ana@x.org.")).toBeVisible({ timeout: 10000 })
   })
 })

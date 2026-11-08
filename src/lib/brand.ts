@@ -1,6 +1,6 @@
 // Single source of truth for the product name. Change it here to rebrand.
-export const APP_NAME = "AIESEClcpm";
-export const APP_TAGLINE = "Project management and wellbeing for AIESEC Local Committees";
+export const APP_NAME = "Torch";
+export const APP_TAGLINE = "The workspace for AIESEC Local Committees";
 
 // AIESEC brand palette: used for department/group colours and charts.
 export const AIESEC_BLUE = "#037EF3";

@@ -39,6 +39,7 @@ function ChatWorkspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadedChannel, setLoadedChannel] = useState<ActiveChannel | null>(null);
   const loading = loadedChannel !== activeChannel;
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [threadMsg, setThreadMsg] = useState<ChatMessage | null>(null);
@@ -216,7 +217,8 @@ function ChatWorkspace() {
       .select("id, channel, sender_id, content, created_at, thread_parent_id, deleted_at, is_pinned, mentioned_user_ids, attachments")
       .eq("channel", key).is("thread_parent_id", null)
       .order("created_at", { ascending: true }).limit(200);
-    if (error) { if (!cancelled) { console.error("[Chat] fetch:", error); setLoadedChannel(activeChannel); } return; }
+    if (error) { if (!cancelled) { console.error("[Chat] fetch:", error); setLoadError(error.message); setLoadedChannel(activeChannel); } return; }
+    if (!cancelled) setLoadError(null);
     const rows = data ?? [];
     const sids = [...new Set(rows.map(r => r.sender_id as string))];
     const mids = rows.map(r => r.id as string);
@@ -272,7 +274,7 @@ function ChatWorkspace() {
 
     }
     void fetchMessages().catch(error => {
-      if (!cancelled) { console.error("[Chat] fetch:", error); setLoadedChannel(activeChannel); }
+      if (!cancelled) { console.error("[Chat] fetch:", error); setLoadError(error instanceof Error ? error.message : String(error)); setLoadedChannel(activeChannel); }
     });
     return () => { cancelled = true; };
   }, [projectId, currentUserId, activeChannel]);
@@ -767,6 +769,7 @@ function ChatWorkspace() {
               onScroll={handleScroll}
             >
               {loading && <div className="flex items-center justify-center py-10" style={{ color: "var(--color-secondary)", fontSize: 13 }}>Loading messages...</div>}
+              {!loading && loadError && <div role="alert" className="flex items-center justify-center py-10" style={{ color: "var(--color-error)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Couldn&apos;t load messages: {loadError}</div>}
               {!loading && shownMessages.length === 0 && (
                 isDm && dmPeer ? (
                   <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center gap-4">

@@ -8294,3 +8294,191 @@ grant  execute on function lcs_in_country(text) to authenticated;
 
 notify pgrst, 'reload schema';
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261107002_currency_and_chat_guard.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 061: an LC's currency follows its country; a sturdier chat rule.
+--
+-- 1. Currency: LCs defaulted to EUR, so a US LC showed €. currency_for_country()
+--    maps each AIESEC country to its currency. When an LC gets its country (on
+--    creation, or later), its currency follows unless someone already chose one
+--    (anything other than the old EUR / USD defaults). Existing LCs with a
+--    country are fixed the same way. The president can still change it in
+--    Settings > LC.
+-- 2. Chat: the read/post rules turned the channel name into an LC or project id
+--    (::uuid) in each branch. Postgres doesn't promise to check "is this an LC
+--    channel?" first, so a DM row could make the whole read fail. CASE makes
+--    the order explicit.
+
+create or replace function currency_for_country(p_country text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select c.cur from (values
+    ('AL','ALL'),('DZ','DZD'),('AR','ARS'),('AM','AMD'),('AU','AUD'),('AT','EUR'),('AZ','AZN'),('BH','BHD'),('BD','BDT'),('BE','EUR'),
+    ('BJ','XOF'),('BO','BOB'),('BA','BAM'),('BR','BRL'),('BG','EUR'),('BF','XOF'),('KH','KHR'),('CM','XAF'),('CA','CAD'),('CL','CLP'),
+    ('CN','CNY'),('CO','COP'),('CR','CRC'),('CI','XOF'),('HR','EUR'),('CZ','CZK'),('DK','DKK'),('DO','DOP'),('EC','USD'),('EG','EGP'),
+    ('SV','USD'),('EE','EUR'),('ET','ETB'),('FI','EUR'),('FR','EUR'),('GE','GEL'),('DE','EUR'),('GH','GHS'),('GR','EUR'),('GT','GTQ'),
+    ('HK','HKD'),('HU','HUF'),('IS','ISK'),('IN','INR'),('ID','IDR'),('IT','EUR'),('JP','JPY'),('JO','JOD'),('KZ','KZT'),('KE','KES'),
+    ('KW','KWD'),('KG','KGS'),('LV','EUR'),('LB','LBP'),('LR','LRD'),('LT','EUR'),('MY','MYR'),('MX','MXN'),('MD','MDL'),('MN','MNT'),
+    ('ME','EUR'),('MA','MAD'),('MZ','MZN'),('MM','MMK'),('NP','NPR'),('NL','EUR'),('NZ','NZD'),('NI','NIO'),('NG','NGN'),('MK','MKD'),
+    ('NO','NOK'),('PK','PKR'),('PA','USD'),('PY','PYG'),('PE','PEN'),('PH','PHP'),('PL','PLN'),('PT','EUR'),('RO','RON'),('RU','RUB'),
+    ('RW','RWF'),('SN','XOF'),('RS','RSD'),('SG','SGD'),('SK','EUR'),('ZA','ZAR'),('KR','KRW'),('ES','EUR'),('LK','LKR'),('SE','SEK'),
+    ('CH','CHF'),('TW','TWD'),('TZ','TZS'),('TH','THB'),('TG','XOF'),('TN','TND'),('TR','TRY'),('UG','UGX'),('UA','UAH'),('AE','AED'),
+    ('GB','GBP'),('US','USD'),('VE','VES'),('VN','VND')
+  ) as c(code, cur)
+  where c.code = upper(p_country);
+$$;
+
+create or replace function _projects_currency_from_country()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_cur text := currency_for_country(new.country_code);
+begin
+  if v_cur is not null
+     and (tg_op = 'INSERT' or old.country_code is distinct from new.country_code)
+     and coalesce(new.currency, 'EUR') in ('EUR', 'USD') then
+    new.currency := v_cur;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_projects_currency_from_country on projects;
+create trigger trg_projects_currency_from_country
+  before insert or update of country_code on projects
+  for each row execute function _projects_currency_from_country();
+
+update projects
+   set currency = currency_for_country(country_code)
+ where country_code is not null
+   and currency in ('EUR', 'USD')
+   and currency_for_country(country_code) is not null
+   and currency <> currency_for_country(country_code);
+
+-- ── Chat rules with an explicit order ────────────────────────────────────────
+
+drop policy if exists "chat_messages_member_select" on chat_messages;
+create policy "chat_messages_member_select"
+  on chat_messages for select to authenticated
+  using (
+    case
+      when channel like 'lab:%'     then auth_is_project_member(_try_uuid(substr(channel, 5)))
+      when channel like 'dm:%'      then auth.uid()::text = any(string_to_array(substr(channel, 4), ':'))
+      when channel like 'project:%' then auth_uid_is_sub_project_member(_try_uuid(substr(channel, 9)))
+      else false
+    end
+  );
+
+drop policy if exists "chat_messages_member_insert" on chat_messages;
+create policy "chat_messages_member_insert"
+  on chat_messages for insert to authenticated
+  with check (
+    sender_id = auth.uid()
+    and case
+      when channel like 'lab:%'     then auth_is_project_member(_try_uuid(substr(channel, 5)))
+      when channel like 'dm:%'      then auth.uid()::text = any(string_to_array(substr(channel, 4), ':'))
+      when channel like 'project:%' then auth_uid_is_sub_project_member(_try_uuid(substr(channel, 9)))
+      else false
+    end
+  );
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261107004_expa.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 063: connect EXPA (AIESEC's GIS) and sync applications.
+--
+-- A member connects their EXPA account once (OAuth with auth.aiesec.org). The
+-- server keeps their tokens in expa_connections, which no one reads through
+-- the API, and uses them to read applications of their home LC from the GIS
+-- GraphQL API. The applications go into the pipeline through import_exchanges,
+-- run as that member, so the usual department rules decide what they can add.
+--
+--   expa_connections    one row per member: tokens, their EXPA name and home LC.
+--   expa_oauth_states   the random "state" of a connect or sign-in in
+--                       progress, so the callback knows who started it and
+--                       why (kept 10 minutes).
+--   expa_status()       for the app: am I connected, as whom, last sync.
+--   disconnect_expa()   forget my tokens.
+--   auth_user_id_by_email(email)  server only: is there already a Torch account
+--                       with this email? "Continue with EXPA" signs into an
+--                       account linked to that EXPA person, or creates a new
+--                       one; it never takes over an existing account by email.
+
+create table if not exists expa_connections (
+  user_id         uuid primary key references auth.users(id) on delete cascade,
+  expa_person_id  text,
+  expa_name       text,
+  home_lc_id      text,
+  home_lc_name    text,
+  access_token    text not null,
+  refresh_token   text,
+  expires_at      timestamptz,
+  connected_at    timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  last_synced_at  timestamptz
+);
+
+-- One Torch account per EXPA person.
+create unique index if not exists expa_connections_person_idx on expa_connections (expa_person_id);
+
+alter table expa_connections enable row level security;   -- no policies: service role only
+revoke all on expa_connections from anon, authenticated;
+
+create table if not exists expa_oauth_states (
+  state       text primary key check (length(state) >= 32),
+  purpose     text not null default 'connect' check (purpose in ('connect', 'login')),
+  user_id     uuid references auth.users(id) on delete cascade,     -- who is connecting; none for a sign-in
+  created_at  timestamptz not null default now(),
+  check (purpose = 'login' or user_id is not null)
+);
+
+alter table expa_oauth_states enable row level security;  -- no policies: service role only
+revoke all on expa_oauth_states from anon, authenticated;
+
+create or replace function expa_status()
+returns table (connected_at timestamptz, expa_name text, home_lc_name text, last_synced_at timestamptz)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select connected_at, expa_name, home_lc_name, last_synced_at from expa_connections where user_id = auth.uid();
+$$;
+
+create or replace function disconnect_expa()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from expa_connections where user_id = auth.uid();
+$$;
+
+create or replace function auth_user_id_by_email(p_email text)
+returns uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select id from auth.users where lower(email) = lower(trim(p_email)) limit 1;
+$$;
+
+revoke execute on function auth_user_id_by_email(text) from public, anon, authenticated;
+grant  execute on function auth_user_id_by_email(text) to service_role;
+
+revoke execute on function expa_status()     from public, anon;
+revoke execute on function disconnect_expa() from public, anon;
+grant  execute on function expa_status()     to authenticated;
+grant  execute on function disconnect_expa() to authenticated;
+
+notify pgrst, 'reload schema';
+

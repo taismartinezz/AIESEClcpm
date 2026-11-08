@@ -243,6 +243,7 @@ function TeamWorkspace() {
   const [storedProjectName, setStoredProjectName] = useState(() => getStoredProject().name);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(
     isSupabaseConfigured ? null : CURRENT_USER_ID
   );
@@ -269,7 +270,7 @@ function TeamWorkspace() {
 
     (async () => {
       // 1. Team roster for this project + the project's display name + lab roles
-      const [{ data: memberData }, { data: projectData }, { data: labRolesData }] = await Promise.all([
+      const [{ data: memberData, error: memberError }, { data: projectData }, { data: labRolesData }] = await Promise.all([
         supabase
           .from("team_members")
           .select("*, user_profiles(name, avatar_color, avatar_initials, avatar_url, institution), lab_role_id")
@@ -286,6 +287,10 @@ function TeamWorkspace() {
           .order("is_system", { ascending: false })
           .order("name"),
       ]);
+
+      // Say why instead of showing an empty LC.
+      if (memberError) { setLoadError(memberError.message); setLoading(false); return; }
+      setLoadError(null);
 
       const labRoleMap: Record<string, string> = {};
       for (const r of labRolesData ?? []) {
@@ -481,6 +486,10 @@ function TeamWorkspace() {
       />
 
       <div className="flex-1 overflow-auto p-6">
+
+        {loadError && (
+          <p role="alert" style={{ fontSize: 13, color: "var(--color-error)", margin: "0 0 12px" }}>Couldn&apos;t load your LC&apos;s members: {loadError}</p>
+        )}
 
         {/* Team grid */}
         {loading && (
