@@ -15,7 +15,7 @@ import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
 import { copyText } from "@/lib/clipboard";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { needsAttention, pace, PACE_LABEL, sourceLabel, termProgress, type LcHealth, type PaceStatus } from "@/lib/mcPace";
+import { FUNNEL_STEPS, needsAttention, pace, PACE_LABEL, sourceLabel, stepRate, termProgress, weakestStep, type FunnelCounts, type LcHealth, type PaceStatus } from "@/lib/mcPace";
 import { formatDay } from "@/lib/dates";
 import { APP_NAME } from "@/lib/brand";
 
@@ -202,6 +202,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const [version, setVersion] = useState(0);
   // Targets, pace and health (migration 20261108006). Missing before it runs: the page works without them.
   const [health, setHealth] = useState<Record<string, LcHealth>>({});
+  const [insights, setInsights] = useState<Record<string, Insight>>({});
   const [termStart, setTermStart] = useState<string | null>(null);
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [editingTargets, setEditingTargets] = useState(false);
@@ -212,10 +213,11 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
     let cancelled = false;
     (async () => {
       try {
-        const [dash, h, term] = await Promise.all([
+        const [dash, h, term, ins] = await Promise.all([
           supabase.rpc("mc_dashboard", { p_mc_id: mc.id }),
           supabase.rpc("mc_lc_health", { p_mc_id: mc.id }),
           supabase.rpc("mc_term_start", { p_mc_id: mc.id }),
+          supabase.rpc("mc_lc_insights", { p_mc_id: mc.id }),
         ]);
         if (dash.error) throw new Error(dash.error.message);
         const start = !term.error && typeof term.data === "string" ? term.data : null;
@@ -225,6 +227,8 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
         if (cancelled) return;
         setRows((dash.data ?? []) as Row[]);
         setHealth(Object.fromEntries(((h.error ? [] : h.data ?? []) as LcHealth[]).map((x) => [x.project_id, x])));
+        // Before migration 20261108007 there are no insights: those columns and panels stay hidden.
+        setInsights(Object.fromEntries(((ins.error ? [] : ins.data ?? []) as Insight[]).map((x) => [x.project_id, x])));
         setTermStart(start);
         setTargets(Object.fromEntries(((t.error ? [] : t.data ?? []) as { project_id: string; product: string; metric: string; target: number }[])
           .map((x) => [targetKey(x.project_id, x.product, x.metric), x.target])));
@@ -252,6 +256,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const sum = (m: Metric, product?: string) => rows.filter((r) => !product || r.product === product).reduce((s, r) => s + r[m], 0);
   const conv = sum("applied") ? `${Math.round((sum("approved") / sum("applied")) * 100)}%` : "-";
   const progress = termStart ? termProgress(termStart) : 0;
+  const hasInsights = Object.keys(insights).length > 0;
   const hasTargets = metric === "approved" || metric === "realized";
   const targetOf = (lcId: string, product: string, m: string) => targets[targetKey(lcId, product, m)];
   const lcTarget = (lcId: string, m: string) => {
@@ -304,6 +309,17 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
     }
   }
 
+  const [nudged, setNudged] = useState<Record<string, boolean>>({});
+  async function nudge(lcId: string, lcName: string, reasons: string[]) {
+    const body = `Hi ${lcName}! Please bring your pipeline in ${APP_NAME} up to date, so the national numbers are right. What we noticed:\n${reasons.map((r) => `• ${r}`).join("\n")}`;
+    if (!(await askConfirm(`Send ${lcName} a reminder? Everyone in the LC sees it on their dashboard:\n\n${body}`, { confirmLabel: "Send" }))) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error: err } = await supabase.from("mc_messages").insert({ mc_id: mc.id, project_id: lcId, kind: "nudge", body, created_by: session?.user?.id });
+    if (err) { setError(`Couldn't send the reminder: ${err.message}`); return; }
+    setNudged((n) => ({ ...n, [lcId]: true }));
+    setVersion((v) => v + 1);
+  }
+
   async function removeLc(id: string, name: string) {
     if (!(await askConfirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`, { confirmLabel: "Remove" }))) return;
     setError(null);
@@ -346,12 +362,15 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
             {attention.map((a) => (
               <li key={a.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <AlertTriangle size={14} color="var(--color-warning, #B45309)" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <strong style={{ fontSize: 13 }}>{a.name}</strong>
                   <ul style={{ margin: "2px 0 0", paddingLeft: 16, fontSize: 12, color: "var(--color-body)" }}>
                     {a.reasons.map((r) => <li key={r}>{r}</li>)}
                   </ul>
                 </div>
+                {nudged[a.id]
+                  ? <span role="status" style={{ fontSize: 12, color: "var(--color-secondary)" }}>Reminder sent</span>
+                  : <Button variant="secondary" onClick={() => nudge(a.id, a.name, a.reasons)}>Send a reminder</Button>}
               </li>
             ))}
           </ul>
@@ -392,6 +411,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>
                 <th scope="col" style={{ ...th, textAlign: "left" }}>LC</th>
+                {hasInsights && <th scope="col" style={{ ...th, textAlign: "left" }}>Approvals, 12 weeks</th>}
                 {PRODUCTS.map((p) => <th key={p.code} scope="col" style={th}>{p.label}</th>)}
                 <th scope="col" style={th}>Total</th>
                 {mc.isMcp && <th scope="col" style={th}><span className="sr-only">Remove</span></th>}
@@ -403,6 +423,11 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
                       <strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} {l.members === 1 ? "member" : "members"}</span>
                       {health[l.id] && <span style={{ display: "block", fontSize: 11, color: "var(--color-secondary)" }}>{sourceLabel(health[l.id])}</span>}
                     </td>
+                    {hasInsights && (
+                      <td style={{ ...td, textAlign: "left" }}>
+                        {insights[l.id] && <Trend weekly={insights[l.id].weekly} thisTerm={insights[l.id].approved} lastTerm={insights[l.id].last_term_to_date} lcName={l.name} />}
+                      </td>
+                    )}
                     {PRODUCTS.map((p) => {
                       const actual = l.values[p.code]?.[metric] ?? 0;
                       const t = hasTargets ? targetOf(l.id, p.code, metric) : undefined;
@@ -425,6 +450,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
                 ))}
                 <tr>
                   <th scope="row" style={{ ...td, textAlign: "left", fontWeight: 700 }}>National</th>
+                  {hasInsights && <td style={td} />}
                   {PRODUCTS.map((p) => <td key={p.code} style={{ ...td, fontWeight: 700 }}>{sum(metric, p.code)}</td>)}
                   <td style={{ ...td, fontWeight: 700 }}>{sum(metric)}</td>
                   {mc.isMcp && <td style={td} />}
@@ -434,6 +460,9 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
           </div>
         )}
       </Panel>
+      {hasInsights && <FunnelPanel lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} insights={insights} />}
+      {hasInsights && <TeamPanel lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} insights={insights} />}
+      {lcs.length > 0 && <MessagesPanel mc={mc} lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} version={version} onSent={() => setVersion((v) => v + 1)} />}
       <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
       <LinkStatus mc={mc} version={version} />
       {!(loaded && lcs.length === 0) && <McCodes mc={mc} prominent={false} onChanged={onChanged} />}
@@ -541,10 +570,19 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
   const notYet = inCountry.filter((n) => !linked.includes(n));
   if (linked.length === 0 && notYet.length === 0 && !mc.countryCode) return null;
   const countryName = countryByCode(mc.countryCode)?.name ?? mc.countryCode;
+  const known = linked.length + notYet.length;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const reminder = `Hi! ${notYet.join(", ")}: ${mc.name} follows national numbers in ${APP_NAME} and your LC isn't linked yet. LCPs: open ${origin}/settings#national and enter the LC code ${mc.lcCode}. We only see counts, never names.`;
   const chip: React.CSSProperties = { display: "inline-block", fontSize: 12, padding: "3px 8px", borderRadius: 999, margin: "0 6px 6px 0" };
   return (
-    <Panel title="LCs">
+    <Panel title={mc.countryCode && known > 0 ? `LCs: ${linked.length} of ${known} in ${countryName} linked` : "LCs"}>
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        {mc.countryCode && known > 0 && (
+          <div role="progressbar" aria-label="LCs linked" aria-valuemin={0} aria-valuemax={known} aria-valuenow={linked.length}
+            style={{ height: 6, borderRadius: 999, backgroundColor: "var(--color-dimmed-bg)", overflow: "hidden" }}>
+            <div style={{ width: `${(linked.length / known) * 100}%`, height: "100%", backgroundColor: "var(--color-navy)" }} />
+          </div>
+        )}
         {linked.length > 0 && (
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: "0 0 6px" }}>Linked ({linked.length})</p>
@@ -567,6 +605,9 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: "0 0 6px" }}>On {APP_NAME} but not linked yet ({notYet.length})</p>
             {notYet.map((n) => <span key={n} style={{ ...chip, border: "1px solid var(--color-border)", color: "var(--color-body)" }}>{n}</span>)}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <CopyButton text={reminder} label="Copy reminder message" />
+            </div>
           </div>
         )}
       </div>
@@ -628,5 +669,224 @@ function TotalWithPace({ actual, target, progress, metric }: { actual: number; t
         {PACE_LABEL[p.status]}
       </span>
     </span>
+  );
+}
+
+/** mc_lc_insights() row. */
+interface Insight extends FunnelCounts {
+  project_id: string; weekly: number[]; last_term_to_date: number;
+  members: number; joined_term: number; term_ended: number; active_14d: number;
+  handover_due: number; handover_written: number; recruits_term: number; recruits_joined: number;
+}
+
+/** A small line of weekly approvals, and this term against the same point last term. */
+function Trend({ weekly, thisTerm, lastTerm, lcName }: { weekly: number[]; thisTerm: number; lastTerm: number; lcName: string }) {
+  const w = 84, h = 22, pad = 2;
+  const max = Math.max(1, ...weekly);
+  const x = (i: number) => pad + (i * (w - pad * 2)) / Math.max(1, weekly.length - 1);
+  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
+  const points = weekly.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const diff = thisTerm - lastTerm;
+  const label = `${lcName}: approvals per week over the last 12 weeks, oldest first: ${weekly.join(", ")}`;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
+        <title>{`Last 12 weeks: ${weekly.join(", ")}`}</title>
+        <line x1={pad} x2={w - pad} y1={h - pad} y2={h - pad} stroke="var(--color-border)" strokeWidth={1} />
+        <polyline points={points} fill="none" stroke="var(--color-navy)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={x(weekly.length - 1)} cy={y(weekly[weekly.length - 1] ?? 0)} r={2.5} fill="var(--color-navy)" />
+      </svg>
+      <span style={{ fontSize: 11, color: "var(--color-secondary)", whiteSpace: "nowrap" }} title="Approvals this term against the same point last term">
+        {diff === 0 ? "same as last term" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)} vs last term`}
+      </span>
+    </span>
+  );
+}
+
+const pct = (n: number | null) => (n === null ? "-" : `${Math.round(n * 100)}%`);
+
+/** Where each LC loses people: the funnel this term, and the step to coach on. */
+function FunnelPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; insights: Record<string, Insight> }) {
+  const rows = lcs.filter((l) => insights[l.id]);
+  const national = rows.reduce<FunnelCounts>((t, l) => {
+    const i = insights[l.id];
+    return { applied: t.applied + i.applied, accepted: t.accepted + i.accepted, approved: t.approved + i.approved, realized: t.realized + i.realized, completed: t.completed + i.completed };
+  }, { applied: 0, accepted: 0, approved: 0, realized: 0, completed: 0 });
+  const th: React.CSSProperties = { textAlign: "right", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
+  const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
+  const cell = (c: FunnelCounts, i: number) => <span style={{ fontSize: 11, color: "var(--color-secondary)" }}> {pct(stepRate(c, i))}</span>;
+  return (
+    <Panel title="Where each LC loses people">
+      <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
+        This term, by the date each stage was reached. Percentages are each step&apos;s conversion (up to 100%: some reach a stage this term after the one before it last term). A step 20% or more below the national rate is flagged with what to coach on.
+      </p>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th scope="col" style={{ ...th, textAlign: "left" }}>LC</th>
+            <th scope="col" style={th}>Applied</th><th scope="col" style={th}>Accepted</th><th scope="col" style={th}>Approved</th>
+            <th scope="col" style={th}>Realized</th><th scope="col" style={th}>Completed</th>
+            <th scope="col" style={{ ...th, textAlign: "left" }}>Coach on</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((l) => {
+              const c = insights[l.id];
+              const weak = weakestStep(c, national);
+              return (
+                <tr key={l.id}>
+                  <th scope="row" style={{ ...td, textAlign: "left", fontWeight: 600 }}>{l.name}</th>
+                  <td style={td}>{c.applied}</td>
+                  <td style={td}>{c.accepted}{cell(c, 0)}</td>
+                  <td style={td}>{c.approved}{cell(c, 1)}</td>
+                  <td style={td}>{c.realized}{cell(c, 2)}</td>
+                  <td style={td}>{c.completed}</td>
+                  <td style={{ ...td, textAlign: "left" }}>
+                    {weak ? <span title={`${FUNNEL_STEPS[weak.index].label}: ${pct(weak.rate)} (national ${pct(weak.nationalRate)})`}>
+                      <strong style={{ fontWeight: 600 }}>{FUNNEL_STEPS[weak.index].coach}</strong>
+                      <span style={{ fontSize: 11, color: "var(--color-secondary)" }}> {FUNNEL_STEPS[weak.index].label.toLowerCase()} {pct(weak.rate)} vs {pct(weak.nationalRate)}</span>
+                    </span> : <span style={{ color: "var(--color-secondary)" }}>-</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr>
+              <th scope="row" style={{ ...td, textAlign: "left", fontWeight: 700 }}>National</th>
+              <td style={{ ...td, fontWeight: 700 }}>{national.applied}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{national.accepted}{cell(national, 0)}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{national.approved}{cell(national, 1)}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{national.realized}{cell(national, 2)}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{national.completed}</td>
+              <td style={td} />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+/** What EXPA can't show: the team behind the numbers. Counts only. */
+function TeamPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; insights: Record<string, Insight> }) {
+  const rows = lcs.filter((l) => insights[l.id]);
+  const th: React.CSSProperties = { textAlign: "right", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
+  const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
+  return (
+    <Panel title="Beyond exchanges">
+      <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
+        What EXPA doesn&apos;t show, as counts only: the team, whether it uses {APP_NAME}, and whether VPs wrote their handover notes this term.
+      </p>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th scope="col" style={{ ...th, textAlign: "left" }}>LC</th>
+            <th scope="col" style={th}>Members</th>
+            <th scope="col" style={th} title="Joined since the term started">Joined</th>
+            <th scope="col" style={th} title="Still listed although their term has ended">Term ended</th>
+            <th scope="col" style={th} title="Opened the app in the last 14 days">Active (14 days)</th>
+            <th scope="col" style={th} title="Each department with a VP, plus the LC-wide note">Handover notes</th>
+            <th scope="col" style={th} title="Applied to join this term, and how many joined">Recruitment</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((l) => {
+              const i = insights[l.id];
+              const active = i.members ? i.active_14d / i.members : 0;
+              return (
+                <tr key={l.id}>
+                  <th scope="row" style={{ ...td, textAlign: "left", fontWeight: 600 }}>{l.name}</th>
+                  <td style={td}>{i.members}</td>
+                  <td style={td}>{i.joined_term}</td>
+                  <td style={td}>{i.term_ended}</td>
+                  <td style={td}>{i.active_14d} <span style={{ fontSize: 11, color: active < 0.3 && i.members > 0 ? "var(--color-error)" : "var(--color-secondary)" }}>({pct(i.members ? active : null)})</span></td>
+                  <td style={td}>{i.handover_written} / {i.handover_due}</td>
+                  <td style={td}>{i.recruits_joined} joined <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>of {i.recruits_term}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+interface McMessage { id: string; project_id: string | null; kind: "announcement" | "nudge"; body: string; created_by: string | null; created_at: string }
+
+/** Announcements to every linked LC, or to one; they show on the LCs' dashboards. */
+function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string; name: string }[]; version: number; onSent: () => void }) {
+  const [messages, setMessages] = useState<McMessage[] | null>(null);
+  const [body, setBody] = useState("");
+  const [to, setTo] = useState<string>("all");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ data: { session } }, res] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("mc_messages").select("id, project_id, kind, body, created_by, created_at").eq("mc_id", mc.id).order("created_at", { ascending: false }).limit(10),
+      ]);
+      if (cancelled) return;
+      setMe(session?.user?.id ?? null);
+      // Before migration 20261108008 there's no table: the panel stays hidden.
+      setMessages(res.error ? null : (res.data ?? []) as McMessage[]);
+    })();
+    return () => { cancelled = true; };
+  }, [mc.id, version]);
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.from("mc_messages").insert({ mc_id: mc.id, project_id: to === "all" ? null : to, body: body.trim(), created_by: me });
+    setBusy(false);
+    if (err) { setError(`Couldn't send: ${err.message}`); return; }
+    setBody("");
+    onSent();
+  }
+
+  async function remove(m: McMessage) {
+    if (!(await askConfirm("Delete this message? LCs stop seeing it.", { confirmLabel: "Delete" }))) return;
+    const { error: err } = await supabase.from("mc_messages").delete().eq("id", m.id);
+    if (err) setError(`Couldn't delete: ${err.message}`); else onSent();
+  }
+
+  if (messages === null) return null;
+  const nameOf = (id: string | null) => (id ? lcs.find((l) => l.id === id)?.name ?? "an LC" : "all LCs");
+  return (
+    <Panel title="Messages to LCs">
+      <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Everyone in the LCs you pick sees it on their dashboard for 60 days.</p>
+        <textarea aria-label="Message to LCs" value={body} maxLength={2000} rows={3} onChange={(e) => setBody(e.target.value)}
+          placeholder="e.g. National targets for this term are set: check yours on your dashboard."
+          style={{ ...inputStyle, height: "auto", padding: "8px 10px", resize: "vertical" }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label htmlFor="mc-msg-to" style={{ fontSize: 12, color: "var(--color-secondary)" }}>To</label>
+          <select id="mc-msg-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 180 }}>
+            <option value="all">All linked LCs</option>
+            {lcs.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <Button onClick={send} disabled={busy || !body.trim()}>{busy ? "Sending…" : "Send"}</Button>
+        </div>
+        <ErrorText>{error}</ErrorText>
+        {messages.length > 0 && (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {messages.map((m) => (
+              <li key={m.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid var(--color-border)", fontSize: 13 }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{m.kind === "nudge" ? "Reminder" : "Announcement"} to {nameOf(m.project_id)} · {formatDay(m.created_at)}</span>
+                  <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
+                </div>
+                {(m.created_by === me || mc.isMcp) && (
+                  <button type="button" aria-label="Delete message" onClick={() => remove(m)} style={{ background: "none", border: "none", cursor: "pointer", alignSelf: "flex-start" }}>
+                    <Trash2 size={13} color="var(--color-secondary)" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Panel>
   );
 }

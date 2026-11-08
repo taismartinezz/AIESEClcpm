@@ -8957,3 +8957,169 @@ grant  execute on function mc_lc_health(uuid)  to authenticated;
 
 notify pgrst, 'reload schema';
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261108007_mc_insights.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 070: trends, funnel and LC health the MC can't get from EXPA.
+--
+-- mc_lc_insights(mc), per linked LC, counts only (never names), MC members only:
+--   weekly            approvals in each of the last 12 weeks, oldest first
+--   last_term_to_date approvals in last term up to the same point in it
+--   applied … completed  this term's funnel, by the date each stage was reached
+--   members, joined_term, term_ended   team size, joined this term, and still
+--                     listed although their term has ended
+--   active_14d        members who opened the app in the last 14 days
+--   handover_due, handover_written    notes expected (each department with a
+--                     VP, plus the LC-wide one) and written this term
+--   recruits_term, recruits_joined    recruitment this term
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create or replace function mc_lc_insights(p_mc_id uuid)
+returns table (
+  project_id uuid, weekly integer[], last_term_to_date integer,
+  applied integer, accepted integer, approved integer, realized integer, completed integer,
+  members integer, joined_term integer, term_ended integer, active_14d integer,
+  handover_due integer, handover_written integer, recruits_term integer, recruits_joined integer
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_from      date;
+  v_elapsed   integer;
+  v_last_from date;
+begin
+  if not is_mc_member(p_mc_id) then
+    return;
+  end if;
+  v_from      := mc_term_start(p_mc_id);
+  v_elapsed   := current_date - v_from;
+  v_last_from := (v_from - interval '1 year')::date;
+
+  return query
+  select p.id,
+         array(select (select count(*)::int from exchanges e
+                       where e.project_id = p.id
+                         and e.approved_at >  current_date - (w * 7)
+                         and e.approved_at <= current_date - ((w - 1) * 7))
+               from generate_series(12, 1, -1) as w),
+         (select count(*)::int from exchanges e where e.project_id = p.id
+            and e.approved_at >= v_last_from and e.approved_at <= v_last_from + v_elapsed),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.applied_at   >= v_from),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.accepted_at  >= v_from),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.approved_at  >= v_from),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.realized_at  >= v_from),
+         (select count(*)::int from exchanges e where e.project_id = p.id and e.completed_at >= v_from),
+         (select count(*)::int from team_members tm where tm.project_id = p.id),
+         (select count(*)::int from team_members tm where tm.project_id = p.id and tm.joined_at >= v_from),
+         (select count(*)::int from team_members tm where tm.project_id = p.id and tm.term_end < current_date),
+         (select count(*)::int from team_members tm join user_profiles up on up.id = tm.user_id
+            where tm.project_id = p.id and up.last_seen_at > now() - interval '14 days'),
+         (select count(*)::int + 1 from departments d where d.project_id = p.id and d.vp_user_id is not null),
+         (select count(*)::int from handover_notes h
+            where h.project_id = p.id and h.updated_at >= v_from and length(trim(h.body)) > 0
+              and (h.department_id is null
+                   or h.department_id in (select d.id from departments d where d.project_id = p.id and d.vp_user_id is not null))),
+         (select count(*)::int from recruits r where r.project_id = p.id and r.applied_on >= v_from),
+         (select count(*)::int from recruits r where r.project_id = p.id and r.applied_on >= v_from and r.stage = 'joined')
+  from projects p
+  where p.mc_id = p_mc_id
+  order by p.name;
+end;
+$$;
+
+revoke execute on function mc_lc_insights(uuid) from public, anon;
+grant  execute on function mc_lc_insights(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261108008_mc_messages.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 071: the MC reaches its LCs.
+--
+--   mc_messages        an announcement from the MC to every linked LC, or to
+--                      one LC (project_id); kind 'nudge' is the "please update
+--                      your numbers" sent from Needs attention. MC members
+--                      write and read them; members of the LCs they're for
+--                      read them on their dashboard.
+--   lc_national(lc)    for an LC's members: its MC (id, name) and the MC's
+--                      term start, so the dashboard can show national targets.
+--   mc_lc_targets      now also readable by the LC's VPs (was: president), so
+--                      they see the targets for their products.
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create table if not exists mc_messages (
+  id         uuid primary key default gen_random_uuid(),
+  mc_id      uuid not null references mcs(id) on delete cascade,
+  project_id uuid references projects(id) on delete cascade,      -- null = every linked LC
+  kind       text not null default 'announcement' check (kind in ('announcement', 'nudge')),
+  body       text not null check (length(trim(body)) between 1 and 2000),
+  created_by uuid references auth.users(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mc_messages_mc_idx on mc_messages (mc_id, created_at desc);
+
+-- Is the caller in an LC this MC message is for?
+create or replace function in_lc_of_mc(p_mc_id uuid, p_project_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from team_members tm join projects p on p.id = tm.project_id
+    where tm.user_id = auth.uid() and p.mc_id = p_mc_id and (p_project_id is null or p.id = p_project_id)
+  );
+$$;
+
+alter table mc_messages enable row level security;
+grant select, insert, delete on mc_messages to authenticated;
+grant select, insert, update, delete on mc_messages to service_role;
+
+drop policy if exists "mc and its lcs read messages" on mc_messages;
+create policy "mc and its lcs read messages" on mc_messages
+  for select using (is_mc_member(mc_id) or in_lc_of_mc(mc_id, project_id));
+
+drop policy if exists "mc members send messages" on mc_messages;
+create policy "mc members send messages" on mc_messages
+  for insert with check (
+    is_mc_member(mc_id) and created_by = auth.uid()
+    and (project_id is null or lc_in_mc(project_id, mc_id))
+  );
+
+drop policy if exists "the sender or the mcp deletes messages" on mc_messages;
+create policy "the sender or the mcp deletes messages" on mc_messages
+  for delete using (created_by = auth.uid() or is_mcp(mc_id));
+
+create or replace function lc_national(p_project_id uuid)
+returns table (mc_id uuid, mc_name text, term_start date)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select m.id, m.name, mc_term_start(m.id)
+  from projects p join mcs m on m.id = p.mc_id
+  where p.id = p_project_id and auth_is_project_member(p_project_id);
+$$;
+
+drop policy if exists "mc members and the lc's president read targets" on mc_lc_targets;
+drop policy if exists "mc members and the lc's execs read targets" on mc_lc_targets;
+create policy "mc members and the lc's execs read targets" on mc_lc_targets
+  for select using (is_mc_member(mc_id) or is_lc_exec(project_id));
+
+revoke execute on function in_lc_of_mc(uuid, uuid) from public, anon;
+revoke execute on function lc_national(uuid)       from public, anon;
+grant  execute on function in_lc_of_mc(uuid, uuid) to authenticated;
+grant  execute on function lc_national(uuid)       to authenticated;
+
+notify pgrst, 'reload schema';
+

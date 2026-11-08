@@ -14,6 +14,7 @@ import Toast from "@/components/ui/Toast";
 import type { OverdueReminder } from "./_components/NeedsAttentionWidget";
 import { TodayWidget } from "./_components/TodayWidget";
 import { LcWinsWidget } from "./_components/LcWinsWidget";
+import NationalCard from "@/components/dashboard/NationalCard";
 import ThisWeekCard from "@/components/dashboard/ThisWeekCard";
 import GettingStartedCard from "@/components/dashboard/GettingStartedCard";
 import { DemoBanner } from "@/components/lc/DemoLc";
@@ -552,6 +553,9 @@ export default function DashboardPage() {
         )}
         {(role === "president" || role === "vp") && isSupabaseConfigured && (
           <ThisWeekCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
+        )}
+        {role && isSupabaseConfigured && (
+          <NationalCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
         )}
 
         {/* LC modules: finance, events and tabling: by role */}

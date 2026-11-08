@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { needsAttention, pace, sourceLabel, termProgress, type LcHealth } from "@/lib/mcPace";
+import { FUNNEL_STEPS, needsAttention, pace, sourceLabel, stepRate, termProgress, weakestStep, type LcHealth } from "@/lib/mcPace";
 
 const today = new Date("2026-08-02T12:00:00");                 // half a year into a 1 Feb term
 const health = (over: Partial<LcHealth> = {}): LcHealth => ({
@@ -56,5 +56,24 @@ describe("source line", () => {
     expect(sourceLabel(health({ last_expa_sync: "2026-07-31T09:00:00Z" }), today)).toBe("Updated 1d ago · EXPA sync 2d ago");
     expect(sourceLabel(health(), today)).toBe("Updated 1d ago · entered by hand");
     expect(sourceLabel(health({ last_activity: null, total: 0 }), today)).toBe("No data yet");
+  });
+});
+
+describe("funnel", () => {
+  const national = { applied: 100, accepted: 60, approved: 30, realized: 24, completed: 10 };
+  it("names the step where an LC falls furthest below the national rate", () => {
+    // Matching fine (60%), sales poor (20% vs 50%), delivery fine.
+    expect(weakestStep({ applied: 50, accepted: 30, approved: 6, realized: 5, completed: 1 }, national))
+      .toEqual({ index: 1, rate: 0.2, nationalRate: 0.5 });
+    expect(FUNNEL_STEPS[1].coach).toBe("sales");
+  });
+  it("caps a step at 100%, so carry-over from last term doesn't make healthy LCs look weak", () => {
+    expect(stepRate({ applied: 10, accepted: 6, approved: 6, realized: 12, completed: 0 }, 2)).toBe(1);
+    const carried = { applied: 100, accepted: 60, approved: 18, realized: 24, completed: 10 };   // 133% uncapped
+    expect(weakestStep({ applied: 50, accepted: 30, approved: 15, realized: 12, completed: 5 }, carried)).toBeNull();
+  });
+  it("says nothing when the LC is close to national, or there's too little data", () => {
+    expect(weakestStep({ applied: 50, accepted: 28, approved: 14, realized: 11, completed: 3 }, national)).toBeNull();
+    expect(weakestStep({ applied: 3, accepted: 0, approved: 0, realized: 0, completed: 0 }, national)).toBeNull();
   });
 });
