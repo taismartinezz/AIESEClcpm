@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Globe } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
@@ -196,6 +196,7 @@ function initialAuthError(): string | null {
   const params = new URLSearchParams(window.location.search);
   const errorCode = params.get("error");
   const errorDesc = params.get("error_description") ?? "";
+  if (errorCode === "expa") return errorDesc || "Signing in with EXPA didn't work. Please try again.";
   if (errorCode) {
     const providerDisabled = errorDesc.includes("provider is not enabled") || errorDesc.includes("Unsupported provider") || errorCode === "provider_disabled";
     return providerDisabled ? "That sign-in method isn't available right now. Use email or try another provider." : "Sign-in failed. Please try again or use email.";
@@ -578,6 +579,26 @@ export default function LoginPage() {
                 onClick={() => handleOAuth("google")}
               />
             </div>
+          )}
+
+          {enabledProviders.has("expa") && (
+            <AuthButton
+              icon={<Globe size={18} color="#037EF3" aria-hidden="true" />}
+              label="Continue with EXPA"
+              ariaLabel={mode === "signup" ? "Sign up with EXPA" : "Sign in with EXPA"}
+              loading={oAuthLoading === "expa"}
+              disabled={oAuthLoading !== null && oAuthLoading !== "expa"}
+              onClick={() => {
+                setOAuthLoading("expa");
+                setOAuthError(null);
+                try {
+                  localStorage.removeItem("aiesec_user");
+                  localStorage.removeItem("aiesec_project");
+                  localStorage.removeItem("aiesec_authed");
+                } catch { /* storage blocked */ }
+                window.location.assign("/api/expa/login");
+              }}
+            />
           )}
 
           {enabledProviders.has("microsoft") && (

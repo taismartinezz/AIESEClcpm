@@ -115,3 +115,11 @@ test.describe('Auth page: password visibility toggle', () => {
     await expect(passwordInput).toHaveAttribute('type', 'text')
   })
 })
+
+test.describe('Auth page: Continue with EXPA', () => {
+  test('an EXPA sign-in error comes back with its own message', async ({ page }) => {
+    await page.route('**/rest/v1/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+    await page.goto('/login?error=expa&error_description=' + encodeURIComponent("There's already a Torch account for ana@x.org."))
+    await expect(page.getByText("There's already a Torch account for ana@x.org.")).toBeVisible({ timeout: 10000 })
+  })
+})

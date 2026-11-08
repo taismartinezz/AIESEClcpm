@@ -6,6 +6,7 @@ const BYPASS_PREFIXES = [
   "/api/cron/",
   "/api/rsvp",          // signed per event + person (lib/rsvp-token)
   "/api/unsubscribe",   // signed per contact (lib/outreach-token)
+  "/api/expa/login",    // "Continue with EXPA": a page visit before sign-in, checked by state in /auth/expa/callback
 ];
 
 /**

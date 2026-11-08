@@ -14,6 +14,7 @@ export const ENV_VARS: EnvVar[] = [
   { name: "RSVP_SECRET", required: false, effect: "Going / Not going and unsubscribe links in emails fall back to INTERNAL_API_SECRET, and fail if that is missing too" },
   { name: "INTERNAL_API_SECRET", required: false, effect: "server-to-server email calls are refused" },
   { name: "RESEND_API_KEY", required: false, effect: "emails are only written to the server log, never delivered" },
+  { name: "AIESEC_CLIENT_ID", required: false, effect: "Connect EXPA on the Pipeline page says EXPA isn't set up (AIESEC_CLIENT_SECRET is needed too)" },
   { name: "EMAIL_FROM", required: false, effect: "emails are sent from notifications@example.com, which Resend will reject" },
 ];
 
