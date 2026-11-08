@@ -7,6 +7,7 @@
 
 import type { ProductCode } from "@/lib/products";
 import { statusToStage, type ImportRow } from "@/lib/expa-import";
+import type { ExpaPlacement } from "@/lib/expa-profile";
 
 export const APPLICATIONS_QUERY = `
 query Applications($page: Int, $perPage: Int, $filters: ApplicationFilter) {
@@ -104,7 +105,9 @@ export function planSync(apps: ExpaApplication[], lcId: string): SyncPlan {
 // AIESEC renamed must not stop anyone signing in.
 
 export const PROFILE_QUERY = `query { currentPerson { first_name last_name profile_photo home_mc { name } } }`;
-export const POSITIONS_QUERY = `query { currentPerson { current_positions { role { name } function { name } } } }`;
+export const POSITIONS_QUERY = `query { currentPerson { current_positions { role { name } function { name } office { id name tag } } } }`;
+// The same without the office, in case GIS refuses that part: roles alone still help onboarding.
+export const POSITIONS_QUERY_BASIC = `query { currentPerson { current_positions { role { name } function { name } } } }`;
 
 /** What onboarding can use from EXPA. Stored on expa_connections.profile. */
 export interface ExpaProfile {
@@ -114,13 +117,18 @@ export interface ExpaProfile {
   lcId: string | null;
   lcName: string | null;
   mcName: string | null;
-  positions: { role: string | null; fn: string | null }[];
+  positions: { role: string | null; fn: string | null; office?: ExpaOffice | null }[];
+  /** Where sign-in puts them (src/lib/expa-profile.ts placementFromExpa); set by the server. */
+  placement?: ExpaPlacement | null;
 }
+
+/** The committee a position is held in: an LC, an MC (tag "LC" / "MC"), or something else. */
+export interface ExpaOffice { id: string; name: string | null; tag: string | null }
 
 type RawPerson = {
   full_name?: string | null; first_name?: string | null; last_name?: string | null; profile_photo?: string | null;
   home_lc?: { id: string | number; name: string } | null; home_mc?: { name: string } | null;
-  current_positions?: { role?: { name: string } | null; function?: { name: string } | null }[] | null;
+  current_positions?: { role?: { name: string } | null; function?: { name: string } | null; office?: { id: string | number; name?: string | null; tag?: string | null } | null }[] | null;
 };
 
 export function profileFromExpa(p: RawPerson): ExpaProfile {
@@ -132,6 +140,9 @@ export function profileFromExpa(p: RawPerson): ExpaProfile {
     lcId: p.home_lc ? String(p.home_lc.id) : null,
     lcName: p.home_lc?.name?.trim() || null,
     mcName: p.home_mc?.name?.trim() || null,
-    positions: (p.current_positions ?? []).map((x) => ({ role: x.role?.name ?? null, fn: x.function?.name ?? null })),
+    positions: (p.current_positions ?? []).map((x) => ({
+      role: x.role?.name ?? null, fn: x.function?.name ?? null,
+      ...(x.office?.id != null ? { office: { id: String(x.office.id), name: x.office.name?.trim() || null, tag: x.office.tag?.trim().toUpperCase() || null } } : {}),
+    })),
   };
 }

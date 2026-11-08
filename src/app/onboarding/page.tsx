@@ -474,6 +474,8 @@ export default function OnboardingPage() {
   const [mcChosen, setMcChosen] = useState(false);
   // Details from the person's EXPA profile ("Continue with EXPA"), if any.
   const [expa, setExpa] = useState<ExpaProfile | null>(null);
+  // Signed in with EXPA but their LC or MC isn't on the app yet (set by /auth/expa/finish).
+  const [expaMissing, setExpaMissing] = useState<{ kind: "lc" | "mc"; name: string } | null>(null);
 
   // Create-LC step 2
   const [piProjectName, setPiProjectName] = useState("");
@@ -588,7 +590,12 @@ export default function OnboardingPage() {
         if (xpCountry) { setCountryCode(xpCountry); setCountryConfirmed(true); }
         if (xp.lcName) setPiProjectName(lcDisplayName(xp.lcName));
         if (!pendingInvite && isLcPresident(xp)) setRole("president");
+        if (!pendingInvite && xp.placement?.kind === "mc") setMcChosen(true);
       }
+      try {
+        const missing = sessionStorage.getItem("expa_missing");
+        if (missing) { setExpaMissing(JSON.parse(missing)); sessionStorage.removeItem("expa_missing"); }
+      } catch { /* storage blocked */ }
 
       setSessionReady(true);
     }
@@ -845,6 +852,13 @@ export default function OnboardingPage() {
           {expa && (
             <p role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center" }}>
               We filled in what we could from your EXPA profile{expa.lcName ? ` (${lcDisplayName(expa.lcName)})` : ""}. You can change anything.
+            </p>
+          )}
+          {expaMissing && (
+            <p role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center" }}>
+              {expaMissing.kind === "mc"
+                ? `${expaMissing.name || "Your MC"} isn't on ${APP_NAME} yet. Once your MCP sets it up, sign in with EXPA again and you'll join it automatically.`
+                : `${lcDisplayName(expaMissing.name) || "Your LC"} isn't on ${APP_NAME} yet. Once your LCP signs in with EXPA and sets it up, sign in again and you'll join it automatically. Or join now with an invite code.`}
             </p>
           )}
 
