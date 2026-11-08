@@ -26,10 +26,22 @@ export default function McPage() {
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
 
+  // The tab shows the MC's name ("AIESEC in Portugal · LC Manager"). A <title>
+  // element here loses to the layout's metadata title, so set it directly.
+  const tabTitle = mc ? `${mc.name} · ${APP_NAME}` : null;
+  useEffect(() => {
+    if (!tabTitle) return;
+    document.title = tabTitle;
+    // Next can put the layout's title back after navigation: keep ours.
+    const head = document.querySelector("head");
+    if (!head) return;
+    const observer = new MutationObserver(() => { if (document.title !== tabTitle) document.title = tabTitle; });
+    observer.observe(head, { subtree: true, childList: true, characterData: true });
+    return () => observer.disconnect();
+  }, [tabTitle]);
+
   return (
     <div className="flex flex-col h-full">
-      {/* The tab shows the MC's name ("AIESEC in Portugal · LC Manager"). */}
-      {mc && <title>{`${mc.name} · ${APP_NAME}`}</title>}
       <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
