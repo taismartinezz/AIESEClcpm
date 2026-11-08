@@ -2,11 +2,12 @@
 
 import { supabase } from "@/lib/supabase";
 
-// Read-only access to the person's own Google Calendar, shown in their own
-// Scheduling view. Tokens never reach other people: the callback hands them to
+// The person's own Google Calendar: read, to show it in their own Scheduling
+// view, and add events, to put their LC's events in it (they can switch that
+// off). Tokens never reach other people: the callback hands them to
 // /api/google/connect, which stores them where only the server can read them.
 
-export const GCAL_SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
+export const GCAL_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
 const FLAG = "aiesec_gcal_connecting";
 
 /**
@@ -44,3 +45,21 @@ export async function finishGoogleCalendarConnect(session: { access_token: strin
 }
 
 export interface GoogleEvent { id: string; title: string; start: string; end: string | null; allDay: boolean; link: string | null }
+
+/**
+ * Bring an LC event in line in people's Google Calendars (after it was saved,
+ * deleted or answered). Fire and forget: it never holds up the screen.
+ */
+export function syncToGoogle(eventId: string): void {
+  void (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      await fetch("/api/events/google-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ eventId }),
+      });
+    } catch { /* the daily job catches up */ }
+  })();
+}

@@ -785,7 +785,7 @@ function AvailabilityTab({
   google,
   onGoogleChanged,
 }: {
-  google: { connected: boolean; email: string | null };
+  google: { connected: boolean; email: string | null; canAddEvents?: boolean; addEvents?: boolean };
   onGoogleChanged: () => void;
   onSave: (slots: string[], subProjectId: string | null) => void;
   allAvailabilities: WeeklyAvailability[];
@@ -960,7 +960,7 @@ function AvailabilityTab({
             </div>
           </Card>
 
-          <GoogleCalendarCard connected={google.connected} email={google.email} onChanged={onGoogleChanged} />
+          <GoogleCalendarCard connected={google.connected} email={google.email} canAddEvents={google.canAddEvents} addEvents={google.addEvents} onChanged={onGoogleChanged} />
         </div>
       ) : (
         <Card>
@@ -1144,7 +1144,7 @@ export default function SchedulingPage() {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [lcEvents, setLcEvents] = useState<LcEventLite[]>([]);
   const [tablingSlots, setTablingSlots] = useState<TablingLite[]>([]);
-  const [google, setGoogle] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
+  const [google, setGoogle] = useState<{ connected: boolean; email: string | null; canAddEvents?: boolean; addEvents?: boolean }>({ connected: false, email: null });
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([]);
   const [googleVersion, setGoogleVersion] = useState(0);
   const [googleError, setGoogleError] = useState<string | null>(null);
@@ -1157,9 +1157,9 @@ export default function SchedulingPage() {
       try {
         const { data, error } = await supabase.rpc("google_calendar_status");
         if (error) throw new Error(error.message);
-        const row = (Array.isArray(data) ? data[0] : data) as { google_email: string | null } | undefined;
+        const row = (Array.isArray(data) ? data[0] : data) as { google_email: string | null; can_add_events?: boolean; add_events?: boolean } | undefined;
         if (cancelled) return;
-        setGoogle({ connected: Boolean(row), email: row?.google_email ?? null });
+        setGoogle({ connected: Boolean(row), email: row?.google_email ?? null, canAddEvents: Boolean(row?.can_add_events), addEvents: Boolean(row?.add_events) });
         if (!row) { setGoogleEvents([]); return; }
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch("/api/google/calendar", { headers: { Authorization: `Bearer ${session?.access_token ?? ""}` } });

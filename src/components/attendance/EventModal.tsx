@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AUDIENCE_ROLE_LABELS, EVENT_TYPES, EVENT_TYPE_LABELS } from "@/lib/attendance";
 import { authedPost, describeSend, type SendResult } from "@/lib/api-client";
+import { syncToGoogle } from "@/lib/google-calendar";
 import type { Department, LcEvent, LcEventType } from "@/types";
 import type { LcMember } from "@/hooks/useLcMembers";
 import { Button, ErrorText, Field, Modal, inputStyle, selectStyle } from "@/components/lc/ui";
@@ -61,6 +62,7 @@ export default function EventModal({ projectId, userId, departments, roster, eve
         location: location.trim() || null, meeting_url: meetingUrl.trim() || null, description: description.trim() || null,
         audience, department_id: audience === "department" ? departmentId || null : null,
         audience_role: audience === "role" ? audienceRole : null,
+        updated_at: new Date().toISOString(),
       };
       const res = event
         ? await supabase.from("lc_events").update(fields).eq("id", event.id).select("id").single()
@@ -73,6 +75,8 @@ export default function EventModal({ projectId, userId, departments, roster, eve
         const { error: insErr } = await supabase.from("event_invitees").insert([...people].map((u) => ({ event_id: id, user_id: u })));
         if (insErr) throw new Error(insErr.message);
       }
+      // Into (or out of) people's Google Calendars, in the background.
+      syncToGoogle(id);
       if (emailInvite) {
         try {
           const r = await authedPost<SendResult>("/api/events/invite", { eventId: id });

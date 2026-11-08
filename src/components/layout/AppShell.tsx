@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, FolderOpen, Users, Globe2, CalendarDays, Bell, ChevronDown, ChevronLeft, ChevronRight,
   LogOut, User as UserIcon, MoreHorizontal, Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet,
-  LifeBuoy, HeartPulse, Plane, Handshake,
+  LifeBuoy, HeartPulse, Plane, Handshake, CalendarClock,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
@@ -61,6 +61,8 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/finance",    "Finance",    Wallet         ],
   ["/drive",      "Drive",      FolderOpen     ],
   ["/checkin",    "Check-in",   HeartPulse     ],
+  // Planning = Our LC + Routines + Membership criteria (from the LC planning template).
+  ["/plan",       "Planning",   CalendarClock  ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
@@ -72,7 +74,7 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
 // Tab titles ("Tasks · LC Manager") for pages that aren't in the menu themselves.
 const TITLE_FOR: Record<string, string> = {
   "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
-  "/attendance": "Calendar", "/tabling": "Calendar", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
+  "/attendance": "Calendar", "/tabling": "Calendar", "/compliance": "Membership criteria", "/routines": "Routines", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
 };
 
 function pageTitle(pathname: string): string {
@@ -85,8 +87,8 @@ function pageTitle(pathname: string): string {
 
 const PRIMARY: Record<UserRole, string[]> = {
   member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
 };
 
 function useNavGroups(): NavGroup[] {
