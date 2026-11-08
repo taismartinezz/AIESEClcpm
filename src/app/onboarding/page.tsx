@@ -12,6 +12,7 @@ import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
 import { countryFromMc, isLcPresident, lcDisplayName, type ExpaProfile } from "@/lib/expa-profile";
+import { lcNameKey } from "@/lib/lcNames";
 import BrandLogo from "@/components/ui/BrandLogo";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -799,7 +800,8 @@ export default function OnboardingPage() {
       }
     }
 
-    router.push("/profile");
+    // "Go to my workspace": the LC's Dashboard.
+    router.push("/");
   }
 
   if (!sessionReady) return null;
@@ -946,7 +948,8 @@ export default function OnboardingPage() {
 
   if (step === 2 && role === "president") {
     const typed = piProjectName.trim().toLowerCase();
-    const existingLc = countryLcs.find((l) => l.name.trim().toLowerCase() === typed) ?? null;
+    // Same comparison as the database: case, accents and "AIESEC in" don't matter.
+    const existingLc = (typed && countryLcs.find((l) => lcNameKey(l.name) === lcNameKey(typed) && lcNameKey(typed) !== "")) || null;
     const lcSuggestions = typed ? countryLcs.filter((l) => l.name.toLowerCase().includes(typed) && l !== existingLc).slice(0, 5) : countryLcs.slice(0, 5);
     const canContinue =
       piProjectName.trim().length > 0 &&

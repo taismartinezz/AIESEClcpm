@@ -53,7 +53,7 @@ beforeAll(async () => {
   await addMember(db, lc, u.gia, { department: OGV });
 
   // The MC: Max creates it (MCP), Val joins and is named VP Finance; the LCP links the LC.
-  const mc = await asUserCommit(db, u.max, async () => (await db.query<{ id: string }>("select create_mc('AIESEC in Testland') as id")).rows[0].id);
+  const mc = await asUserCommit(db, u.max, async () => (await db.query<{ id: string }>("select create_mc('AIESEC in Testland', 'XT') as id")).rows[0].id);
   const codes = (await db.query<{ member_code: string; lc_code: string }>("select member_code, lc_code from mcs where id = $1", [mc])).rows[0];
   await asUserCommit(db, u.val, () => db.query("select join_mc($1)", [codes.member_code]));
   await asUserCommit(db, u.max, () => db.query("select set_mc_member_role($1, $2, 'vp_finance')", [mc, u.val]));

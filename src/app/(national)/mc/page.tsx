@@ -28,6 +28,8 @@ export default function McPage() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* The tab shows the MC's name ("AIESEC in Portugal · LC Manager"). */}
+      {mc && <title>{`${mc.name} · ${APP_NAME}`}</title>}
       <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
@@ -54,8 +56,20 @@ const NAME_MAX = 80;
 
 function JoinOrCreate({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
-  const [mcName, setMcName] = useState("");
   const [mcCountry, setMcCountry] = useState("");
+  // The MC set up in the picked country already, if any (one MC per country).
+  const [taken, setTaken] = useState<string | null>(null);
+  const mcName = mcCountry ? `AIESEC in ${countryByCode(mcCountry)?.name ?? mcCountry}` : "";
+
+  useEffect(() => {
+    if (!mcCountry) return;
+    let cancelled = false;
+    supabase.rpc("mc_in_country", { p_country: mcCountry }).then(({ data, error: err }) => {
+      // Before migration 20261108003 there's no such function: Create says so instead.
+      if (!cancelled) setTaken(!err && typeof data === "string" && data ? data : null);
+    });
+    return () => { cancelled = true; };
+  }, [mcCountry]);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   // Each box shows its own error, next to the button that caused it.
@@ -88,7 +102,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
         if (pErr) throw new Error(pErr.message);
       }
       const { error: err } = action === "create"
-        ? await supabase.rpc("create_mc", { p_name: mcName.trim(), ...(mcCountry ? { p_country: mcCountry } : {}) })
+        ? await supabase.rpc("create_mc", { p_name: mcName, p_country: mcCountry })
         : await supabase.rpc("join_mc", { p_code: code.trim() });
       if (err) throw new Error(err.message);
       onDone();
@@ -123,17 +137,23 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
         </Panel>
         <Panel title="Or set up your MC (MCP)">
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ ...hint, margin: 0 }}>You&apos;ll get two codes: a member code for your national team, and an LC code to send to each LCP.</p>
-            <input aria-label="MC name" placeholder="e.g. AIESEC in Portugal" value={mcName} maxLength={NAME_MAX} onChange={(e) => setMcName(e.target.value)} style={inputStyle} />
+            <p style={{ ...hint, margin: 0 }}>One MC per country. You&apos;ll get two codes: a member code for your national team, and an LC code to send to each LCP.</p>
             <div>
-              <label htmlFor="mc-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Country (to show which LCs haven&apos;t linked yet)</label>
-              <CountryCombobox id="mc-country" value={mcCountry} onChange={setMcCountry} />
+              <label htmlFor="mc-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country</label>
+              <CountryCombobox id="mc-country" value={mcCountry} onChange={(c) => { setTaken(null); setMcCountry(c); }} />
             </div>
-            <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcName.trim()}>Create</Button></div>
+            {mcCountry && (taken ? (
+              <p role="status" style={{ fontSize: 13, margin: 0, padding: "10px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", color: "var(--color-body)", lineHeight: 1.5 }}>
+                <strong>{taken}</strong> is already on {APP_NAME}. Ask your MCP for the member code and join above.
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>.</p>
+            ))}
+            <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcCountry || Boolean(taken)}>Create {mcName || "the MC"}</Button></div>
             {error?.action === "create" && <ErrorText>{error.text}</ErrorText>}
           </div>
         </Panel>
-        {nameMissing && (code.trim() || mcName.trim()) && <p style={{ ...hint, margin: 0 }}>Add your name first.</p>}
+        {nameMissing && (code.trim() || mcCountry) && <p style={{ ...hint, margin: 0 }}>Add your name first.</p>}
       </div>
       <SamplePreview />
     </div>
@@ -263,7 +283,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
               <tbody>
                 {lcs.map((l) => (
                   <tr key={l.id}>
-                    <td style={{ ...td, textAlign: "left" }}><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} members</span></td>
+                    <td style={{ ...td, textAlign: "left" }}><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} {l.members === 1 ? "member" : "members"}</span></td>
                     {PRODUCTS.map((p) => <td key={p.code} style={td}>{l.values[p.code]?.[metric] ?? 0}</td>)}
                     <td style={{ ...td, fontWeight: 700 }}>{Object.values(l.values).reduce((s, r) => s + r[metric], 0)}</td>
                     {mc.isMcp && <td style={td}><button type="button" aria-label={`Remove ${l.name}`} onClick={() => removeLc(l.id, l.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><Trash2 size={13} color="var(--color-secondary)" /></button></td>}
@@ -315,7 +335,12 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
     setCountry(code);
     setError(null);
     const { error: err } = await supabase.from("mcs").update({ country_code: code || null }).eq("id", mc.id);
-    if (err) setError(`Couldn't save the country: ${err.message}`); else onChanged();
+    if (err?.code === "23505") {
+      const { data: other } = await supabase.rpc("mc_in_country", { p_country: code });
+      setCountry(mc.countryCode ?? "");
+      setError(`${typeof other === "string" && other ? other : "Another MC"} is already set up for ${countryByCode(code)?.name ?? code}. There's one MC per country.`);
+    } else if (err) setError(`Couldn't save the country: ${err.message}`);
+    else onChanged();
   }
 
   const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
@@ -334,9 +359,14 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
           <div style={row}><span style={{ ...codeStyle, fontSize: 16 }}>{mc.memberCode}</span><CopyButton text={mc.memberCode} label="Copy code" /><CopyButton text={memberMessage} label="Copy invite message" /></div>
         </div>
         {mc.isMcp && (!mc.countryCode || editingCountry) ? (
-          <div style={{ maxWidth: 320 }}>
+          <div style={{ maxWidth: 360 }} onKeyDown={(e) => { if (e.key === "Escape" && editingCountry) setEditingCountry(false); }}>
             <label htmlFor="mc-set-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country, to see which LCs haven&apos;t linked yet</label>
-            <CountryCombobox id="mc-set-country" value={country} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <CountryCombobox id="mc-set-country" value={country} autoFocus={editingCountry} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
+              </div>
+              {editingCountry && <Button variant="ghost" onClick={() => setEditingCountry(false)}>Cancel</Button>}
+            </div>
           </div>
         ) : mc.countryCode ? (
           <p style={{ fontSize: 13, margin: 0 }}>
@@ -390,6 +420,11 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
             {linked.length === 0
               ? `No LCs in ${countryName} are on ${APP_NAME} yet. Once an LCP creates their LC here, it shows up in this list until they link it.`
               : `Every LC in ${countryName} that's on ${APP_NAME} is linked.`}
+          </p>
+        )}
+        {mc.countryCode && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
+            Only LCs with a country saved are listed. An LC without one gets it the next time its president signs in (they&apos;re asked once).
           </p>
         )}
         {notYet.length > 0 && (
