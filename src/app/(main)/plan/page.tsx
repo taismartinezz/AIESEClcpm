@@ -28,7 +28,7 @@ const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
 /** The LC's plan: who the EB is as a team, its SWOT, and each month's battles. */
 export default function PlanPage() {
-  const { projectId, role, isLoading } = useProject();
+  const { projectId, userId, role, departments, isLoading } = useProject();
   const { members } = useLcMembers(projectId);
   const exec = role === "president" || role === "vp";
   const [identity, setIdentity] = useState<Identity>(EMPTY);
@@ -102,6 +102,8 @@ export default function PlanPage() {
               <TakeawaysEditor value={identity.swot_takeaways} exec={exec}
                 onSave={(t) => run(supabase.from("lc_identity").upsert({ project_id: projectId, swot_takeaways: t || null, updated_at: new Date().toISOString() }, { onConflict: "project_id" }), "save")} />
             </Panel>
+
+            <EbPanel projectId={projectId!} userId={userId} exec={exec} members={members} departments={departments} />
 
             <Panel title="Battles, month by month">
               <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>Each month&apos;s key priorities and who owns them. The owner can tick a battle off.</p>
@@ -288,5 +290,106 @@ function MonthCard({ month, battles, members, exec, onAdd, onToggle, onRemove }:
         </form>
       )}
     </section>
+  );
+}
+
+// ── Getting to know the EB ───────────────────────────────────────────────────
+
+const EB_QUESTIONS = [
+  { key: "skills", label: "Skills I bring" },
+  { key: "why_elected", label: "Why I was elected" },
+  { key: "impact", label: "The impact I want to leave" },
+  { key: "working_style", label: "How I like to work" },
+  { key: "frustrations", label: "What frustrates me" },
+  { key: "needs_help_signs", label: "How to tell I need help" },
+  { key: "appreciation", label: "What appreciation means to me" },
+] as const;
+type EbKey = (typeof EB_QUESTIONS)[number]["key"];
+type EbProfile = { user_id: string } & Partial<Record<EbKey, string | null>>;
+
+/** The planning template's EB member profiles: each EB member's answers, read by the LC. */
+function EbPanel({ projectId, userId, exec, members, departments }: {
+  projectId: string; userId: string | null; exec: boolean;
+  members: { id: string; name: string; role: string; departmentId: string | null }[];
+  departments: { id: string; name: string; vpUserId: string | null }[];
+}) {
+  const [profiles, setProfiles] = useState<EbProfile[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Partial<Record<EbKey, string>>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("eb_profiles").select("*").eq("project_id", projectId).then(({ data, error: err }) => {
+      if (!cancelled) { if (err) setError(err.message); else setProfiles((data ?? []) as EbProfile[]); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, version]);
+
+  const eb = members.filter((m) => m.role === "president" || m.role === "vp")
+    .sort((a, b) => (a.role === "president" ? -1 : b.role === "president" ? 1 : a.name.localeCompare(b.name)));
+  const roleOf = (m: { id: string; role: string }) => m.role === "president" ? "LCP"
+    : `VP ${departments.filter((d) => d.vpUserId === m.id).map((d) => d.name).join(", ") || ""}`.trim();
+  const mine = profiles.find((p) => p.user_id === userId);
+
+  async function save() {
+    const row: Record<string, unknown> = { project_id: projectId, user_id: userId, updated_at: new Date().toISOString() };
+    for (const q of EB_QUESTIONS) row[q.key] = (draft[q.key] ?? "").trim() || null;
+    const { error: err } = await supabase.from("eb_profiles").upsert(row, { onConflict: "project_id,user_id" });
+    if (err) { setError(`Couldn't save: ${err.message}`); return; }
+    setError(null);
+    setEditing(false);
+    setVersion((v) => v + 1);
+  }
+
+  return (
+    <Panel title="Getting to know the EB" action={exec && userId && !editing ? (
+      <Button variant="secondary" onClick={() => { setDraft(Object.fromEntries(EB_QUESTIONS.map((q) => [q.key, mine?.[q.key] ?? ""]))); setEditing(true); }}>
+        <Pencil size={14} aria-hidden="true" /> {mine ? "Edit mine" : "Fill in mine"}
+      </Button>
+    ) : undefined}>
+      <div style={{ padding: 14, display: "grid", gap: 12 }}>
+        <ErrorText>{error}</ErrorText>
+        {editing && (
+          <div style={{ display: "grid", gap: 2, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8 }}>
+            {EB_QUESTIONS.map((q) => (
+              <Field key={q.key} label={q.label} htmlFor={`eb-${q.key}`}>
+                <textarea id={`eb-${q.key}`} rows={2} maxLength={1000} value={draft[q.key] ?? ""} onChange={(e) => setDraft({ ...draft, [q.key]: e.target.value })}
+                  style={{ ...inputStyle, height: "auto", padding: "6px 10px" }} />
+              </Field>
+            ))}
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button onClick={save}>Save</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+        {eb.length === 0 ? <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>No EB members yet.</p> : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+            {eb.map((m) => {
+              const p = profiles.find((x) => x.user_id === m.id);
+              const answered = EB_QUESTIONS.filter((q) => p?.[q.key]);
+              return (
+                <section key={m.id} aria-label={m.name} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 12 }}>
+                  <h3 style={{ fontSize: 14, margin: 0 }}>{m.name}</h3>
+                  <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>{roleOf(m)}</p>
+                  {answered.length === 0 ? <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Not filled in yet.</p> : (
+                    <dl style={{ margin: 0, display: "grid", gap: 6 }}>
+                      {answered.map((q) => (
+                        <div key={q.key}>
+                          <dt style={{ fontSize: 11, fontWeight: 700, color: "var(--color-secondary)" }}>{q.label}</dt>
+                          <dd style={{ margin: 0, fontSize: 13, whiteSpace: "pre-wrap" }}>{p![q.key]}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }

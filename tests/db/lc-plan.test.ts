@@ -38,4 +38,13 @@ describe("the LC's plan", () => {
     await expect(asUserCommit(db, u.pres, () => db.query("insert into lc_battles (project_id, month, title, owner_id) values ($1, '2026-12-01', 'x', $2)", [lc.id, u.other]))).rejects.toThrow(/owner must be a member/);
     await expect(asUserCommit(db, u.pres, () => db.query("insert into lc_battles (project_id, month, title) values ($1, '2026-12-05', 'x')", [lc.id]))).rejects.toThrow();
   });
+
+  it("EB profiles: each EB member writes their own; the LC reads them", async () => {
+    await asUserCommit(db, u.vp, () => db.query("insert into eb_profiles (project_id, user_id, working_style, appreciation) values ($1, $2, 'Async first', 'Shout-outs in the GA')", [lc.id, u.vp]));
+    await expect(asUserCommit(db, u.vp, () => db.query("insert into eb_profiles (project_id, user_id, skills) values ($1, $2, 'x')", [lc.id, u.pres]))).rejects.toThrow();   // not their own
+    await expect(asUserCommit(db, u.mem, () => db.query("insert into eb_profiles (project_id, user_id, skills) values ($1, $2, 'x')", [lc.id, u.mem]))).rejects.toThrow();  // not on the EB
+    const seen = await asUser(db, u.mem, async (tx) => (await tx.query<{ working_style: string }>("select working_style from eb_profiles")).rows);
+    expect(seen).toEqual([{ working_style: "Async first" }]);
+    expect(await asUser(db, u.other, async (tx) => (await tx.query("select * from eb_profiles")).rows)).toEqual([]);
+  });
 });

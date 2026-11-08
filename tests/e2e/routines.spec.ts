@@ -133,6 +133,18 @@ test.describe('Our LC', () => {
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_battles'))?.body ?? '').toContain('"title":"Recruitment week"')
   })
 
+  test('each EB member fills in their own "get to know me" card', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { tables: { lc_identity: [], lc_swot: [], lc_battles: [], eb_profiles: [] } })
+    await recordWrites(page)
+    await page.goto('/plan')
+    await page.getByRole('button', { name: 'Fill in mine' }).click({ timeout: 10000 })
+    await page.getByLabel('How I like to work').fill('Async first, calls on Mondays')
+    await page.getByLabel('How to tell I need help').fill('I go quiet in the EB chat')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('eb_profiles'))?.body ?? '').toContain('"working_style":"Async first, calls on Mondays"')
+    expect((await writes(page)).find((w) => w.url.includes('eb_profiles'))?.body).toContain('"needs_help_signs":"I go quiet in the EB chat"')
+  })
+
   test('members read it but cannot change it', async ({ page }) => {
     await setupAuthMocks(page, 'member', { tables: {
       lc_identity: [{ project_id: 'project-abc', team_name: 'Team Blaze', vision: 'Every student abroad once', values: ['Ownership'], rules: [], ambition: null, headline_goals: null, main_channel: 'Telegram', tool_links: [], swot_takeaways: null }],
