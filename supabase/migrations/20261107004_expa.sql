@@ -42,6 +42,9 @@ create unique index if not exists expa_connections_person_idx on expa_connection
 
 alter table expa_connections enable row level security;   -- no policies: service role only
 revoke all on expa_connections from anon, authenticated;
+-- Granted explicitly: projects where new tables aren't exposed automatically
+-- would otherwise refuse the server too ("permission denied for table …").
+grant select, insert, update, delete on expa_connections to service_role;
 
 create table if not exists expa_oauth_states (
   state       text primary key check (length(state) >= 32),
@@ -53,6 +56,7 @@ create table if not exists expa_oauth_states (
 
 alter table expa_oauth_states enable row level security;  -- no policies: service role only
 revoke all on expa_oauth_states from anon, authenticated;
+grant select, insert, update, delete on expa_oauth_states to service_role;
 
 create or replace function expa_status()
 returns table (connected_at timestamptz, expa_name text, home_lc_name text, last_synced_at timestamptz)
