@@ -364,6 +364,9 @@ test.describe('country', () => {
     await page.getByRole('button', { name: 'AIESEC in Lisbon' }).click()
     await expect(page.getByRole('status')).toContainText('already on LC Manager')
     await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    // The same LC typed differently is still recognised.
+    await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('aiesec Lisbón')
+    await expect(page.getByRole('status')).toContainText('AIESEC in Lisbon is already on')
     await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Coimbra')   // a new one is fine
     await page.getByPlaceholder('Full name').fill('Tais Martinez')
     await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled()

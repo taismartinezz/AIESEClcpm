@@ -55,7 +55,7 @@ describe("currency follows the LC's country", () => {
 
   it("an LC without a country gets its president's (migration 20261108002), and the currency follows", async () => {
     const pres = await createUser(db, "dora");
-    const lc = await createLc(db, pres, "AIESEC in Santo Domingo");
+    const lc = await createLc(db, pres, "AIESEC in Santiago");
     await db.query("update user_profiles set country_code = 'DO' where id = $1", [pres]);
     await db.query("update projects set country_code = null, currency = 'EUR' where id = $1", [lc.id]);
     const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261108002_lc_country_backfill.sql"), "utf8");

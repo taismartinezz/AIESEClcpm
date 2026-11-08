@@ -35,20 +35,30 @@ test.describe('National (MC)', () => {
     await expect(page.getByRole('region', { name: 'Example of the national view' })).toContainText('Numbers only')
   })
 
-  test('Join needs a code; Create needs a name; spaces alone do not count; both buttons look the same', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
+  test('Join needs a code; Create needs a country and names the MC after it; both buttons look the same', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: null } })
     await page.goto('/mc')
     const join = page.getByRole('button', { name: 'Join' })
-    const create = page.getByRole('button', { name: 'Create' })
+    const create = page.getByRole('button', { name: /^Create/ })
     await expect(join).toBeDisabled({ timeout: 10000 })
     await expect(create).toBeDisabled()
-    await page.getByLabel('MC name').fill('   ')
-    await expect(create).toBeDisabled()
-    await page.getByLabel('MC name').fill('AIESEC in Portugal')
-    await expect(create).toBeEnabled()
-    await expect(page.getByLabel('MC name')).toHaveAttribute('maxlength', '80')
-    await expect(page.getByText(/Ask your MCP for the member code/)).toBeVisible()
+    await page.getByLabel('MC member code').fill('   ')
+    await expect(join).toBeDisabled()                                        // spaces don't count
+    await page.locator('#mc-country').fill('portugal')
+    await page.getByRole('option', { name: /Portugal/ }).click()
+    await expect(page.getByText(/It will be called/)).toContainText('AIESEC in Portugal')
+    await expect(page.getByRole('button', { name: 'Create AIESEC in Portugal' })).toBeEnabled()
+    await expect(page.getByText(/Ask your MCP for the member code/).first()).toBeVisible()
     expect(await join.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await create.evaluate((el) => getComputedStyle(el).backgroundColor))
+  })
+
+  test('a country that already has an MC points to the member code instead of letting you create a second', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: 'AIESEC in Portugal' } })
+    await page.goto('/mc')
+    await page.locator('#mc-country').fill('portugal', { timeout: 10000 })
+    await page.getByRole('option', { name: /Portugal/ }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'is already on' })).toContainText('AIESEC in Portugal is already on')
+    await expect(page.getByRole('button', { name: /^Create/ })).toBeDisabled()
   })
 
   test('after joining, the codes say what each is for, with copy buttons, and unlinked LCs are listed', async ({ page }) => {
@@ -97,21 +107,21 @@ test.describe('National (MC)', () => {
     await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
     await intercept(page)
     await page.goto('/mc')
-    await page.getByLabel('MC name').fill('AIESEC in Portugal', { timeout: 10000 })
-    await page.locator('#mc-country').fill('portu')
+    await page.locator('#mc-country').fill('portu', { timeout: 10000 })
     const option = page.getByRole('option', { name: /Portugal/ })
     await expect(option).toBeInViewport()
     await option.click()
     await expect(page.locator('#mc-country')).toHaveValue(/Portugal/)
-    await page.getByRole('button', { name: 'Create' }).click()
+    await page.getByRole('button', { name: 'Create AIESEC in Portugal' }).click()
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rpc/create_mc'))?.body ?? '').toContain('"p_country":"PT"')
+    expect((await writes(page)).find((w) => w.url.includes('/rpc/create_mc'))?.body).toContain('"p_name":"AIESEC in Portugal"')
   })
 
   test('typing a full country name and leaving the box picks it', async ({ page }) => {
     await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
     await page.goto('/mc')
     await page.locator('#mc-country').fill('Portugal', { timeout: 10000 })
-    await page.getByLabel('MC name').click()
+    await page.getByLabel('MC member code').click()
     await expect(page.locator('#mc-country')).toHaveValue(/Portugal/)
   })
 

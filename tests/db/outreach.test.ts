@@ -41,7 +41,7 @@ describe("templates", () => {
   });
 
   it("an MC member of the LC's MC can approve too", async () => {
-    const mc = await asUserCommit(db, u.mcp, async () => (await db.query<{ create_mc: string }>("select create_mc('MC')")).rows[0].create_mc);
+    const mc = await asUserCommit(db, u.mcp, async () => (await db.query<{ create_mc: string }>("select create_mc('MC', 'XO')")).rows[0].create_mc);
     const { rows } = await db.query<{ lc_code: string }>("select lc_code from mcs where id = $1", [mc]);
     await asUserCommit(db, u.pres, () => db.query("select link_lc_to_mc($1, $2)", [lc.id, rows[0].lc_code]));
     const status = await asUser(db, u.mcp, async (tx) => (await tx.query<{ status: string }>("update outreach_templates set status = 'approved' where id = $1 returning status", [tpl])).rows[0]?.status);
