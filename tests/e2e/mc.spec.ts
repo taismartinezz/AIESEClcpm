@@ -52,6 +52,27 @@ test.describe('National (MC)', () => {
     expect(await join.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await create.evaluate((el) => getComputedStyle(el).backgroundColor))
   })
 
+  test('MC names use "the" where the country takes it', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: null } })
+    await page.goto('/mc')
+    await page.locator('#mc-country').fill('netherlands', { timeout: 10000 })
+    await page.getByRole('option', { name: /Netherlands/ }).click()
+    await expect(page.getByRole('button', { name: 'Create AIESEC in the Netherlands' })).toBeVisible()
+  })
+
+  test('the MCP can rename the MC', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('button', { name: 'Rename' }).click({ timeout: 10000 })
+    await page.getByLabel('MC name').fill('AIESEC Portugal')
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mcs') && w.method === 'PATCH')?.body ?? '').toContain('"name":"AIESEC Portugal"')
+  })
+
   test('a country that already has an MC points to the member code instead of letting you create a second', async ({ page }) => {
     await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: 'AIESEC in Portugal' } })
     await page.goto('/mc')

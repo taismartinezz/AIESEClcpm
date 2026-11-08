@@ -12,7 +12,7 @@ import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/compo
 import McTemplateReview from "@/components/outreach/McTemplateReview";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
-import { countryByCode } from "@/lib/aiesecCountries";
+import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
 import { copyText } from "@/lib/clipboard";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { APP_NAME } from "@/lib/brand";
@@ -31,7 +31,7 @@ export default function McPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -60,7 +60,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
   const [mcCountry, setMcCountry] = useState("");
   // The MC set up in the picked country already, if any (one MC per country).
   const [taken, setTaken] = useState<string | null>(null);
-  const mcName = mcCountry ? `AIESEC in ${countryByCode(mcCountry)?.name ?? mcCountry}` : "";
+  const mcName = mcCountry ? mcNameFor(mcCountry) : "";
 
   useEffect(() => {
     if (!mcCountry) return;
@@ -148,7 +148,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
                 <strong>{taken}</strong> is already on {APP_NAME}. Ask your MCP for the member code and join above.
               </p>
             ) : (
-              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>.</p>
+              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>. You can rename it later.</p>
             ))}
             <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcCountry || Boolean(taken)}>Create {mcName || "the MC"}</Button></div>
             {error?.action === "create" && <ErrorText>{error.text}</ErrorText>}
@@ -436,5 +436,38 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
         )}
       </div>
     </Panel>
+  );
+}
+
+/** The MCP renames the MC (e.g. to its official name). */
+function RenameMc({ mc, onDone }: { mc: Mc; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(mc.name);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const name = value.trim();
+    if (!name || name === mc.name) { setEditing(false); return; }
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.from("mcs").update({ name }).eq("id", mc.id);
+    setBusy(false);
+    if (err) { setError(`Couldn't rename: ${err.message}`); return; }
+    setEditing(false);
+    onDone();
+  }
+
+  if (!editing) return <Button variant="secondary" onClick={() => { setValue(mc.name); setEditing(true); }}>Rename</Button>;
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }} onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+      style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input aria-label="MC name" value={value} maxLength={80} autoFocus onChange={(e) => setValue(e.target.value)} style={{ ...inputStyle, width: 240 }} />
+        <Button type="submit" disabled={busy || !value.trim()}>Save</Button>
+        <Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+      </div>
+      <ErrorText>{error}</ErrorText>
+    </form>
   );
 }

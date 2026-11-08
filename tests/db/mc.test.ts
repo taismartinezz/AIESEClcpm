@@ -98,10 +98,23 @@ describe("MC", () => {
   });
 
   it("lc_name_key gives the same keys as the app's lcNameKey", async () => {
-    const names = ["AIESEC in Lisbón!", "aiesec Lisbon", "LC  Lisbon", "AIESEC at Northwestern", "AIESEC en Santo Domingo", "AIESEC in Lisboa", "AIESEC"];
+    const names = ["AIESEC in Lisbón!", "aiesec Lisbon", "LC  Lisbon", "AIESEC at Northwestern", "AIESEC en Santo Domingo", "AIESEC in Lisboa", "AIESEC",
+      "AIESEC in Eskişehir", "AIESEC in Iğdır", "AIESEC in İstanbul", "AIESEC in Brașov", "AIESEC in Łódź", "AIESEC in Tromsø", "Æbeltoft", "Straße",
+      "AIESEC в Москве", "AIESEC in МОСКВА", "AIESEC in 北京", "AIESEC in القاهرة"];
     for (const n of names) {
       const { rows } = await db.query<{ k: string }>("select lc_name_key($1) as k", [n]);
       expect(rows[0].k, n).toBe(lcNameKey(n));
     }
+  });
+
+  it("Eskişehir and Eskisehir are the same LC; names in other scripts are checked too", async () => {
+    const a = await createUser(db, "tr-a");
+    const b = await createUser(db, "tr-b");
+    await asUserCommit(db, a, () => db.query("insert into projects (name, owner_id, country_code) values ('AIESEC in Eskişehir', $1, 'TR')", [a]));
+    await expect(asUserCommit(db, b, () => db.query("insert into projects (name, owner_id, country_code) values ('AIESEC Eskisehir', $1, 'TR')", [b])))
+      .rejects.toThrow(/AIESEC in Eskişehir is already set up/);
+    await asUserCommit(db, a, () => db.query("insert into projects (name, owner_id, country_code) values ('AIESEC в Москве', $1, 'RU')", [a]));
+    await expect(asUserCommit(db, b, () => db.query("insert into projects (name, owner_id, country_code) values ('AIESEC В МОСКВЕ', $1, 'RU')", [b])))
+      .rejects.toThrow(/already set up/);
   });
 });
