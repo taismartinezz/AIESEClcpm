@@ -12,6 +12,8 @@ import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/compo
 import McTemplateReview from "@/components/outreach/McTemplateReview";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
+import { countryByCode } from "@/lib/aiesecCountries";
+import { copyText } from "@/lib/clipboard";
 import { APP_NAME } from "@/lib/brand";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
@@ -26,7 +28,7 @@ export default function McPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="National (MC)" subtitle="Every LC's approvals and realizations this term, side by side. Numbers only, never people." />
+      <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -56,7 +58,8 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
   const [mcCountry, setMcCountry] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Each box shows its own error, next to the button that caused it.
+  const [error, setError] = useState<{ action: "create" | "join"; text: string } | null>(null);
   const [needsProfile, setNeedsProfile] = useState(false);
 
   useEffect(() => {
@@ -90,7 +93,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
       if (err) throw new Error(err.message);
       onDone();
     } catch (e) {
-      setError(`Couldn't ${action === "create" ? "create the MC" : "join"}: ${e instanceof Error ? e.message : String(e)}`);
+      setError({ action, text: `Couldn't ${action === "create" ? "create the MC" : "join"}: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(false);
     }
@@ -115,6 +118,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
               <input aria-label="MC member code" placeholder="Member code, e.g. 3FA9C21B" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }} />
               <Button onClick={() => go("join")} disabled={busy || nameMissing || !code.trim()}>Join</Button>
             </div>
+            {error?.action === "join" && <ErrorText>{error.text}</ErrorText>}
           </div>
         </Panel>
         <Panel title="Or set up your MC (MCP)">
@@ -126,10 +130,10 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
               <CountryCombobox id="mc-country" value={mcCountry} onChange={setMcCountry} />
             </div>
             <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcName.trim()}>Create</Button></div>
+            {error?.action === "create" && <ErrorText>{error.text}</ErrorText>}
           </div>
         </Panel>
         {nameMissing && (code.trim() || mcName.trim()) && <p style={{ ...hint, margin: 0 }}>Add your name first.</p>}
-        <ErrorText>{error}</ErrorText>
       </div>
       <SamplePreview />
     </div>
@@ -282,19 +286,26 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   return (
-    <Button variant="secondary" onClick={async () => {
-      try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
-    }}>
-      {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copied ? "Copied" : label}
-    </Button>
+    <>
+      <Button variant="secondary" onClick={async () => {
+        setState((await copyText(text)) ? "copied" : "failed");
+        setTimeout(() => setState("idle"), 2500);
+      }}>
+        {state === "copied" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {state === "copied" ? "Copied" : label}
+      </Button>
+      <span role="status" style={{ fontSize: 12, color: state === "failed" ? "var(--color-error)" : "var(--color-secondary)" }}>
+        {state === "copied" ? `${label.replace(/^Copy /, "")} copied.` : state === "failed" ? "Couldn't copy: select it and copy by hand." : ""}
+      </span>
+    </>
   );
 }
 
 /** The two codes, each with what it's for and a ready-to-send message. */
 function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onChanged: () => void }) {
   const [country, setCountry] = useState(mc.countryCode ?? "");
+  const [editingCountry, setEditingCountry] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const lcMessage = `Hi! ${mc.name} now follows national numbers in ${APP_NAME}. To link your LC: open ${origin}/settings#national (LC presidents only) and enter the LC code ${mc.lcCode}. We only see counts (applied, approved, realized), never names.`;
@@ -320,14 +331,21 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>Member code, for your national team</p>
           <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Only for people on the MC: it opens this national view.</p>
-          <div style={row}><span style={{ ...codeStyle, fontSize: 16 }}>{mc.memberCode}</span><CopyButton text={memberMessage} label="Copy invite message" /></div>
+          <div style={row}><span style={{ ...codeStyle, fontSize: 16 }}>{mc.memberCode}</span><CopyButton text={mc.memberCode} label="Copy code" /><CopyButton text={memberMessage} label="Copy invite message" /></div>
         </div>
-        {mc.isMcp && !mc.countryCode && (
+        {mc.isMcp && (!mc.countryCode || editingCountry) ? (
           <div style={{ maxWidth: 320 }}>
             <label htmlFor="mc-set-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country, to see which LCs haven&apos;t linked yet</label>
-            <CountryCombobox id="mc-set-country" value={country} onChange={saveCountry} />
+            <CountryCombobox id="mc-set-country" value={country} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
           </div>
-        )}
+        ) : mc.countryCode ? (
+          <p style={{ fontSize: 13, margin: 0 }}>
+            Country: <strong>{countryByCode(mc.countryCode)?.flag} {countryByCode(mc.countryCode)?.name ?? mc.countryCode}</strong>
+            {mc.isMcp && (
+              <> · <button type="button" onClick={() => setEditingCountry(true)} style={{ background: "none", border: "none", padding: 0, fontSize: 13, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>Change</button></>
+            )}
+          </p>
+        ) : null}
         <ErrorText>{error}</ErrorText>
       </div>
     </Panel>
@@ -355,7 +373,8 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
 
   if (!linked) return null;
   const notYet = inCountry.filter((n) => !linked.includes(n));
-  if (linked.length === 0 && notYet.length === 0) return null;
+  if (linked.length === 0 && notYet.length === 0 && !mc.countryCode) return null;
+  const countryName = countryByCode(mc.countryCode)?.name ?? mc.countryCode;
   const chip: React.CSSProperties = { display: "inline-block", fontSize: 12, padding: "3px 8px", borderRadius: 999, margin: "0 6px 6px 0" };
   return (
     <Panel title="LCs">
@@ -365,6 +384,13 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: "0 0 6px" }}>Linked ({linked.length})</p>
             {linked.map((n) => <span key={n} style={{ ...chip, backgroundColor: "var(--color-navy-dim)", color: "var(--color-navy)" }}>{n}</span>)}
           </div>
+        )}
+        {mc.countryCode && notYet.length === 0 && (
+          <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>
+            {linked.length === 0
+              ? `No LCs in ${countryName} are on ${APP_NAME} yet. Once an LCP creates their LC here, it shows up in this list until they link it.`
+              : `Every LC in ${countryName} that's on ${APP_NAME} is linked.`}
+          </p>
         )}
         {notYet.length > 0 && (
           <div>

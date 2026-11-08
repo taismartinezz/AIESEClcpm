@@ -12,7 +12,8 @@ import { APP_NAME } from "@/lib/brand";
 /**
  * The national (MC) space: its own header, none of the LC pages. MC members
  * aren't in any LC through the MC, so the LC sidebar, workspace switcher and
- * dashboard mean nothing to them. People who are also in an LC get a link back.
+ * dashboard mean nothing to them. People who are also in an LC get a link back;
+ * the others a way to join or create one.
  */
 export default function McShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -57,7 +58,9 @@ export default function McShell({ children }: { children: React.ReactNode }) {
           <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>{APP_NAME}</span>
           <span style={{ fontSize: 13, color: "var(--color-secondary)", whiteSpace: "nowrap" }}>· National</span>
         </Link>
-        {inAnLc && <Link href="/" style={link}><ArrowLeft size={14} aria-hidden="true" /> Your LC</Link>}
+        {ready && (inAnLc
+          ? <Link href="/" style={link}><ArrowLeft size={14} aria-hidden="true" /> Your LC</Link>
+          : <Link href="/onboarding" style={link}>Join or create an LC</Link>)}
         <button type="button" onClick={signOut} style={link}><LogOut size={14} aria-hidden="true" /> Sign out</button>
       </header>
       <main className="flex-1 overflow-auto">{ready ? children : null}</main>
