@@ -596,7 +596,8 @@ export default function LoginPage() {
                   localStorage.removeItem("aiesec_project");
                   localStorage.removeItem("aiesec_authed");
                 } catch { /* storage blocked */ }
-                window.location.assign("/api/expa/login");
+                // A full page visit, not router.push: this API route redirects to auth.aiesec.org.
+                window.location.assign(new URL("/api/expa/login", window.location.origin).href);
               }}
             />
           )}
