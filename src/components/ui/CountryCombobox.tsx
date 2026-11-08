@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { countryByCode, searchCountries, type AiesecCountry } from "@/lib/aiesecCountries";
+import { countryByCode, foldText, searchCountries, type AiesecCountry } from "@/lib/aiesecCountries";
 
 /**
  * Pick a country with an AIESEC entity: type to filter, arrows + Enter to
@@ -18,7 +18,27 @@ export default function CountryCombobox({ value, onChange, id, autoFocus, large 
   const [active, setActive] = useState(0);
   const listId = useId();
   const listRef = useRef<HTMLUListElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const results = useMemo(() => searchCountries(query), [query]);
+  // The list is drawn fixed to the window, so a card with overflow: hidden
+  // (Panel, modals) can't cut it off. Opens upward when there's no room below.
+  const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
+
+  function place() {
+    const r = boxRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const below = window.innerHeight - r.bottom;
+    setPos(below < 200 && r.top > below
+      ? { left: r.left, width: r.width, bottom: window.innerHeight - r.top + 4 }
+      : { left: r.left, width: r.width, top: r.bottom + 4 });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
 
   // Keep the highlighted option in view while moving with the arrow keys.
   useEffect(() => {
@@ -34,7 +54,7 @@ export default function CountryCombobox({ value, onChange, id, autoFocus, large 
   const height = large ? 48 : 40;
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ position: "relative" }}>
+      <div ref={boxRef} style={{ position: "relative" }}>
         <input
           id={id}
           role="combobox"
@@ -46,11 +66,16 @@ export default function CountryCombobox({ value, onChange, id, autoFocus, large 
           autoComplete="off"
           placeholder={selected ? "" : "Search for your country"}
           value={open ? query : selected ? `${selected.flag}  ${selected.name}` : query}
-          onFocus={() => { setOpen(true); setActive(0); }}
-          onBlur={() => setTimeout(() => { setOpen(false); setQuery(""); }, 120)}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0); }}
+          onFocus={() => { place(); setOpen(true); setActive(0); }}
+          onBlur={() => setTimeout(() => {
+            // Typed a country's full name and left without picking: take it.
+            const exact = query.trim() && results.find((c) => foldText(c.name) === foldText(query));
+            if (exact) onChange(exact.code);
+            setOpen(false); setQuery("");
+          }, 120)}
+          onChange={(e) => { place(); setQuery(e.target.value); setOpen(true); setActive(0); }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, results.length - 1)); }
+            if (e.key === "ArrowDown") { e.preventDefault(); place(); setOpen(true); setActive((i) => Math.min(i + 1, results.length - 1)); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
             else if (e.key === "Enter" && open && results[active]) { e.preventDefault(); pick(results[active]); }
             else if (e.key === "Escape") { setOpen(false); setQuery(""); }
@@ -62,9 +87,9 @@ export default function CountryCombobox({ value, onChange, id, autoFocus, large 
         />
         <ChevronDown size={16} color="var(--color-secondary)" aria-hidden="true" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
       </div>
-      {open && (
+      {open && pos && (
         <ul id={listId} ref={listRef} role="listbox" aria-label="Countries"
-          style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 60, maxHeight: 260, overflowY: "auto", margin: 0, padding: 4, listStyle: "none",
+          style={{ position: "fixed", left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, zIndex: 1000, maxHeight: 260, boxSizing: "border-box", overflowY: "auto", margin: 0, padding: 4, listStyle: "none",
             backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
           {results.length === 0 && <li style={{ padding: "10px 12px", fontSize: 13, color: "var(--color-secondary)" }}>No AIESEC country matches &ldquo;{query}&rdquo;.</li>}
           {results.map((c, i) => (
