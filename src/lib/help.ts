@@ -95,6 +95,15 @@ export interface Release { id: string; date: string; title: string; items: strin
 /** Newest first. Bump the first id to show "What's new" again. */
 export const RELEASES: Release[] = [
   {
+    id: "2026-11-tour-helper", date: "2026-11-08", title: "A full tour, and a helper that finds things",
+    items: [
+      "The tour now opens each page you use and points at what's on it, for members, VPs, presidents and the MC. Replay it from Help any time.",
+      "Ask (top right): say what you're looking for in your own words. It tells you how long it'll take, then takes you there, or says the app doesn't do it yet and reports it to the moderators.",
+      "Follow what you've asked for under Help → Your requests.",
+      "National: a Finance tab for the MCP and VP Finance, with every LC's account at a glance, and optional university money per LC.",
+    ],
+  },
+  {
     id: "2026-10-simpler", date: "2026-10-21", title: "A simpler menu",
     items: [
       "Calendar now holds meetings, LC events and tabling shifts, with filters; Events and Tabling are tabs inside it.",

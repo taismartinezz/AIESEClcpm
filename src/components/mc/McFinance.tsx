@@ -132,7 +132,7 @@ export default function McFinance({ mc, userId }: { mc: Mc; userId: string }) {
   const pct = (g: number | null) => (g === null ? "–" : `${g > 0 ? "+" : ""}${(g * 100).toFixed(1)}%`);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div data-tour="mc-finance" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
         Only the MCP and the VP Finance see this. {canEdit ? "You keep the books: open an LC to add or edit its transactions." : "Read-only: your VP Finance keeps the books."}
       </p>

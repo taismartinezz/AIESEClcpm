@@ -378,7 +378,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
       {/* Until LCs link, the codes are the next step; after that, what needs attention comes first. */}
       {loaded && lcs.length === 0 && <McCodes mc={mc} prominent onChanged={onChanged} />}
       {attention.length > 0 && (
-        <Panel title={`Needs attention (${attention.length})`}>
+        <Panel tour="mc-attention" title={`Needs attention (${attention.length})`}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {attention.map((a) => (
               <li key={a.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -404,7 +404,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
         <Stat label="Applied → approved" value={conv} note="national conversion" />
       </div>
       <ErrorText>{error}</ErrorText>
-      <Panel title="By LC" action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <Panel tour="mc-by-lc" title="By LC" action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         <Tabs value={metric} onChange={(m) => { setEditingTargets(false); setMetric(m); }} tabs={[{ id: "approved", label: "Approved" }, { id: "realized", label: "Realized" }, { id: "applied", label: "Applied" }, { id: "completed", label: "Completed" }]} />
         {hasTargets && termStart && lcs.length > 0 && (editingTargets ? (
           <>
@@ -533,7 +533,7 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
   const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
   const codeStyle: React.CSSProperties = { fontFamily: "monospace", fontSize: prominent ? 22 : 16, fontWeight: 700, letterSpacing: "0.08em", color: "var(--color-navy)" };
   return (
-    <Panel title={prominent ? "Next: get your LCs linked" : "Codes"}>
+    <Panel tour="mc-codes" title={prominent ? "Next: get your LCs linked" : "Codes"}>
       <div style={{ padding: 14, display: "grid", gap: 16 }}>
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>LC code, for LC presidents</p>
@@ -738,7 +738,7 @@ function FunnelPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; i
   const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
   const cell = (c: FunnelCounts, i: number) => <span style={{ fontSize: 11, color: "var(--color-secondary)" }}> {pct(stepRate(c, i))}</span>;
   return (
-    <Panel title="Where each LC loses people">
+    <Panel tour="mc-funnel" title="Where each LC loses people">
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
         This term, by the date each stage was reached. Percentages are each step&apos;s conversion (up to 100%: some reach a stage this term after the one before it last term). A step 20% or more below the national rate is flagged with what to coach on.
       </p>
@@ -793,7 +793,7 @@ function TeamPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; ins
   const th: React.CSSProperties = { textAlign: "right", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
   const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
   return (
-    <Panel title="Beyond exchanges">
+    <Panel tour="mc-team-numbers" title="Beyond exchanges">
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
         What EXPA doesn&apos;t show, as counts only: the team, whether it uses {APP_NAME}, and whether VPs wrote their handover notes this term.
       </p>
@@ -876,7 +876,7 @@ function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string
   if (messages === null) return null;
   const nameOf = (id: string | null) => (id ? lcs.find((l) => l.id === id)?.name ?? "an LC" : "all LCs");
   return (
-    <Panel title="Messages to LCs">
+    <Panel tour="mc-messages" title="Messages to LCs">
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Everyone in the LCs you pick sees it on their dashboard for 60 days.</p>
         <textarea aria-label="Message to LCs" value={body} maxLength={2000} rows={3} onChange={(e) => setBody(e.target.value)}
@@ -1020,7 +1020,7 @@ function McTeam({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; on
   const link: React.CSSProperties = { background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" };
   const badge: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 999, marginLeft: 6 };
   return (
-    <Panel title={`National team (${team.length})`} action={mc.isMcp ? <Button variant="secondary" onClick={newCode} disabled={busy}>New member code</Button> : undefined}>
+    <Panel tour="mc-team" title={`National team (${team.length})`} action={mc.isMcp ? <Button variant="secondary" onClick={newCode} disabled={busy}>New member code</Button> : undefined}>
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
         {mc.isMcp && (
           <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, lineHeight: 1.5 }}>

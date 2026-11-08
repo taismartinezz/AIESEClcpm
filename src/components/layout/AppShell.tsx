@@ -29,6 +29,7 @@ import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import OnboardingModal, { useOnboarding, type TourRole } from "@/components/ui/OnboardingModal";
 import Tooltip from "@/components/ui/Tooltip";
 import GlobalSearch from "@/components/ui/GlobalSearch";
+import Helper from "@/components/helper/Helper";
 import { UndoToastProvider } from "@/context/UndoToastContext";
 import KeyboardShortcutsModal from "@/components/ui/KeyboardShortcutsModal";
 import ChatDock from "@/components/chat/ChatDock";
@@ -730,7 +731,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { projectId, lcs, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
   const { mcs: myMcs, loaded: mcsLoaded } = useMcs();
-  const tourRole: TourRole | null = lcLoading ? null : lcRole ?? (mcsLoaded && myMcs.length > 0 ? "mc" : null);
+  // The LC tours run here; the MC's runs in the national view (McShell), whose pages it opens.
+  const tourRole: TourRole | null = lcLoading ? null : lcRole ?? null;
   const [navCollapsed, setNavCollapsed] = useState(() => {
     try { return localStorage.getItem("aiesec_nav_collapsed") === "true"; } catch { return false; }
   });
@@ -1263,6 +1265,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            {/* The helper: "where do I…?", or a feature request when the app can't */}
+            <Helper role={lcRole ?? null} projectId={projectId} />
             {/* Global search button */}
             <Tooltip label="Search (⌘K)" placement="bottom">
               <button

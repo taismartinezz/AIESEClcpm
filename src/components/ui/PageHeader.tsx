@@ -14,6 +14,7 @@ export default function PageHeader({ title, eyebrow, badge, subtitle, action, ch
   const hasSub = !!(subtitle || children);
   return (
     <div
+      data-tour="page-header"
       className="px-4 sm:px-6 pt-4 pb-3 shrink-0"
       style={{
         backgroundColor: "var(--color-surface)",
@@ -45,7 +46,7 @@ export default function PageHeader({ title, eyebrow, badge, subtitle, action, ch
           </div>
         </div>
         {action && (
-          <div className="flex flex-wrap items-center gap-2 max-w-full">{action}</div>
+          <div data-tour="page-actions" className="flex flex-wrap items-center gap-2 max-w-full">{action}</div>
         )}
       </div>
       {subtitle && (
