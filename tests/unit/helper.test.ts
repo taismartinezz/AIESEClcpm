@@ -61,16 +61,22 @@ describe("the tours", () => {
 
 describe("POST /api/helper", () => {
   const env = process.env.ANTHROPIC_API_KEY;
+  const groq = process.env.GROQ_API_KEY;
   const post = async (question: string, role = "member") => {
     const { POST } = await import("@/app/api/helper/route");
     const res = await POST(new Request("http://x/api/helper", { method: "POST", body: JSON.stringify({ question, role }) }));
     return { status: res.status, body: await res.json() };
   };
   beforeEach(() => { vi.resetModules(); });
-  afterEach(() => { process.env.ANTHROPIC_API_KEY = env; vi.unstubAllGlobals(); });
+  afterEach(() => {
+    if (env === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = env;
+    if (groq === undefined) delete process.env.GROQ_API_KEY; else process.env.GROQ_API_KEY = groq;
+    vi.unstubAllGlobals();
+  });
 
   it("without an AI key, answers by keyword", async () => {
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.GROQ_API_KEY;
     const yes = await post("where do I add a partner");
     expect(yes.body).toMatchObject({ found: true, source: "keywords", entry: { id: "partners", route: "/partners" } });
     const no = await post("can it order pizza for us");
@@ -94,6 +100,28 @@ describe("POST /api/helper", () => {
   it("falls back to keywords when the AI fails", async () => {
     process.env.ANTHROPIC_API_KEY = "test";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("overloaded", { status: 529 })));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await post("submit an expense claim");
+    expect(r.body).toMatchObject({ found: true, source: "keywords", entry: { id: "claim" } });
+  });
+
+  it("uses Groq when only GROQ_API_KEY is set, in the OpenAI chat format", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.GROQ_API_KEY = "gsk_test";
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json({ choices: [{ message: { content: '{"entryId": "claim", "answer": "Finance → New claim."}' } }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const r = await post("where do I upload a receipt");
+    expect(r.body).toMatchObject({ found: true, source: "ai", entry: { id: "claim" }, answer: "Finance → New claim." });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.groq.com/openai/v1/chat/completions");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer gsk_test");
+    expect(JSON.parse(String(init?.body))).toMatchObject({ model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } });
+  });
+
+  it("falls back to keywords when Groq's free tier is rate-limited", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.GROQ_API_KEY = "gsk_test";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("rate limited", { status: 429 })));
     vi.spyOn(console, "error").mockImplementation(() => {});
     const r = await post("submit an expense claim");
     expect(r.body).toMatchObject({ found: true, source: "keywords", entry: { id: "claim" } });

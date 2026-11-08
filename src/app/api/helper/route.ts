@@ -5,9 +5,13 @@ import { APP_NAME } from "@/lib/brand";
 // The helper: "where do I…?" → the page that does it, or "not in the app yet".
 // The AI may only choose among APP_GUIDE entries (by id); the route, steps and
 // spotlight come from the guide, never from the model. Without an API key, or
-// if the AI fails, a keyword match answers instead.
+// if the AI fails (a free tier's rate limit, say), a keyword match answers instead.
+//
+// Which AI: Claude when ANTHROPIC_API_KEY is set, otherwise Groq (free tier)
+// when GROQ_API_KEY is set. GROQ_MODEL picks another Groq model.
 
-const MODEL = "claude-haiku-4-5-20251001";
+const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const AI_TIMEOUT_MS = 12_000;
 
 export interface HelperAnswer {
@@ -22,6 +26,8 @@ export interface HelperAnswer {
   source: "ai" | "keywords";
 }
 
+type Provider = { kind: "claude" | "groq"; key: string };
+
 const ROLES: GuideRole[] = ["member", "vp", "president", "mc"];
 const pick = (e: GuideEntry): HelperAnswer["entry"] => ({ id: e.id, title: e.title, route: e.route, where: e.where, how: e.how, roles: e.roles, target: e.target, click: e.click });
 
@@ -34,7 +40,7 @@ function answerFor(entry: GuideEntry | null, role: GuideRole | null, text: strin
   return { found: true, entry: pick(entry), notForYou, closest, source, answer: text ?? `It's in ${entry.where}.` };
 }
 
-async function askAi(question: string, role: GuideRole | null, apiKey: string): Promise<{ entryId: string | null; answer: string } | null> {
+async function askAi(question: string, role: GuideRole | null, provider: Provider): Promise<{ entryId: string | null; answer: string } | null> {
   const catalogue = APP_GUIDE.map((e) => `- id: ${e.id} | ${e.title} | where: ${e.where} | for: ${e.roles.join("/")} | ${e.how.join(" ")}`).join("\n");
   const system = `You are the in-app helper of ${APP_NAME}, a workspace for AIESEC Local Committees (LCs) and their national team (MC).
 Someone asks where to find something or how to do something. Decide whether the app has it, using ONLY this list of features:
@@ -50,19 +56,38 @@ Reply with JSON only: {"entryId": "<id>" | null, "answer": "<text>"}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 300, system,
-        messages: [{ role: "user", content: question }, { role: "assistant", content: "{" }],
-      }),
-    });
-    if (!res.ok) { console.error("[helper] Anthropic error:", res.status, await res.text()); return null; }
-    const data = (await res.json()) as { content: { type: string; text: string }[] };
-    const raw = "{" + (data.content.find((c) => c.type === "text")?.text ?? "");
-    const parsed = JSON.parse(raw.slice(0, raw.lastIndexOf("}") + 1)) as { entryId?: unknown; answer?: unknown };
+    let raw: string;
+    if (provider.kind === "claude") {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", "x-api-key": provider.key, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL, max_tokens: 300, system,
+          messages: [{ role: "user", content: question }, { role: "assistant", content: "{" }],
+        }),
+      });
+      if (!res.ok) { console.error("[helper] Anthropic error:", res.status, await res.text()); return null; }
+      const data = (await res.json()) as { content: { type: string; text: string }[] };
+      raw = "{" + (data.content.find((c) => c.type === "text")?.text ?? "");
+    } else {
+      // Groq speaks the OpenAI chat format.
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
+        body: JSON.stringify({
+          model: GROQ_MODEL, max_tokens: 300, temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [{ role: "system", content: system }, { role: "user", content: question }],
+        }),
+      });
+      if (!res.ok) { console.error("[helper] Groq error:", res.status, await res.text()); return null; }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      raw = data.choices?.[0]?.message?.content ?? "";
+    }
+    const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+    const parsed = JSON.parse(json) as { entryId?: unknown; answer?: unknown };
     const entryId = typeof parsed.entryId === "string" && guideEntry(parsed.entryId) ? parsed.entryId : null;
     const answer = typeof parsed.answer === "string" ? parsed.answer.trim().slice(0, 400) : "";
     return { entryId, answer };
@@ -84,9 +109,10 @@ export async function POST(request: Request) {
   const role = ROLES.includes(body.role as GuideRole) ? (body.role as GuideRole) : null;
   const closest = searchGuide(question, 3, role).map((r) => r.entry.id);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (apiKey) {
-    const ai = await askAi(question, role, apiKey);
+  const provider: Provider | null = process.env.ANTHROPIC_API_KEY ? { kind: "claude", key: process.env.ANTHROPIC_API_KEY }
+    : process.env.GROQ_API_KEY ? { kind: "groq", key: process.env.GROQ_API_KEY } : null;
+  if (provider) {
+    const ai = await askAi(question, role, provider);
     if (ai) return Response.json(answerFor(ai.entryId ? guideEntry(ai.entryId) : null, role, ai.answer || null, closest, "ai") satisfies HelperAnswer);
   }
   return Response.json(answerFor(keywordAnswer(question, role), role, null, closest, "keywords") satisfies HelperAnswer);
