@@ -108,3 +108,40 @@ test.describe('Membership criteria', () => {
     await expect(page.getByText(/president and VPs keep track of the membership criteria/)).toBeVisible({ timeout: 10000 })
   })
 })
+
+test.describe('Our LC', () => {
+  test('the EB writes its identity, a SWOT tagged by area, and a battle for this month', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { tables: { lc_identity: [], lc_swot: [], lc_battles: [] } })
+    await recordWrites(page)
+    await page.goto('/plan')
+    await page.getByRole('button', { name: 'Edit identity' }).click({ timeout: 10000 })
+    await page.getByLabel('Team name').fill('Team Blaze')
+    await page.getByLabel('Values').fill('Ownership\nCare')
+    await page.getByLabel('Links to other tools').fill('Podio | https://podio.com/x')
+    await page.getByRole('button', { name: 'Save identity' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_identity'))?.body ?? '').toContain('"values":["Ownership","Care"]')
+    expect((await writes(page)).find((w) => w.url.includes('lc_identity'))?.body).toContain('"tool_links":[{"label":"Podio","url":"https://podio.com/x"}]')
+
+    await page.getByLabel('Add to Weaknesses').fill('Few iGTa partners')
+    await page.getByRole('region', { name: 'Weaknesses' }).getByRole('button', { name: 'iGX' }).click()
+    await page.getByRole('region', { name: 'Weaknesses' }).getByRole('button', { name: 'Add' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_swot'))?.body ?? '').toContain('"areas":["iGX"]')
+
+    const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    await page.getByLabel(`Battle for ${month}`).fill('Recruitment week')
+    await page.getByRole('region', { name: month }).getByRole('button', { name: 'Add' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_battles'))?.body ?? '').toContain('"title":"Recruitment week"')
+  })
+
+  test('members read it but cannot change it', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: {
+      lc_identity: [{ project_id: 'project-abc', team_name: 'Team Blaze', vision: 'Every student abroad once', values: ['Ownership'], rules: [], ambition: null, headline_goals: null, main_channel: 'Telegram', tool_links: [], swot_takeaways: null }],
+      lc_swot: [], lc_battles: [],
+    } })
+    await page.goto('/plan')
+    await expect(page.getByRole('heading', { name: 'Team Blaze' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Every student abroad once')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit identity' })).toHaveCount(0)
+    await expect(page.getByLabel('Add to Strengths')).toHaveCount(0)
+  })
+})

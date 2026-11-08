@@ -61,8 +61,8 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/finance",    "Finance",    Wallet         ],
   ["/drive",      "Drive",      FolderOpen     ],
   ["/checkin",    "Check-in",   HeartPulse     ],
-  // Planning = Routines (more to come from the LC planning template).
-  ["/routines",   "Planning",   CalendarClock  ],
+  // Planning = Our LC + Routines + Membership criteria (from the LC planning template).
+  ["/plan",       "Planning",   CalendarClock  ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
@@ -74,7 +74,7 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
 // Tab titles ("Tasks · LC Manager") for pages that aren't in the menu themselves.
 const TITLE_FOR: Record<string, string> = {
   "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
-  "/attendance": "Calendar", "/tabling": "Calendar", "/compliance": "Membership criteria", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
+  "/attendance": "Calendar", "/tabling": "Calendar", "/compliance": "Membership criteria", "/routines": "Routines", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
 };
 
 function pageTitle(pathname: string): string {
@@ -87,8 +87,8 @@ function pageTitle(pathname: string): string {
 
 const PRIMARY: Record<UserRole, string[]> = {
   member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/routines", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/routines", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
 };
 
 function useNavGroups(): NavGroup[] {
