@@ -66,6 +66,31 @@ test('a task saves with the description left empty', async ({ page }) => {
     .toContain('"description":""')
 })
 
+test('editing a task saves the change and leaves unchanged assignees alone', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'Old title')] } })
+  await recordWrites(page)
+  await page.goto('/tasks')
+  await page.getByRole('button', { name: 'Task options', exact: true }).first().click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Edit task' }).click()
+  const form = page.getByRole('dialog', { name: 'Edit task' })
+  await form.getByPlaceholder('Task title').fill('New title')
+  await form.getByRole('button', { name: 'Save changes' }).click()
+  await expect.poll(async () => (await writes(page)).find((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/tasks'))?.body ?? '')
+    .toContain('"title":"New title"')
+  await expect(form).toHaveCount(0)
+  expect((await writes(page)).filter((w) => w.url.includes('task_assignees'))).toHaveLength(0)
+})
+
+test('clearing a due date in the task panel saves it', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { tables: { tasks: [{ ...task('t1', 'Dated'), due_date: '2026-12-01' }] } })
+  await recordWrites(page)
+  await page.goto('/tasks')
+  await page.getByText('Dated').first().click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Clear due date' }).click()
+  await expect.poll(async () => (await writes(page)).find((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/tasks'))?.body ?? '')
+    .toContain('"due_date":null')
+})
+
 test('task filters: All, Mine (private or assigned to you) and Whole LC', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 900 })   // the Filters panel starts folded on narrower screens
   await setupAuthMocks(page, 'president', { tables: { tasks: [task('t1', 'LC task'), task('t2', 'My errand', 'personal')] } })

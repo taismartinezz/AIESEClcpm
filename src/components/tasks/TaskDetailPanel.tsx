@@ -963,8 +963,6 @@ function TaskDetailEditor({
                   onChange={(e) => {
                     const p = e.target.value as TaskPriority;
                     onUpdateTask({ priority: p });
-                    supabase.from("tasks").update({ priority: p }).eq("id", task.id)
-                      .then(({ error }) => { if (error) console.error("[TaskDetail] priority update error:", error); });
                   }}
                   className="cursor-pointer"
                   style={{ fontSize: 13, color: PRIORITY_CONFIG[task.priority].color, backgroundColor: PRIORITY_CONFIG[task.priority].bg, border: "none", borderRadius: 5, padding: "3px 8px", fontWeight: 600, fontFamily: "var(--font-roboto)" }}
@@ -1000,6 +998,7 @@ function TaskDetailEditor({
                     onClick={() => { setLocalDueDate(""); setShowCal(false); onUpdateTask?.({ dueDate: undefined }); }}
                     style={{ fontSize: 11, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", padding: "0 2px", lineHeight: 1 }}
                     title="Clear due date"
+                    aria-label="Clear due date"
                   >×</button>
                 )}
               </div>
