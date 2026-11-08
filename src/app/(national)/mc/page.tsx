@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, Target, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -12,9 +12,11 @@ import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/compo
 import McTemplateReview from "@/components/outreach/McTemplateReview";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
-import { countryByCode } from "@/lib/aiesecCountries";
+import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
 import { copyText } from "@/lib/clipboard";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { needsAttention, pace, PACE_LABEL, sourceLabel, termProgress, type LcHealth, type PaceStatus } from "@/lib/mcPace";
+import { formatDay } from "@/lib/dates";
 import { APP_NAME } from "@/lib/brand";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
@@ -31,7 +33,7 @@ export default function McPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -60,7 +62,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
   const [mcCountry, setMcCountry] = useState("");
   // The MC set up in the picked country already, if any (one MC per country).
   const [taken, setTaken] = useState<string | null>(null);
-  const mcName = mcCountry ? `AIESEC in ${countryByCode(mcCountry)?.name ?? mcCountry}` : "";
+  const mcName = mcCountry ? mcNameFor(mcCountry) : "";
 
   useEffect(() => {
     if (!mcCountry) return;
@@ -148,7 +150,7 @@ function JoinOrCreate({ onDone }: { onDone: () => void }) {
                 <strong>{taken}</strong> is already on {APP_NAME}. Ask your MCP for the member code and join above.
               </p>
             ) : (
-              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>.</p>
+              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>. You can rename it later.</p>
             ))}
             <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcCountry || Boolean(taken)}>Create {mcName || "the MC"}</Button></div>
             {error?.action === "create" && <ErrorText>{error.text}</ErrorText>}
@@ -198,14 +200,35 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [metric, setMetric] = useState<Metric>("approved");
   const [version, setVersion] = useState(0);
+  // Targets, pace and health (migration 20261108006). Missing before it runs: the page works without them.
+  const [health, setHealth] = useState<Record<string, LcHealth>>({});
+  const [termStart, setTermStart] = useState<string | null>(null);
+  const [targets, setTargets] = useState<Record<string, number>>({});
+  const [editingTargets, setEditingTargets] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [savingTargets, setSavingTargets] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error: err } = await supabase.rpc("mc_dashboard", { p_mc_id: mc.id });
-        if (err) throw new Error(err.message);
-        if (!cancelled) { setRows((data ?? []) as Row[]); setError(null); }
+        const [dash, h, term] = await Promise.all([
+          supabase.rpc("mc_dashboard", { p_mc_id: mc.id }),
+          supabase.rpc("mc_lc_health", { p_mc_id: mc.id }),
+          supabase.rpc("mc_term_start", { p_mc_id: mc.id }),
+        ]);
+        if (dash.error) throw new Error(dash.error.message);
+        const start = !term.error && typeof term.data === "string" ? term.data : null;
+        const t = start
+          ? await supabase.from("mc_lc_targets").select("project_id, product, metric, target").eq("mc_id", mc.id).eq("term_start", start)
+          : { data: [], error: null };
+        if (cancelled) return;
+        setRows((dash.data ?? []) as Row[]);
+        setHealth(Object.fromEntries(((h.error ? [] : h.data ?? []) as LcHealth[]).map((x) => [x.project_id, x])));
+        setTermStart(start);
+        setTargets(Object.fromEntries(((t.error ? [] : t.data ?? []) as { project_id: string; product: string; metric: string; target: number }[])
+          .map((x) => [targetKey(x.project_id, x.product, x.metric), x.target])));
+        setError(null);
       } catch (e) {
         if (!cancelled) setError(`Couldn't load the national numbers: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
@@ -228,6 +251,58 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
 
   const sum = (m: Metric, product?: string) => rows.filter((r) => !product || r.product === product).reduce((s, r) => s + r[m], 0);
   const conv = sum("applied") ? `${Math.round((sum("approved") / sum("applied")) * 100)}%` : "-";
+  const progress = termStart ? termProgress(termStart) : 0;
+  const hasTargets = metric === "approved" || metric === "realized";
+  const targetOf = (lcId: string, product: string, m: string) => targets[targetKey(lcId, product, m)];
+  const lcTarget = (lcId: string, m: string) => {
+    const vals = PRODUCTS.map((p) => targetOf(lcId, p.code, m)).filter((v): v is number => typeof v === "number");
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  };
+  const attention = needsAttention(lcs.map((l) => ({
+    id: l.id, name: l.name,
+    applied: Object.values(l.values).reduce((s, r) => s + r.applied, 0),
+    approved: Object.values(l.values).reduce((s, r) => s + r.approved, 0),
+    approvedTarget: lcTarget(l.id, "approved"),
+    health: health[l.id] ?? null,
+  })), progress);
+
+  function startEditingTargets() {
+    setDraft(Object.fromEntries(lcs.flatMap((l) => PRODUCTS.map((p) => [targetKey(l.id, p.code, metric), String(targetOf(l.id, p.code, metric) ?? "")]))));
+    setEditingTargets(true);
+  }
+
+  async function saveTargets() {
+    if (!termStart) return;
+    setSavingTargets(true);
+    setError(null);
+    try {
+      const upserts: Record<string, unknown>[] = [];
+      const removals: { project_id: string; product: string }[] = [];
+      for (const l of lcs) for (const p of PRODUCTS) {
+        const raw = (draft[targetKey(l.id, p.code, metric)] ?? "").trim();
+        const before = targetOf(l.id, p.code, metric);
+        if (raw === "") { if (before !== undefined) removals.push({ project_id: l.id, product: p.code }); continue; }
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0) throw new Error(`"${raw}" isn't a whole number (${l.name}, ${p.label})`);
+        if (n !== before) upserts.push({ mc_id: mc.id, project_id: l.id, product: p.code, metric, term_start: termStart, target: n, updated_at: new Date().toISOString() });
+      }
+      if (upserts.length) {
+        const { error: err } = await supabase.from("mc_lc_targets").upsert(upserts, { onConflict: "mc_id,project_id,product,metric,term_start" });
+        if (err) throw new Error(err.message);
+      }
+      for (const r of removals) {
+        const { error: err } = await supabase.from("mc_lc_targets").delete()
+          .eq("mc_id", mc.id).eq("project_id", r.project_id).eq("product", r.product).eq("metric", metric).eq("term_start", termStart);
+        if (err) throw new Error(err.message);
+      }
+      setEditingTargets(false);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setError(`Couldn't save the targets: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSavingTargets(false);
+    }
+  }
 
   async function removeLc(id: string, name: string) {
     if (!(await askConfirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`, { confirmLabel: "Remove" }))) return;
@@ -247,6 +322,14 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
       { header: "LC", value: (l) => l.name },
       { header: "Members", value: (l) => l.members },
       ...PRODUCTS.map((p) => ({ header: `${p.label} ${metric}`, value: (l: (typeof lcs)[number]) => l.values[p.code]?.[metric] ?? 0 })),
+      ...(hasTargets ? [
+        { header: `Target ${metric}`, value: (l: (typeof lcs)[number]) => lcTarget(l.id, metric) ?? "" },
+        { header: "Pace", value: (l: (typeof lcs)[number]) => {
+          const t = lcTarget(l.id, metric);
+          const p = t !== null ? pace(Object.values(l.values).reduce((s, r) => s + r[metric], 0), t, progress) : null;
+          return p ? PACE_LABEL[p.status] : "";
+        } },
+      ] : []),
     ]));
   }
 
@@ -255,8 +338,25 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
-      <McCodes mc={mc} prominent={loaded && lcs.length === 0} onChanged={onChanged} />
-      <LinkStatus mc={mc} version={version} />
+      {/* Until LCs link, the codes are the next step; after that, what needs attention comes first. */}
+      {loaded && lcs.length === 0 && <McCodes mc={mc} prominent onChanged={onChanged} />}
+      {attention.length > 0 && (
+        <Panel title={`Needs attention (${attention.length})`}>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {attention.map((a) => (
+              <li key={a.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <AlertTriangle size={14} color="var(--color-warning, #B45309)" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
+                <div>
+                  <strong style={{ fontSize: 13 }}>{a.name}</strong>
+                  <ul style={{ margin: "2px 0 0", paddingLeft: 16, fontSize: 12, color: "var(--color-body)" }}>
+                    {a.reasons.map((r) => <li key={r}>{r}</li>)}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
         <Stat label="LCs linked" value={String(lcs.length)} />
         <Stat label="Approved this term" value={String(sum("approved"))} />
@@ -264,10 +364,25 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
         <Stat label="Applied → approved" value={conv} note="national conversion" />
       </div>
       <ErrorText>{error}</ErrorText>
-      <Panel title="By LC" action={<div style={{ display: "flex", gap: 8 }}>
-        <Tabs value={metric} onChange={setMetric} tabs={[{ id: "approved", label: "Approved" }, { id: "realized", label: "Realized" }, { id: "applied", label: "Applied" }, { id: "completed", label: "Completed" }]} />
+      <Panel title="By LC" action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Tabs value={metric} onChange={(m) => { setEditingTargets(false); setMetric(m); }} tabs={[{ id: "approved", label: "Approved" }, { id: "realized", label: "Realized" }, { id: "applied", label: "Applied" }, { id: "completed", label: "Completed" }]} />
+        {hasTargets && termStart && lcs.length > 0 && (editingTargets ? (
+          <>
+            <Button onClick={saveTargets} disabled={savingTargets}>{savingTargets ? "Saving…" : "Save targets"}</Button>
+            <Button variant="ghost" onClick={() => setEditingTargets(false)}>Cancel</Button>
+          </>
+        ) : (
+          <Button variant="secondary" onClick={startEditingTargets}><Target size={14} aria-hidden="true" /> Set {metric} targets</Button>
+        ))}
         <Button variant="secondary" onClick={exportCsv} disabled={lcs.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
       </div>}>
+        {hasTargets && termStart && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
+            {editingTargets
+              ? `Targets for this term (since ${formatDay(termStart)}), per LC and product. Leave a box empty for no target.`
+              : `Term started ${formatDay(termStart)}: ${Math.round(progress * 100)}% of the way through. With targets set, each LC shows how it's doing for this point in the term.`}
+          </p>
+        )}
         {!loaded ? <div className="animate-pulse" style={{ height: 120, backgroundColor: "var(--color-dimmed-bg)" }} /> : lcs.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--color-secondary)", padding: 14, margin: 0 }}>
             No LCs linked yet. Send each LCP the LC code above; their LC&apos;s numbers show up here once they link.
@@ -284,9 +399,27 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
               <tbody>
                 {lcs.map((l) => (
                   <tr key={l.id}>
-                    <td style={{ ...td, textAlign: "left" }}><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} {l.members === 1 ? "member" : "members"}</span></td>
-                    {PRODUCTS.map((p) => <td key={p.code} style={td}>{l.values[p.code]?.[metric] ?? 0}</td>)}
-                    <td style={{ ...td, fontWeight: 700 }}>{Object.values(l.values).reduce((s, r) => s + r[metric], 0)}</td>
+                    <td style={{ ...td, textAlign: "left" }}>
+                      <strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} {l.members === 1 ? "member" : "members"}</span>
+                      {health[l.id] && <span style={{ display: "block", fontSize: 11, color: "var(--color-secondary)" }}>{sourceLabel(health[l.id])}</span>}
+                    </td>
+                    {PRODUCTS.map((p) => {
+                      const actual = l.values[p.code]?.[metric] ?? 0;
+                      const t = hasTargets ? targetOf(l.id, p.code, metric) : undefined;
+                      const key = targetKey(l.id, p.code, metric);
+                      return (
+                        <td key={p.code} style={td}>
+                          {editingTargets ? (
+                            <input aria-label={`${l.name} ${p.label} ${metric} target`} inputMode="numeric" value={draft[key] ?? ""}
+                              onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value.replace(/[^0-9]/g, "") }))}
+                              style={{ ...inputStyle, width: 64, height: 30, textAlign: "right" }} />
+                          ) : t !== undefined ? <>{actual}<span style={{ color: "var(--color-secondary)" }}> / {t}</span></> : actual}
+                        </td>
+                      );
+                    })}
+                    <td style={{ ...td, fontWeight: 700 }}>
+                      <TotalWithPace actual={Object.values(l.values).reduce((s, r) => s + r[metric], 0)} target={hasTargets ? lcTarget(l.id, metric) : null} progress={progress} metric={metric} />
+                    </td>
                     {mc.isMcp && <td style={td}><button type="button" aria-label={`Remove ${l.name}`} onClick={() => removeLc(l.id, l.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><Trash2 size={13} color="var(--color-secondary)" /></button></td>}
                   </tr>
                 ))}
@@ -302,6 +435,8 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
         )}
       </Panel>
       <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
+      <LinkStatus mc={mc} version={version} />
+      {!(loaded && lcs.length === 0) && <McCodes mc={mc} prominent={false} onChanged={onChanged} />}
     </div>
   );
 }
@@ -436,5 +571,62 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
         )}
       </div>
     </Panel>
+  );
+}
+
+/** The MCP renames the MC (e.g. to its official name). */
+function RenameMc({ mc, onDone }: { mc: Mc; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(mc.name);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const name = value.trim();
+    if (!name || name === mc.name) { setEditing(false); return; }
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.from("mcs").update({ name }).eq("id", mc.id);
+    setBusy(false);
+    if (err) { setError(`Couldn't rename: ${err.message}`); return; }
+    setEditing(false);
+    onDone();
+  }
+
+  if (!editing) return <Button variant="secondary" onClick={() => { setValue(mc.name); setEditing(true); }}>Rename</Button>;
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }} onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+      style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input aria-label="MC name" value={value} maxLength={80} autoFocus onChange={(e) => setValue(e.target.value)} style={{ ...inputStyle, width: 240 }} />
+        <Button type="submit" disabled={busy || !value.trim()}>Save</Button>
+        <Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+      </div>
+      <ErrorText>{error}</ErrorText>
+    </form>
+  );
+}
+
+const targetKey = (projectId: string, product: string, metric: string) => `${projectId}:${product}:${metric}`;
+
+const PACE_COLOR: Record<PaceStatus, { bg: string; fg: string }> = {
+  ahead:             { bg: "var(--color-success-bg, #E7F6EE)", fg: "var(--color-success, #0F7B3F)" },
+  "on-track":        { bg: "var(--color-success-bg, #E7F6EE)", fg: "var(--color-success, #0F7B3F)" },
+  "slightly-behind": { bg: "var(--color-warning-bg, #FFF6E0)", fg: "var(--color-warning, #8A5A00)" },
+  behind:            { bg: "var(--color-error-bg, #FDECEC)",   fg: "var(--color-error, #B42318)" },
+};
+
+/** "12 / 30 (40%)" and an on-track badge, or just the number without a target. */
+function TotalWithPace({ actual, target, progress, metric }: { actual: number; target: number | null; progress: number; metric: string }) {
+  const p = target !== null ? pace(actual, target, progress) : null;
+  if (!p || target === null) return <>{actual}</>;
+  const c = PACE_COLOR[p.status];
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+      <span>{actual} / {target} <span style={{ fontWeight: 400, color: "var(--color-secondary)" }}>({p.pct}%)</span></span>
+      <span title={`${p.expected} ${metric} expected by now`} style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 999, backgroundColor: c.bg, color: c.fg }}>
+        {PACE_LABEL[p.status]}
+      </span>
+    </span>
   );
 }

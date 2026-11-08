@@ -41,7 +41,7 @@ export function countryByCode(code: string | null | undefined): AiesecCountry | 
 
 /** For matching what people type: lower case, accents and punctuation gone ("Côte" → "cote"). */
 export function foldText(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 /** Countries whose name (or code) matches the query, names starting with it first. */
@@ -51,4 +51,14 @@ export function searchCountries(query: string): AiesecCountry[] {
   const hits = AIESEC_COUNTRIES.filter((c) => foldText(c.name).includes(q) || c.code.toLowerCase() === q);
   const starts = (c: AiesecCountry) => foldText(c.name).split(" ").some((w) => w.startsWith(q)) ? 0 : 1;
   return hits.sort((a, b) => starts(a) - starts(b));
+}
+
+// Countries whose name takes "the" in English ("AIESEC in the Netherlands").
+const WITH_THE = new Set(["NL", "US", "PH", "GB", "AE", "CZ", "DO"]);
+
+/** The MC's name for a country: "AIESEC in Portugal", "AIESEC in the Netherlands". The MCP can rename it. */
+export function mcNameFor(code: string): string {
+  const c = countryByCode(code);
+  if (!c) return "";
+  return `AIESEC in ${WITH_THE.has(c.code) ? "the " : ""}${c.name}`;
 }

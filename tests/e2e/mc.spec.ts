@@ -52,6 +52,27 @@ test.describe('National (MC)', () => {
     expect(await join.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await create.evaluate((el) => getComputedStyle(el).backgroundColor))
   })
 
+  test('MC names use "the" where the country takes it', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: null } })
+    await page.goto('/mc')
+    await page.locator('#mc-country').fill('netherlands', { timeout: 10000 })
+    await page.getByRole('option', { name: /Netherlands/ }).click()
+    await expect(page.getByRole('button', { name: 'Create AIESEC in the Netherlands' })).toBeVisible()
+  })
+
+  test('the MCP can rename the MC', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('button', { name: 'Rename' }).click({ timeout: 10000 })
+    await page.getByLabel('MC name').fill('AIESEC Portugal')
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mcs') && w.method === 'PATCH')?.body ?? '').toContain('"name":"AIESEC Portugal"')
+  })
+
   test('a country that already has an MC points to the member code instead of letting you create a second', async ({ page }) => {
     await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: 'AIESEC in Portugal' } })
     await page.goto('/mc')
@@ -191,6 +212,69 @@ test.describe('National (MC)', () => {
     await page.locator('#mc-set-country').press('Escape')
     await expect(page.getByText('Country:')).toContainText('Portugal')
     await expect(page.getByText(/Only LCs with a country saved are listed/)).toBeVisible()
+  })
+})
+
+test.describe('National goals and pace', () => {
+  const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10)
+  const dash = (id: string, name: string, approved: number, applied: number) =>
+    ({ project_id: id, lc_name: name, members: 20, product: 'ogv', applied, approved, realized: 0, completed: 0 })
+  const health = (id: string, over: Record<string, unknown> = {}) => ({
+    project_id: id, last_approved: day(2), approved_30d: 3, stuck_approved: 0, last_activity: new Date().toISOString(),
+    from_expa: 0, total: 30, last_expa_sync: null, ...over,
+  })
+  // Half a year into the term: 30 approvals as the target means about 15 expected by now.
+  const termStart = day(182)
+  const mcOptions = (targets: unknown[]) => ({
+    tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'member' }], mc_lc_targets: targets },
+    rpc: {
+      mc_dashboard: [dash('lc-1', 'AIESEC in Lisbon', 15, 40), dash('lc-2', 'AIESEC in Porto', 3, 40)],
+      mc_lc_health: [health('lc-1', { last_expa_sync: new Date().toISOString(), from_expa: 30 }),
+                     health('lc-2', { approved_30d: 0, last_approved: day(45), stuck_approved: 2, last_activity: day(40) })],
+      mc_term_start: termStart, mc_linked_lcs: [], lcs_in_country: [],
+    },
+  })
+
+  test('targets show as "actual / target (pct%)" with a pace badge; the source of each LC\'s numbers is shown', async ({ page }) => {
+    await setupAuthMocks(page, 'member', mcOptions([
+      { project_id: 'lc-1', product: 'ogv', metric: 'approved', target: 30 },
+      { project_id: 'lc-2', product: 'ogv', metric: 'approved', target: 30 },
+    ]))
+    await page.goto('/mc')
+    const lisbon = page.getByRole('row', { name: /AIESEC in Lisbon/ })
+    await expect(lisbon).toContainText('15 / 30 (50%)', { timeout: 10000 })
+    await expect(lisbon).toContainText('On track')
+    await expect(lisbon).toContainText(/EXPA sync today/)
+    const porto = page.getByRole('row', { name: /AIESEC in Porto/ })
+    await expect(porto).toContainText('3 / 30 (10%)')
+    await expect(porto).toContainText('Behind')
+    await expect(porto).toContainText('entered by hand')
+  })
+
+  test('"Needs attention" lists what an MCVP should act on, with counts only', async ({ page }) => {
+    await setupAuthMocks(page, 'member', mcOptions([{ project_id: 'lc-2', product: 'ogv', metric: 'approved', target: 30 }]))
+    await page.goto('/mc')
+    const panel = page.locator('section', { has: page.getByRole('heading', { name: /Needs attention \(1\)/ }) })
+    await expect(panel).toContainText('AIESEC in Porto', { timeout: 10000 })
+    await expect(panel).toContainText(/No approvals in 4[4-6] days/)   // ±1 for time zones
+    await expect(panel).toContainText('2 approved 60+ days ago, not realized yet')
+    await expect(panel).toContainText(/Pipeline not updated in (39|40|41) days/)
+    await expect(panel).toContainText('Applied → approved 8% (national 23%)')
+    await expect(panel).toContainText(/Behind pace: 3 \/ 30 approvals/)
+    await expect(panel).not.toContainText('AIESEC in Lisbon')
+  })
+
+  test('an MC member sets targets for the term', async ({ page }) => {
+    await setupAuthMocks(page, 'member', mcOptions([]))
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('button', { name: 'Set approved targets' }).click({ timeout: 10000 })
+    await page.getByLabel('AIESEC in Lisbon oGV approved target').fill('30')
+    await page.getByRole('button', { name: 'Save targets' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mc_lc_targets'))?.body ?? '').toContain('"target":30')
+    const body = (await writes(page)).find((w) => w.url.includes('/rest/v1/mc_lc_targets'))?.body ?? ''
+    expect(body).toContain(`"term_start":"${termStart}"`)
+    expect(body).toContain('"project_id":"lc-1"')
   })
 })
 
