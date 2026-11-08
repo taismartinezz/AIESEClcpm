@@ -369,6 +369,18 @@ test.describe('country', () => {
     await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled()
   })
 
+  test('signing up with EXPA fills in the country, the LC name and the LCP role', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { profile: { country_code: null }, rpc: { expa_profile: {
+      fullName: 'Ana Lima', firstName: 'Ana', photoUrl: null, lcId: '1001', lcName: 'Santo Domingo', mcName: 'Dominican Republic',
+      positions: [{ role: 'LCP', fn: 'Presidency' }],
+    } } })
+    await page.goto('/onboarding')
+    await expect(page.getByText(/filled in what we could from your EXPA profile \(AIESEC in Santo Domingo\)/)).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: 'Continue' }).click()          // "Create a Local Committee" is already picked
+    await expect(page.getByRole('heading', { name: 'Where is your LC?' })).toHaveCount(0)   // country known from EXPA
+    await expect(page.getByPlaceholder('e.g. AIESEC in Lisbon')).toHaveValue('AIESEC in Santo Domingo')
+  })
+
   test('someone without a country is asked once, and it saves to their profile', async ({ page }) => {
     await setupAuthMocks(page, 'member', { profile: { country_code: null } })
     await recordWrites(page)

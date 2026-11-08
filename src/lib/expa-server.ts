@@ -4,7 +4,7 @@
 // auth.aiesec.org. Its redirect URI must be <app origin>/auth/expa/callback.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { APPLICATIONS_QUERY, CURRENT_PERSON_QUERY, type ExpaApplication } from "@/lib/expa-sync";
+import { APPLICATIONS_QUERY, CURRENT_PERSON_QUERY, POSITIONS_QUERY, PROFILE_QUERY, profileFromExpa, type ExpaApplication, type ExpaProfile } from "@/lib/expa-sync";
 
 const AUTHORIZE_URL = "https://auth.aiesec.org/oauth/authorize";
 const TOKEN_URL = "https://auth.aiesec.org/oauth/token";
@@ -74,6 +74,19 @@ export async function currentPerson(token: string) {
   const d = await gql<{ currentPerson: { id: string | number; full_name: string | null; email: string | null; home_lc: { id: string | number; name: string } | null } | null }>(token, CURRENT_PERSON_QUERY);
   if (!d.currentPerson) throw new Error("EXPA didn't say who you are");
   return d.currentPerson;
+}
+
+/**
+ * The profile details onboarding fills in. The extra queries may fail (a
+ * renamed field, a hidden photo); what they'd add is then simply left out.
+ */
+export async function fetchProfile(token: string, me: Awaited<ReturnType<typeof currentPerson>>): Promise<ExpaProfile> {
+  type Extra = { currentPerson: Record<string, unknown> | null };
+  const [extra, positions] = await Promise.all([
+    gql<Extra>(token, PROFILE_QUERY).catch(() => null),
+    gql<Extra>(token, POSITIONS_QUERY).catch(() => null),
+  ]);
+  return profileFromExpa({ ...me, ...(extra?.currentPerson ?? {}), ...(positions?.currentPerson ?? {}) });
 }
 
 /** A usable access token for the member, renewing it when it has expired. */

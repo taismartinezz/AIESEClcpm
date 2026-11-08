@@ -98,3 +98,40 @@ export function planSync(apps: ExpaApplication[], lcId: string): SyncPlan {
   }
   return { byProduct, skipped, ignored };
 }
+
+// ── Profile, for filling in onboarding ──────────────────────────────────────
+// Asked separately from CURRENT_PERSON_QUERY and allowed to fail: a field
+// AIESEC renamed must not stop anyone signing in.
+
+export const PROFILE_QUERY = `query { currentPerson { first_name last_name profile_photo home_mc { name } } }`;
+export const POSITIONS_QUERY = `query { currentPerson { current_positions { role { name } function { name } } } }`;
+
+/** What onboarding can use from EXPA. Stored on expa_connections.profile. */
+export interface ExpaProfile {
+  fullName: string | null;
+  firstName: string | null;
+  photoUrl: string | null;
+  lcId: string | null;
+  lcName: string | null;
+  mcName: string | null;
+  positions: { role: string | null; fn: string | null }[];
+}
+
+type RawPerson = {
+  full_name?: string | null; first_name?: string | null; last_name?: string | null; profile_photo?: string | null;
+  home_lc?: { id: string | number; name: string } | null; home_mc?: { name: string } | null;
+  current_positions?: { role?: { name: string } | null; function?: { name: string } | null }[] | null;
+};
+
+export function profileFromExpa(p: RawPerson): ExpaProfile {
+  const photo = p.profile_photo && /^https:\/\//i.test(p.profile_photo) ? p.profile_photo : null;
+  return {
+    fullName: p.full_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || null,
+    firstName: p.first_name?.trim() || null,
+    photoUrl: photo,
+    lcId: p.home_lc ? String(p.home_lc.id) : null,
+    lcName: p.home_lc?.name?.trim() || null,
+    mcName: p.home_mc?.name?.trim() || null,
+    positions: (p.current_positions ?? []).map((x) => ({ role: x.role?.name ?? null, fn: x.function?.name ?? null })),
+  };
+}

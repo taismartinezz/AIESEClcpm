@@ -11,6 +11,8 @@
 --                       progress, so the callback knows who started it and
 --                       why (kept 10 minutes).
 --   expa_status()       for the app: am I connected, as whom, last sync.
+--   expa_profile()      my EXPA name, photo, LC, entity and positions, so
+--                       onboarding can fill them in.
 --   disconnect_expa()   forget my tokens.
 --   auth_user_id_by_email(email)  server only: is there already a Torch account
 --                       with this email? "Continue with EXPA" signs into an
@@ -28,8 +30,12 @@ create table if not exists expa_connections (
   expires_at      timestamptz,
   connected_at    timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  last_synced_at  timestamptz
+  last_synced_at  timestamptz,
+  -- Name, photo, LC, entity and positions from EXPA, for filling in onboarding.
+  profile         jsonb not null default '{}'::jsonb
 );
+
+alter table expa_connections add column if not exists profile jsonb not null default '{}'::jsonb;
 
 -- One Torch account per EXPA person.
 create unique index if not exists expa_connections_person_idx on expa_connections (expa_person_id);
@@ -66,6 +72,20 @@ set search_path = public
 as $$
   delete from expa_connections where user_id = auth.uid();
 $$;
+
+-- Your own EXPA profile details (no tokens), for onboarding.
+create or replace function expa_profile()
+returns jsonb
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select profile from expa_connections where user_id = auth.uid();
+$$;
+
+revoke execute on function expa_profile() from public, anon;
+grant  execute on function expa_profile() to authenticated;
 
 create or replace function auth_user_id_by_email(p_email text)
 returns uuid

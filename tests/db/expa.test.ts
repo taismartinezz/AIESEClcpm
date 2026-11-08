@@ -45,6 +45,12 @@ describe("EXPA connection", () => {
     expect(await asUser(db, u.bo, async (tx) => (await tx.query("select * from expa_status()")).rows)).toEqual([]);
   });
 
+  it("expa_profile() returns your own EXPA details only", async () => {
+    await db.query(`update expa_connections set profile = '{"lcName": "Santo Domingo"}' where user_id = $1`, [u.ana]);
+    expect(await asUser(db, u.ana, async (tx) => (await tx.query<{ p: unknown }>("select expa_profile() as p")).rows[0].p)).toEqual({ lcName: "Santo Domingo" });
+    expect(await asUser(db, u.bo, async (tx) => (await tx.query<{ p: unknown }>("select expa_profile() as p")).rows[0].p)).toBeNull();
+  });
+
   it("disconnect_expa() removes only your own tokens", async () => {
     await asUser(db, u.bo, (tx) => tx.query("select disconnect_expa()"));
     expect((await db.query("select 1 from expa_connections")).rows).toHaveLength(1);

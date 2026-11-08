@@ -562,26 +562,7 @@ export default function LoginPage() {
         {/* OAuth buttons (Google by default). Shown on both "Sign in" and "Create your account":
             Google creates the account the first time and signs in after that. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {enabledProviders.has("google") && (
-            <div
-              ref={googleWrapperRef}
-              style={{ position: "relative" }}
-              onMouseEnter={() => setGoogleButtonHovered(true)}
-              onMouseLeave={() => setGoogleButtonHovered(false)}
-            >
-              <AuthButton
-                icon={<GoogleIcon />}
-                label="Continue with Google"
-                ariaLabel={mode === "signup" ? "Sign up with Google" : "Sign in with Google"}
-                loading={oAuthLoading === "google"}
-                disabled={oAuthLoading !== null && oAuthLoading !== "google"}
-                forceHovered={googleButtonHovered && oAuthLoading === null}
-                onClick={() => handleOAuth("google")}
-              />
-            </div>
-          )}
-
-          {enabledProviders.has("expa") && (
+          {enabledProviders.has("expa") && (<>
             <AuthButton
               icon={<Globe size={18} color="#037EF3" aria-hidden="true" />}
               label="Continue with EXPA"
@@ -600,6 +581,28 @@ export default function LoginPage() {
                 window.location.assign(new URL("/api/expa/login", window.location.origin).href);
               }}
             />
+            <p style={{ margin: "-4px 0 4px", fontSize: 12, color: "var(--color-secondary)", textAlign: "center" }}>
+              Recommended for AIESEC members: your name, photo, country and LC are filled in from EXPA.
+            </p>
+          </>)}
+
+          {enabledProviders.has("google") && (
+            <div
+              ref={googleWrapperRef}
+              style={{ position: "relative" }}
+              onMouseEnter={() => setGoogleButtonHovered(true)}
+              onMouseLeave={() => setGoogleButtonHovered(false)}
+            >
+              <AuthButton
+                icon={<GoogleIcon />}
+                label="Continue with Google"
+                ariaLabel={mode === "signup" ? "Sign up with Google" : "Sign in with Google"}
+                loading={oAuthLoading === "google"}
+                disabled={oAuthLoading !== null && oAuthLoading !== "google"}
+                forceHovered={googleButtonHovered && oAuthLoading === null}
+                onClick={() => handleOAuth("google")}
+              />
+            </div>
           )}
 
           {enabledProviders.has("microsoft") && (
