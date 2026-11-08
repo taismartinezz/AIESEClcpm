@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { APP_NAME } from "@/lib/brand";
+import BrandLogo from "@/components/ui/BrandLogo";
 
 // TEMPLATE: this page describes how the app handles data. Whoever operates a
 // deployment must review it, add their contact address (NEXT_PUBLIC_PRIVACY_CONTACT)
@@ -17,6 +18,7 @@ export default function PrivacyPage() {
     <div style={{ minHeight: "100dvh", backgroundColor: "var(--color-canvas)", display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 16px", fontFamily: "var(--font-roboto)" }}>
       <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, maxWidth: 680, width: "100%", padding: "48px clamp(20px, 5vw, 40px)", boxShadow: "var(--shadow-card)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
+          <BrandLogo size={32} />
           <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>{APP_NAME}</span>
         </div>
 

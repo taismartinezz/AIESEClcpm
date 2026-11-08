@@ -31,6 +31,7 @@ import GlobalSearch from "@/components/ui/GlobalSearch";
 import { UndoToastProvider } from "@/context/UndoToastContext";
 import KeyboardShortcutsModal from "@/components/ui/KeyboardShortcutsModal";
 import ChatDock from "@/components/chat/ChatDock";
+import BrandLogo from "@/components/ui/BrandLogo";
 
 function contrastTextColor(hex: string): "#000000" | "#ffffff" {
   if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return "#ffffff";
@@ -238,6 +239,10 @@ function SidebarBody({
     return (
       <aside className="flex flex-col h-full items-center" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)", paddingTop: 6, paddingBottom: 6, gap: 2 }}>
 
+        {/* Product logo - static branding anchor */}
+        <div style={{ ...ICON_BTN, flexShrink: 0, pointerEvents: "none" }} aria-hidden="true">
+          <BrandLogo size={24} />
+        </div>
 
         {/* Expand toggle */}
         <button
@@ -397,7 +402,8 @@ function SidebarBody({
     <aside className="flex flex-col h-full" aria-label="Site navigation" style={{ backgroundColor: "var(--color-sidebar)" }}>
       {/* Wordmark row - collapse button appears on sidebar hover */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>
+        <span className="flex items-center gap-2" style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 18, color: "var(--color-navy)" }}>
+          <span aria-hidden="true"><BrandLogo size={22} /></span>
           {APP_NAME}
         </span>
         <div className="flex items-center gap-1">
@@ -1200,8 +1206,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Menu size={20} color="var(--color-navy)" />
           </button>
 
-          {/* Mobile wordmark */}
+          {/* Mobile wordmark + logo */}
           <div className="md:hidden flex items-center gap-2">
+            <BrandLogo size={24} />
             <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>
               {APP_NAME}
             </span>

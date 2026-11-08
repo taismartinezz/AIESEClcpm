@@ -63,7 +63,7 @@ Google?" on the login page. To hide the Google button there, set
    `http://localhost:3000/auth/expa/callback`.
 2. In Vercel (and `.env` locally) set `AIESEC_CLIENT_ID` and
    `AIESEC_CLIENT_SECRET`, and run `supabase/migrations/20261107004_expa.sql`.
-3. "Continue with EXPA" signs into the Torch account linked to that EXPA
+3. "Continue with EXPA" signs into the Glow account linked to that EXPA
    person, or creates one and fills in onboarding from EXPA. It never signs
    into an existing account just because the email matches: that person signs
    in the old way once and presses Connect EXPA on the Pipeline page.

@@ -5,6 +5,7 @@ import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Globe } from "lucide-react";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
+import BrandLogo from "@/components/ui/BrandLogo";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -204,7 +205,7 @@ function initialAuthError(): string | null {
   return params.get("reason") === "session_expired" ? "Your session expired. Please sign in again." : null;
 }
 
-// Torch is for AIESEC members: you sign in, and sign up, with EXPA. Accounts
+// Glow is for AIESEC members: you sign in, and sign up, with EXPA. Accounts
 // made before that (email or Google) sign in under "Signed up before…", then
 // connect EXPA from the Pipeline page. Preview mode keeps the old form, since
 // EXPA needs the real server.
@@ -502,6 +503,7 @@ export default function LoginPage() {
             gap: 12,
           }}
         >
+          <BrandLogo size={56} />
           <span
             aria-hidden="true"
             style={{
