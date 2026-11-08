@@ -35,7 +35,7 @@ export default function McLinkSettings() {
       setCode("");
       setVersion((v) => v + 1);
     } catch (e) {
-      setError(`Couldn't update: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`Couldn't link: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -46,6 +46,11 @@ export default function McLinkSettings() {
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 12px" }}>
         When your LC is linked, your MC sees how many exchanges were applied, approved, realized and completed per product this term, and how many members you have. They never see names, tasks or wellbeing data.
       </p>
+      {!mcName && (
+        <p style={{ fontSize: 12, color: "var(--color-body)", margin: "0 0 8px" }}>
+          Ask your MC (national team) for the <strong>LC code</strong>: 8 letters and numbers. It&apos;s not the member code, which is for people on the MC.
+        </p>
+      )}
       {mcName ? (
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--color-body)" }}>
           <span style={{ flex: 1 }}>Linked to <strong>{mcName}</strong></span>
@@ -53,7 +58,7 @@ export default function McLinkSettings() {
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
-          <input aria-label="MC's LC code" placeholder="LC code from your MC" value={code} onChange={(e) => setCode(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <input aria-label="MC's LC code" placeholder="LC code, e.g. 7C2E19AD" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }} />
           <Button onClick={() => link(code)} disabled={busy || !code.trim()}>Link</Button>
         </div>
       )}

@@ -68,6 +68,20 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
  * opened, or while you're on one of its pages). A member gets their own day to
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
+// Tab titles ("Tasks · Glow") for pages that aren't in the menu themselves.
+const TITLE_FOR: Record<string, string> = {
+  "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
+  "/attendance": "Calendar", "/tabling": "Calendar", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
+};
+
+function pageTitle(pathname: string): string {
+  if (pathname === "/") return "Dashboard";
+  const match = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const hit = Object.keys(NAV).filter((h) => h !== "/" && match(h)).sort((a, b) => b.length - a.length)[0];
+  if (hit) return NAV[hit].label;
+  return Object.entries(TITLE_FOR).find(([prefix]) => match(prefix))?.[1] ?? "";
+}
+
 const PRIMARY: Record<UserRole, string[]> = {
   member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
   vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
@@ -713,7 +727,7 @@ function projectInitials(name: string): string {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { projectId, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
+  const { projectId, lcs, subProjectId, subProjects, activeScope, setActiveSubProject, setActiveScope, role: lcRole, isLoading: lcLoading } = useProject();
   const { mcs: myMcs, loaded: mcsLoaded } = useMcs();
   const tourRole: TourRole | null = lcLoading ? null : lcRole ?? (mcsLoaded && myMcs.length > 0 ? "mc" : null);
   const [navCollapsed, setNavCollapsed] = useState(() => {
@@ -735,6 +749,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [helpKey, setHelpKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [authed, setAuthed] = useState(false);
+
+  // Someone in no LC has nothing to see here: the national view if they're on
+  // an MC, otherwise onboarding. (Not the "??" shell with empty LC pages.)
+  useEffect(() => {
+    if (!authed || !isSupabaseConfigured || isPreview || lcLoading || !mcsLoaded || lcs.length > 0) return;
+    try { localStorage.removeItem("aiesec_project"); } catch { /* storage blocked */ }
+    router.replace(myMcs.length > 0 ? "/mc" : "/onboarding");
+  }, [authed, lcLoading, mcsLoaded, lcs.length, myMcs.length, router]);
+
+  useEffect(() => {
+    const title = pageTitle(pathname);
+    document.title = title ? `${title} · ${APP_NAME}` : APP_NAME;
+  }, [pathname]);
   const [profile, setProfile] = useState<UserProfileRecord | null>(null);
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [notifications, setNotifications] = useState<SupabaseNotif[]>([]);

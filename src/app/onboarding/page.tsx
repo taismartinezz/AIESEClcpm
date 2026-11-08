@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
-import { Users, BookOpen, Check, X, Search, ChevronDown } from "lucide-react";
+import { Users, BookOpen, Check, X, Search, ChevronDown, Globe2 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import { searchInstitutions, type InstitutionResult } from "@/lib/institutions";
@@ -469,6 +469,8 @@ export default function OnboardingPage() {
   const [countryConfirmed, setCountryConfirmed] = useState(false);
   const [countryLcs, setCountryLcs] = useState<{ id: string; name: string }[]>([]);
   const [role, setRole] = useState<Role | null>(null);
+  // "I'm on the national team (MC)": not an LC role; Continue goes to /mc.
+  const [mcChosen, setMcChosen] = useState(false);
   // Details from the person's EXPA profile ("Continue with EXPA"), if any.
   const [expa, setExpa] = useState<ExpaProfile | null>(null);
 
@@ -606,6 +608,7 @@ export default function OnboardingPage() {
   }, [countryCode]);
 
   function handleStep1Continue() {
+    if (mcChosen) { router.push("/mc"); return; }
     if (!role) return;
     setStep(2);
   }
@@ -845,12 +848,14 @@ export default function OnboardingPage() {
 
           {/* Role cards */}
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {(["president", "member"] as Role[]).map((r) => {
-              const selected = role === r;
+            {(["president", "member", "mc"] as const).map((r) => {
+              const selected = r === "mc" ? mcChosen : !mcChosen && role === r;
               return (
                 <button
                   key={r}
-                  onClick={() => setRole(r)}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => { if (r === "mc") { setMcChosen(true); } else { setMcChosen(false); setRole(r); } }}
                   style={{
                     flex: "1 1 200px",
                     minHeight: 140,
@@ -868,8 +873,10 @@ export default function OnboardingPage() {
                 >
                   {r === "president" ? (
                     <Users size={28} color="var(--color-navy)" />
-                  ) : (
+                  ) : r === "member" ? (
                     <BookOpen size={28} color="var(--color-navy)" />
+                  ) : (
+                    <Globe2 size={28} color="var(--color-navy)" />
                   )}
                   <span
                     style={{
@@ -881,7 +888,7 @@ export default function OnboardingPage() {
                       marginTop: 12,
                     }}
                   >
-                    {r === "president" ? "Create a Local Committee" : "Join an LC"}
+                    {r === "president" ? "Create a Local Committee" : r === "member" ? "Join an LC" : "I'm on the national team (MC)"}
                   </span>
                   <span
                     style={{
@@ -896,19 +903,18 @@ export default function OnboardingPage() {
                   >
                     {r === "president"
                       ? "I'm the LCP (or setting things up for them) and want a workspace for our LC."
-                      : "I've got an invite link or code from my LCP."}
+                      : r === "member"
+                        ? "I've got an invite link or code from my LCP."
+                        : "See every LC's numbers side by side. Set up your MC, or join with a code from your MCP."}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          <NavButton large={isLarge} onClick={handleStep1Continue} disabled={!role}>
+          <NavButton large={isLarge} onClick={handleStep1Continue} disabled={!role && !mcChosen}>
             Continue
           </NavButton>
-          <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", textAlign: "center", margin: "16px 0 0" }}>
-            On the national team (MC)? <a href="/mc" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Go to the national view</a>
-          </p>
         </div>
       </div>
     );
