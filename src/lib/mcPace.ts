@@ -100,3 +100,42 @@ export function sourceLabel(h: LcHealth | null, today = new Date()): string {
   const source = sync !== null ? `EXPA sync ${sync === 0 ? "today" : `${sync}d ago`}` : h.total > 0 ? "entered by hand" : "";
   return source ? `${when} · ${source}` : when;
 }
+
+// ── Funnel ──────────────────────────────────────────────────────────────────
+
+export type FunnelCounts = { applied: number; accepted: number; approved: number; realized: number; completed: number };
+
+/** The three steps an MC coaches on, and what each one is about. */
+export const FUNNEL_STEPS = [
+  { from: "applied", to: "accepted", label: "Applied → accepted", coach: "matching" },
+  { from: "accepted", to: "approved", label: "Accepted → approved", coach: "sales" },
+  { from: "approved", to: "realized", label: "Approved → realized", coach: "delivery" },
+] as const;
+
+/**
+ * A step's conversion this term, capped at 100%: exchanges that reached the
+ * earlier stage last term can reach the later one this term. Null below 5,
+ * too few to say.
+ */
+export const stepRate = (c: FunnelCounts, i: number): number | null => {
+  const s = FUNNEL_STEPS[i];
+  return c[s.from] >= 5 ? Math.min(1, c[s.to] / c[s.from]) : null;
+};
+
+/**
+ * The step where an LC falls furthest below the national rate (at least 20%
+ * below it), or null when none does or there's too little data.
+ */
+export function weakestStep(lc: FunnelCounts, national: FunnelCounts): { index: number; rate: number; nationalRate: number } | null {
+  let worst: { index: number; rate: number; nationalRate: number; gap: number } | null = null;
+  FUNNEL_STEPS.forEach((_, i) => {
+    const rate = stepRate(lc, i);
+    const nationalRate = stepRate(national, i);
+    if (rate === null || nationalRate === null || nationalRate === 0) return;
+    const gap = rate / nationalRate;
+    if (gap < 0.8 && (!worst || gap < worst.gap)) worst = { index: i, rate, nationalRate, gap };
+  });
+  if (!worst) return null;
+  const { index, rate, nationalRate } = worst;
+  return { index, rate, nationalRate };
+}

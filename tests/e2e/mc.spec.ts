@@ -264,6 +264,29 @@ test.describe('National goals and pace', () => {
     await expect(panel).not.toContainText('AIESEC in Lisbon')
   })
 
+  test('trends, the funnel with what to coach on, and team numbers EXPA cannot show', async ({ page }) => {
+    const insight = (id: string, over: Record<string, unknown>) => ({
+      project_id: id, weekly: [0, 1, 0, 2, 1, 0, 3, 1, 2, 0, 1, 4], last_term_to_date: 10,
+      applied: 50, accepted: 30, approved: 15, realized: 12, completed: 5,
+      members: 20, joined_term: 6, term_ended: 2, active_14d: 15, handover_due: 5, handover_written: 3, recruits_term: 12, recruits_joined: 6, ...over,
+    })
+    const options = mcOptions([])
+    await setupAuthMocks(page, 'member', { ...options, rpc: { ...options.rpc, mc_lc_insights: [
+      insight('lc-1', { approved: 15 }),
+      insight('lc-2', { approved: 3, accepted: 30, last_term_to_date: 8, active_14d: 2 }),
+    ] } })
+    await page.goto('/mc')
+    await expect(page.getByRole('img', { name: /AIESEC in Lisbon: approvals per week/ })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('row', { name: /AIESEC in Lisbon/ }).first()).toContainText('+5 vs last term')
+    await expect(page.getByRole('row', { name: /AIESEC in Porto/ }).first()).toContainText('−5 vs last term')
+    const funnel = page.locator('section', { has: page.getByRole('heading', { name: 'Where each LC loses people' }) })
+    await expect(funnel.getByRole('row', { name: /AIESEC in Porto/ })).toContainText('sales')
+    await expect(funnel.getByRole('row', { name: /AIESEC in Lisbon/ })).not.toContainText('sales')
+    const team = page.locator('section', { has: page.getByRole('heading', { name: 'Beyond exchanges' }) })
+    await expect(team.getByRole('row', { name: /AIESEC in Lisbon/ })).toContainText('3 / 5')
+    await expect(team.getByRole('row', { name: /AIESEC in Porto/ })).toContainText('2 (10%)')
+  })
+
   test('an MC member sets targets for the term', async ({ page }) => {
     await setupAuthMocks(page, 'member', mcOptions([]))
     await intercept(page)

@@ -76,3 +76,27 @@ describe("LC health for the MC", () => {
     await db.query("update mcs set term_start = null where id = $1", [mcId]);
   });
 });
+
+describe("LC insights for the MC", () => {
+  it("trends, funnel and team numbers, as counts only, for MC members only", async () => {
+    await db.query("update user_profiles set last_seen_at = now() where id = $1", [u.olga]);
+    await db.query("insert into handover_notes (project_id, department_id, term_label, title, body) values ($1, null, '2026', 'LC', 'Notes')", [linked.id]);
+    await db.query("insert into recruits (project_id, name, stage) values ($1, 'Secret Recruit', 'joined'), ($1, 'Secret Two', 'applied')", [linked.id]);
+    const rows = await asUser(db, u.mcvp, async (tx) => (await tx.query<Record<string, unknown>>("select * from mc_lc_insights($1)", [mcId])).rows);
+    expect(rows).toHaveLength(1);
+    const r = rows[0];
+    expect((r.weekly as number[]).length).toBe(12);
+    expect((r.weekly as number[])[11]).toBe(1);                  // approved today: this week
+    // Approved today, and 90 days ago (in this term unless the term started since).
+    const { rows: inTerm } = await db.query<{ n: number }>("select count(*)::int as n from exchanges where project_id = $1 and approved_at >= mc_term_start($2)", [linked.id, mcId]);
+    expect(r.approved).toBe(inTerm[0].n);
+    expect(r.members).toBe(2);                                    // the president and Olga
+    expect(r.active_14d).toBe(1);
+    expect(r.handover_due).toBe(2);                               // Olga's department, and the LC-wide note
+    expect(r.handover_written).toBe(1);
+    expect(r.recruits_term).toBe(2);
+    expect(r.recruits_joined).toBe(1);
+    expect(JSON.stringify(rows)).not.toMatch(/Secret/);
+    expect(await asUser(db, u.pres, async (tx) => (await tx.query("select * from mc_lc_insights($1)", [mcId])).rows)).toEqual([]);
+  });
+});
