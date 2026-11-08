@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { planSync, type ExpaApplication } from "@/lib/expa-sync";
+import { planSync, profileFromExpa, type ExpaApplication } from "@/lib/expa-sync";
+import { countryFromMc, isLcPresident, lcDisplayName } from "@/lib/expa-profile";
 
 const LC = "1001";
 const app = (over: Partial<ExpaApplication> & { prog?: string; homeLc?: string; hostLc?: string }): ExpaApplication => ({
@@ -47,5 +48,37 @@ describe("EXPA sync plan", () => {
     const plan = planSync([app({ id: 1, prog: "GE" }), app({ id: 2, homeLc: "7", hostLc: "8" })], LC);
     expect(plan.byProduct).toEqual({});
     expect(plan.ignored).toBe(2);
+  });
+});
+
+describe("EXPA profile for onboarding", () => {
+  it("keeps name, https photo, LC, entity and positions", () => {
+    const p = profileFromExpa({
+      full_name: null, first_name: "Ana", last_name: "Lima", profile_photo: "http://insecure/x.png",
+      home_lc: { id: 1001, name: "Santo Domingo" }, home_mc: { name: "Dominican Republic" },
+      current_positions: [{ role: { name: "LCP" }, function: { name: "Presidency" } }],
+    });
+    expect(p).toEqual({ fullName: "Ana Lima", firstName: "Ana", photoUrl: null, lcId: "1001", lcName: "Santo Domingo", mcName: "Dominican Republic", positions: [{ role: "LCP", fn: "Presidency" }] });
+  });
+
+  it("finds the country from the entity name", () => {
+    expect(countryFromMc("Dominican Republic")).toBe("DO");
+    expect(countryFromMc("AIESEC in Côte d'Ivoire")).toBe("CI");
+    expect(countryFromMc("USA")).toBe("US");
+    expect(countryFromMc("China (Mainland)")).toBe("CN");
+    expect(countryFromMc("Atlantis")).toBeNull();
+    expect(countryFromMc(null)).toBeNull();
+  });
+
+  it("names the LC and spots an LC President (not a VP)", () => {
+    expect(lcDisplayName("Santo Domingo")).toBe("AIESEC in Santo Domingo");
+    expect(lcDisplayName("AIESEC UNIBE")).toBe("AIESEC UNIBE");
+    const with_ = (role: string) => profileFromExpa({ current_positions: [{ role: { name: role } }] });
+    expect(isLcPresident(with_("LCP"))).toBe(true);
+    expect(isLcPresident(with_("Local Committee President"))).toBe(true);
+    expect(isLcPresident(with_("LCVP"))).toBe(false);
+    expect(isLcPresident(with_("Vice President oGV"))).toBe(false);
+    expect(isLcPresident(with_("MCP"))).toBe(false);
+    expect(isLcPresident(with_("Team Member"))).toBe(false);
   });
 });

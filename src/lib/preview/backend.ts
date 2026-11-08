@@ -284,6 +284,7 @@ function rpc(name: string, args: Row): Response {
   switch (name) {
     case "lc_term_start": return json(termStart());
     case "lcs_in_country": return json([]);   // the demo LC is the only one in preview
+    case "expa_profile": return json(null);     // no EXPA in preview
     case "touch_last_seen": return json(null);
     case "lc_mc_name": return json(null);
     case "mc_dashboard": return json([]);

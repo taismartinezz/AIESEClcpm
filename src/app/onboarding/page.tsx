@@ -11,6 +11,7 @@ import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
 import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
+import { countryFromMc, isLcPresident, lcDisplayName, type ExpaProfile } from "@/lib/expa-profile";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -345,7 +346,7 @@ async function syncOnboardingToSupabase({
   projectName, institution,
   userName, userRole, inviteCode, enteredInviteCode, bio, inviteEmails,
   timezone, workingHours,
-  activePromptIds, customPrompts, countryCode,
+  activePromptIds, customPrompts, countryCode, avatarUrl,
 }: {
   projectName: string; institution: string;
   userName: string; userRole: "president" | "member"; inviteCode?: string;
@@ -353,7 +354,7 @@ async function syncOnboardingToSupabase({
   inviteEmails?: { email: string; code: string; roleName?: string }[];
   timezone?: string; workingHours?: Record<string, { start: string; end: string } | null>;
   activePromptIds?: string[]; customPrompts?: { id: string; text: string }[];
-  countryCode?: string;
+  countryCode?: string; avatarUrl?: string | null;
 }): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -371,6 +372,7 @@ async function syncOnboardingToSupabase({
     };
     if (bio) profilePayload.bio = bio;
     if (countryCode) profilePayload.country_code = countryCode;
+    if (avatarUrl) profilePayload.avatar_url = avatarUrl;
     if (userRole === "president" && institution) profilePayload.institution = institution;
     const { error: profileError } = await supabase
       .from("user_profiles")
@@ -466,6 +468,8 @@ export default function OnboardingPage() {
   const [countryConfirmed, setCountryConfirmed] = useState(false);
   const [countryLcs, setCountryLcs] = useState<{ id: string; name: string }[]>([]);
   const [role, setRole] = useState<Role | null>(null);
+  // Details from the person's EXPA profile ("Continue with EXPA"), if any.
+  const [expa, setExpa] = useState<ExpaProfile | null>(null);
 
   // Create-LC step 2
   const [piProjectName, setPiProjectName] = useState("");
@@ -567,6 +571,19 @@ export default function OnboardingPage() {
         setPiUserName(signupName);
         setResUserName(signupName);
         localStorage.removeItem("aiesec_signup_name");
+      }
+
+      // Signed up with EXPA: fill in what EXPA knows. (Missing before the EXPA
+      // migration runs, or for people who didn't use EXPA: nothing happens.)
+      const { data: expaData } = await supabase.rpc("expa_profile");
+      const xp = expaData && typeof expaData === "object" && "positions" in expaData ? expaData as ExpaProfile : null;
+      if (xp) {
+        setExpa(xp);
+        if (!signupName && xp.fullName) { setPiUserName(xp.fullName); setResUserName(xp.fullName); }
+        const xpCountry = existingProfile?.country_code ? null : countryFromMc(xp.mcName);
+        if (xpCountry) { setCountryCode(xpCountry); setCountryConfirmed(true); }
+        if (xp.lcName) setPiProjectName(lcDisplayName(xp.lcName));
+        if (!pendingInvite && isLcPresident(xp)) setRole("president");
       }
 
       setSessionReady(true);
@@ -702,6 +719,7 @@ export default function OnboardingPage() {
     // Await Supabase sync so the profile row exists before AppShell loads
     if (isSupabaseConfigured) {
       const syncErr = await syncOnboardingToSupabase({
+        avatarUrl: expa?.photoUrl ?? null,
         projectName, institution,
         userName, userRole,
         inviteCode: role === "president" ? generatedCode : undefined,
@@ -817,6 +835,11 @@ export default function OnboardingPage() {
           >
             How would you like to start?
           </p>
+          {expa && (
+            <p role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center" }}>
+              We filled in what we could from your EXPA profile{expa.lcName ? ` (${lcDisplayName(expa.lcName)})` : ""}. You can change anything.
+            </p>
+          )}
 
           {/* Role cards */}
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>

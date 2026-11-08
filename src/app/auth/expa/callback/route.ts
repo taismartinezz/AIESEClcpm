@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/server-db";
-import { currentPerson, exchangeCode, expiresAt, EXPA_STATE_COOKIE } from "@/lib/expa-server";
+import { currentPerson, exchangeCode, expiresAt, fetchProfile, EXPA_STATE_COOKIE } from "@/lib/expa-server";
+import type { ExpaProfile } from "@/lib/expa-sync";
 
 type Person = Awaited<ReturnType<typeof currentPerson>>;
 type Tokens = Awaited<ReturnType<typeof exchangeCode>>;
@@ -42,14 +43,15 @@ export async function GET(request: Request) {
   try {
     const tokens = await exchangeCode(code, url.origin);
     const me = await currentPerson(tokens.access_token);
+    const profile = await fetchProfile(tokens.access_token, me);
     if (!login) {
-      const err = await saveConnection(db, pending.user_id as string, me, tokens);
+      const err = await saveConnection(db, pending.user_id as string, me, tokens, profile);
       return err ? fail(err) : toPipeline({ expa: "connected" });
     }
 
     const account = await accountFor(db, me);
     if ("error" in account) return fail(account.error);
-    const err = await saveConnection(db, account.userId, me, tokens);
+    const err = await saveConnection(db, account.userId, me, tokens, profile);
     if (err) return fail(err);
     const { data: link, error: linkErr } = await db.auth.admin.generateLink({ type: "magiclink", email: account.email });
     if (linkErr || !link.properties?.hashed_token) return fail(linkErr?.message ?? "Couldn't start your session.");
@@ -62,13 +64,13 @@ export async function GET(request: Request) {
   }
 }
 
-async function saveConnection(db: SupabaseClient, userId: string, me: Person, tokens: Tokens): Promise<string | null> {
+async function saveConnection(db: SupabaseClient, userId: string, me: Person, tokens: Tokens, profile: ExpaProfile): Promise<string | null> {
   const now = new Date().toISOString();
   const { error } = await db.from("expa_connections").upsert({
     user_id: userId, expa_person_id: String(me.id), expa_name: me.full_name,
     home_lc_id: me.home_lc ? String(me.home_lc.id) : null, home_lc_name: me.home_lc?.name ?? null,
     access_token: tokens.access_token, refresh_token: tokens.refresh_token ?? null, expires_at: expiresAt(tokens),
-    connected_at: now, updated_at: now,
+    profile, connected_at: now, updated_at: now,
   }, { onConflict: "user_id" });
   if (error?.code === "23505") return "This EXPA account is already connected to another Torch account.";
   return error?.message ?? null;
