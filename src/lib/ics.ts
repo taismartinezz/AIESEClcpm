@@ -45,7 +45,7 @@ export function buildIcs(ev: IcsEvent, now = new Date()): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Torch//Events//EN",
+    "PRODID:-//Glow//Events//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

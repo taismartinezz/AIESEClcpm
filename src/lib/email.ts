@@ -11,7 +11,7 @@ export interface EmailPayload {
   subject: string;
   html: string;
   text: string;
-  /** Shown as "<fromName> via Torch"; the address stays EMAIL_FROM's. */
+  /** Shown as "<fromName> via Glow"; the address stays EMAIL_FROM's. */
   fromName?: string;
   /** Replies go here (e.g. the organiser), not to the no-reply sender. */
   replyTo?: string;

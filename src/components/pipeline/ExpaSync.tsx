@@ -69,7 +69,7 @@ export default function ExpaSync({ projectId, onSynced }: { projectId: string; o
   }
 
   async function disconnect() {
-    if (!(await askConfirm("Disconnect EXPA? Torch forgets your EXPA sign-in. Exchanges already synced stay in the pipeline.", { confirmLabel: "Disconnect" }))) return;
+    if (!(await askConfirm("Disconnect EXPA? Glow forgets your EXPA sign-in. Exchanges already synced stay in the pipeline.", { confirmLabel: "Disconnect" }))) return;
     const { error } = await supabase.rpc("disconnect_expa");
     if (error) { setMessage({ text: `Couldn't disconnect: ${error.message}`, error: true }); return; }
     setStatus(null);

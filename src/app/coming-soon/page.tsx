@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/brand";
+import BrandLogo from "@/components/ui/BrandLogo";
 
 export const metadata = { title: `Coming Soon - ${APP_NAME}` };
 
@@ -33,6 +34,7 @@ export default function ComingSoonPage() {
       >
         {/* Logo + wordmark */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <BrandLogo size={48} />
           <span
             aria-hidden="true"
             style={{

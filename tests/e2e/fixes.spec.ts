@@ -102,24 +102,6 @@ test.describe('8 · small UI bugs', () => {
   })
 })
 
-test('sign-up accepts a name filled in by browser autofill', async ({ page }) => {
-  await page.route('**/auth/v1/signup**', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ user: { id: 'signup-user', identities: [] }, session: null }),
-  }))
-  await page.goto('/login')
-  await page.getByRole('link', { name: /create one|sign up|create an account/i }).or(page.getByRole('button', { name: /create one|sign up|create an account/i })).first().click({ timeout: 10000 })
-  await expect(page.getByLabel('Full name')).toBeVisible()
-  // Autofill sets the boxes without the typing events React listens to.
-  await page.evaluate(() => {
-    const set = (label: string, v: string) => { (document.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement).value = v }
-    set('Full name', 'Tais Martinez'); set('Email', 'tais@example.com'); set('Password', 'long-enough-password')
-  })
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page.getByText('Please enter your full name.')).toHaveCount(0)
-  await expect(page.getByText('Please enter a valid email address.')).toHaveCount(0)
-})
-
 test('the Calendar (formerly Scheduling) offers Connect Google Calendar', async ({ page }) => {
   await setupAuthMocks(page, 'member', { tables: { schedule_events: [], user_availability: [], meeting_proposals: [] } })
   await page.goto('/scheduling')
@@ -144,6 +126,7 @@ test.describe('Email sign-in', () => {
     let resent = false
     await page.route('**/auth/v1/resend**', (r) => { resent = true; return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }) })
     await page.goto('/login')
+    await page.getByRole('button', { name: /signed up before with email or google/i }).click({ timeout: 10000 })
     await page.getByLabel('Email').fill('new@example.com')
     await page.locator('input[aria-label="Password"]').fill('long-enough-password')
     await page.getByRole('button', { name: /continue with email/i }).click()

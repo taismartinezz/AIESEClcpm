@@ -12,6 +12,7 @@ import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
 import { countryFromMc, isLcPresident, lcDisplayName, type ExpaProfile } from "@/lib/expa-profile";
+import BrandLogo from "@/components/ui/BrandLogo";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -809,6 +810,7 @@ export default function OnboardingPage() {
           <StepDots current={1} total={role === "president" ? CREATE_STEPS : JOIN_STEPS} />
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <BrandLogo size={40} />
           </div>
 
           <h1
@@ -1091,6 +1093,7 @@ export default function OnboardingPage() {
       return (
         <div style={PAGE_WRAP}>
           <div style={{ ...cardStyle(isLarge), textAlign: "center", padding: isLarge ? "72px 56px" : "56px 40px" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}><BrandLogo size={36} /></div>
             <p style={{ fontFamily: "var(--font-lora)", fontWeight: 600, fontSize: 18, color: "var(--color-navy)", marginTop: 20, marginBottom: 0 }}>
               Joined! Setting up your workspace...
             </p>
