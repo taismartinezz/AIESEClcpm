@@ -68,7 +68,7 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
  * opened, or while you're on one of its pages). A member gets their own day to
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
-// Tab titles ("Tasks · Glow") for pages that aren't in the menu themselves.
+// Tab titles ("Tasks · LC Manager") for pages that aren't in the menu themselves.
 const TITLE_FOR: Record<string, string> = {
   "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
   "/attendance": "Calendar", "/tabling": "Calendar", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",

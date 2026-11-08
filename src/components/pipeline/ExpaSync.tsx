@@ -7,6 +7,7 @@ import { authedPost } from "@/lib/api-client";
 import { askConfirm } from "@/components/ui/confirm";
 import { Button } from "@/components/lc/ui";
 import { formatDay } from "@/lib/dates";
+import { APP_NAME } from "@/lib/brand";
 
 interface Status { expa_name: string | null; home_lc_name: string | null; last_synced_at: string | null }
 interface SyncResult { lc: string | null; inserted: number; updated: number; failed: number; skipped: number; errors: string[] }
@@ -69,7 +70,7 @@ export default function ExpaSync({ projectId, onSynced }: { projectId: string; o
   }
 
   async function disconnect() {
-    if (!(await askConfirm("Disconnect EXPA? Glow forgets your EXPA sign-in. Exchanges already synced stay in the pipeline.", { confirmLabel: "Disconnect" }))) return;
+    if (!(await askConfirm(`Disconnect EXPA? ${APP_NAME} forgets your EXPA sign-in. Exchanges already synced stay in the pipeline.`, { confirmLabel: "Disconnect" }))) return;
     const { error } = await supabase.rpc("disconnect_expa");
     if (error) { setMessage({ text: `Couldn't disconnect: ${error.message}`, error: true }); return; }
     setStatus(null);

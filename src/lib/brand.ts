@@ -1,5 +1,5 @@
 // Single source of truth for the product name. Change it here to rebrand.
-export const APP_NAME = "Glow";
+export const APP_NAME = "LC Manager";
 export const APP_TAGLINE = "The workspace for AIESEC Local Committees";
 
 // AIESEC brand palette: used for department/group colours and charts.

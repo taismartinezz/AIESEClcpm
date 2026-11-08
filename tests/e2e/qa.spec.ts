@@ -360,9 +360,9 @@ test.describe('country', () => {
     await expect(box).toHaveValue(/Portugal/)
     await next.click()
     // The LC step suggests LCs already in Portugal; picking one points to joining instead.
-    await expect(page.getByRole('group', { name: 'LCs already on Glow' })).toContainText('AIESEC in Lisbon')
+    await expect(page.getByRole('group', { name: 'LCs already on LC Manager' })).toContainText('AIESEC in Lisbon')
     await page.getByRole('button', { name: 'AIESEC in Lisbon' }).click()
-    await expect(page.getByRole('status')).toContainText('already on Glow')
+    await expect(page.getByRole('status')).toContainText('already on LC Manager')
     await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled()
     await page.getByPlaceholder('e.g. AIESEC in Lisbon').fill('AIESEC in Coimbra')   // a new one is fine
     await page.getByPlaceholder('Full name').fill('Tais Martinez')

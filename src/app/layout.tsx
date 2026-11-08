@@ -13,7 +13,7 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  // Pages name themselves ("National · Glow"); the LC app sets its own from the nav.
+  // Pages name themselves ("National · LC Manager"); the LC app sets its own from the nav.
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: APP_TAGLINE,
 };
