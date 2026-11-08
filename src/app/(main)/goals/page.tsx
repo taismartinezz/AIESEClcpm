@@ -9,6 +9,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Button, ErrorText, Panel } from "@/components/lc/ui";
 import { GoalBar, GoalModal, describeMetric, useGoals, type GoalWithProgress } from "@/components/goals/GoalsShared";
 import { formatDay } from "@/lib/dates";
+import FunnelPlanner from "@/components/goals/FunnelPlanner";
+import type { ProductCode } from "@/lib/products";
 
 export default function GoalsPage() {
   const { projectId, userId, role, departments, ledDepartmentIds, isLoading } = useProject();
@@ -58,6 +60,14 @@ export default function GoalsPage() {
     // A reload after the queue drained carries the saved value; clear offsets that are settled.
     setOffsets((o) => Object.fromEntries(Object.entries(o).filter(([id]) => (inFlight.current[id] ?? 0) > 0)));
   }, [goals]);
+
+  // Approval goals per outgoing product, for the planner (pipeline goals on "approved").
+  const approvalGoals: Partial<Record<ProductCode, number>> = {};
+  for (const g of goals) {
+    if (g.metric === "pipeline" && g.stage === "approved" && g.product) approvalGoals[g.product] = (approvalGoals[g.product] ?? 0) + g.target;
+  }
+  const termEnd = goals.filter((g) => g.metric === "pipeline" && g.stage === "approved").map((g) => g.endsOn).sort().at(-1)
+    ?? (() => { const d = new Date(`${termStart}T00:00:00Z`); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
 
   const sections = [
     { key: "lc", title: "Whole LC", color: undefined as string | undefined, items: goals.filter((g) => !g.departmentId) },
@@ -109,6 +119,11 @@ export default function GoalsPage() {
                 </ul>
               </Panel>
             ))}
+          </div>
+        )}
+        {!loading && isSupabaseConfigured && projectId && (
+          <div style={{ marginTop: 16 }}>
+            <FunnelPlanner projectId={projectId} termStart={termStart} termEnd={termEnd} approvalGoals={approvalGoals} />
           </div>
         )}
       </div>

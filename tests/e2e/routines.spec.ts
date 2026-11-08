@@ -56,3 +56,24 @@ test.describe('Routines', () => {
     await expect(page.getByRole('heading', { name: 'AIESEC routines' })).toHaveCount(0)
   })
 })
+
+test.describe('Plan backwards from approvals', () => {
+  test('approval goals become sign-ups, applicants and acceptances, and a weekly number for Marketing', async ({ page }) => {
+    const termEnd = new Date(Date.now() + 70 * 86_400_000).toISOString().slice(0, 10)   // 10 weeks left
+    await setupAuthMocks(page, 'president', { tables: {
+      goals: [{ id: 'g1', project_id: 'project-abc', department_id: null, title: 'oGV approvals', metric: 'pipeline', product: 'ogv', stage: 'approved', target: 30, current_value: 0, unit: null, starts_on: '2026-02-01', ends_on: termEnd }],
+      exchanges: [],
+    } })
+    await page.goto('/goals')
+    const planner = page.locator('section', { has: page.getByRole('heading', { name: 'Plan backwards from approvals' }) })
+    await expect(planner.getByLabel('oGV approvals goal')).toHaveValue('30', { timeout: 10000 })
+    const ogv = planner.getByRole('row', { name: /oGV/ })
+    await expect(ogv).toContainText('787')        // sign-ups at 15% / 47% / 55%
+    await expect(ogv).toContainText('118')
+    await expect(ogv).toContainText('55')
+    await expect(planner.getByRole('status')).toContainText(/Marketing needs about \d+ sign-ups a week/)
+    // Other rates change the plan.
+    await planner.getByLabel('Sign-up → applicant (%)').fill('30')
+    await expect(ogv).toContainText('394')
+  })
+})
