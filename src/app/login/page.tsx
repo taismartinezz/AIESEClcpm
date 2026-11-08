@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Globe } from "lucide-react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -204,9 +204,26 @@ function initialAuthError(): string | null {
   return params.get("reason") === "session_expired" ? "Your session expired. Please sign in again." : null;
 }
 
+// Torch is for AIESEC members: you sign in, and sign up, with EXPA. Accounts
+// made before that (email or Google) sign in under "Signed up before…", then
+// connect EXPA from the Pipeline page. Preview mode keeps the old form, since
+// EXPA needs the real server.
+const EXPA_FIRST = isSupabaseConfigured && !isPreview;
+
+/** Open the email / Google options straight away when coming back from one of them. */
+function initialShowOther(): boolean {
+  if (!EXPA_FIRST) return true;
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  const err = params.get("error");
+  return Boolean((err && err !== "expa") || params.get("notice"));
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const [showOther, setShowOther] = useState(initialShowOther);
   const [mode, setMode] = useState<"signin" | "signup">(() => {
+    if (EXPA_FIRST) return "signin";   // new accounts are made with EXPA
     if (typeof window !== "undefined") {
       return new URLSearchParams(window.location.search).get("mode") === "signup"
         ? "signup"
@@ -536,7 +553,7 @@ export default function LoginPage() {
             margin: "0 0 16px",
           }}
         >
-          {mode === "signin" ? "Sign in" : "Create your account"}
+          {EXPA_FIRST ? "Sign in with your AIESEC account" : mode === "signin" ? "Sign in" : "Create your account"}
         </p>
 
         {/* OAuth error banner */}
@@ -559,10 +576,10 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* OAuth buttons (Google by default). Shown on both "Sign in" and "Create your account":
-            Google creates the account the first time and signs in after that. */}
+        {/* EXPA first (it signs in and creates accounts); Google and others only
+            under "Signed up before…" (or always in preview mode). */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {enabledProviders.has("expa") && (<>
+          {EXPA_FIRST && (<>
             <AuthButton
               icon={<Globe size={18} color="#037EF3" aria-hidden="true" />}
               label="Continue with EXPA"
@@ -581,12 +598,23 @@ export default function LoginPage() {
                 window.location.assign(new URL("/api/expa/login", window.location.origin).href);
               }}
             />
-            <p style={{ margin: "-4px 0 4px", fontSize: 12, color: "var(--color-secondary)", textAlign: "center" }}>
-              Recommended for AIESEC members: your name, photo, country and LC are filled in from EXPA.
+            <p style={{ margin: "-4px 0 4px", fontSize: 12, color: "var(--color-secondary)", textAlign: "center", lineHeight: 1.5 }}>
+              New to {APP_NAME}? The same button creates your account and fills in your name, photo, country and LC from EXPA.
             </p>
+            {!showOther && (
+              <button type="button" onClick={() => setShowOther(true)}
+                style={{ background: "none", border: "none", padding: 0, margin: "8px auto 0", fontFamily: "var(--font-roboto)", fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>
+                Signed up before with email or Google? Sign in that way
+              </button>
+            )}
+            {showOther && (
+              <p style={{ margin: "16px 0 0", fontSize: 12, color: "var(--color-secondary)", textAlign: "center", lineHeight: 1.5 }}>
+                Accounts made before EXPA sign-in: sign in below, then press Connect EXPA on the Pipeline page. After that, EXPA is all you need.
+              </p>
+            )}
           </>)}
 
-          {enabledProviders.has("google") && (
+          {showOther && enabledProviders.has("google") && (
             <div
               ref={googleWrapperRef}
               style={{ position: "relative" }}
@@ -605,7 +633,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {enabledProviders.has("microsoft") && (
+          {showOther && enabledProviders.has("microsoft") && (
             <AuthButton
               icon={<MicrosoftIcon />}
               label="Continue with Microsoft"
@@ -616,7 +644,7 @@ export default function LoginPage() {
             />
           )}
 
-          {enabledProviders.has("github") && (
+          {showOther && enabledProviders.has("github") && (
             <AuthButton
               icon={<GitHubIcon />}
               label="Continue with GitHub"
@@ -628,6 +656,7 @@ export default function LoginPage() {
           )}
         </div>
 
+        {showOther && (<>
         {/* Or divider */}
         <div
           style={{
@@ -902,7 +931,9 @@ export default function LoginPage() {
           </p>
         )}
         </form>
+        </>)}
 
+        {!EXPA_FIRST && (
         <p
           style={{
             fontFamily: "var(--font-roboto)",
@@ -922,6 +953,7 @@ export default function LoginPage() {
             {mode === "signin" ? "Sign up" : "Sign in"}
           </a>
         </p>
+        )}
       </div>
 
       {/* Footer */}

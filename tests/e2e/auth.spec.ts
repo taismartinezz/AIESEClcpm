@@ -22,6 +22,11 @@ async function mockSupabaseAndVisitLogin(page: Page) {
   await page.waitForSelector('h1', { timeout: 10000 })
 }
 
+/** Email and Google sit behind "Signed up before…" now that sign-in is with EXPA. */
+async function openOtherWays(page: Page) {
+  await page.getByRole('button', { name: /signed up before with email or google/i }).click()
+}
+
 // ── Feature: Authentication page ──────────────────────────────────────────────
 
 test.describe('Auth page: Issue #16: accessible heading', () => {
@@ -33,13 +38,26 @@ test.describe('Auth page: Issue #16: accessible heading', () => {
   })
 })
 
-test.describe('Auth page: Issue #1/#2: real anchor tags', () => {
-  test('sign up toggle is an <a> element with a valid href', async ({ page }) => {
+test.describe('Auth page: sign in and sign up with EXPA', () => {
+  test('EXPA is the way in; email and Google are only for accounts made before', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
-    const signUpLink = page.getByRole('link', { name: /sign up/i })
-    await expect(signUpLink).toBeVisible()
-    const href = await signUpLink.getAttribute('href')
-    expect(href).toMatch(/signup/)
+    await expect(page.getByRole('button', { name: /sign in with expa/i })).toBeVisible()
+    await expect(page.getByText(/same button creates your account/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /sign in with google/i })).toHaveCount(0)
+    await expect(page.getByLabel('Email', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: /sign up/i })).toHaveCount(0)      // no email sign-up
+    await openOtherWays(page)
+    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible()
+    await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
+    await expect(page.getByText(/press Connect EXPA on the Pipeline page/)).toBeVisible()
+    await expect(page.getByRole('link', { name: /sign up/i })).toHaveCount(0)
+  })
+
+  test('the EXPA button starts the AIESEC sign-in on the server', async ({ page }) => {
+    await page.route('**/api/expa/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>AIESEC sign-in</h1>' }))
+    await mockSupabaseAndVisitLogin(page)
+    await page.getByRole('button', { name: /sign in with expa/i }).click()
+    await expect(page).toHaveURL(/\/api\/expa\/login$/)
   })
 })
 
@@ -55,6 +73,7 @@ test.describe('Auth page: Issue #3: privacy link', () => {
 test.describe('Auth page: Issue #4: forgot password', () => {
   test('shows Forgot password? button and expands inline form', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
+    await openOtherWays(page)
     const forgotBtn = page.getByRole('button', { name: /forgot password/i })
     await expect(forgotBtn).toBeVisible()
     await forgotBtn.click()
@@ -68,6 +87,7 @@ test.describe('Auth page: Issue #4: forgot password', () => {
       route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
     )
     await mockSupabaseAndVisitLogin(page)
+    await openOtherWays(page)
     await page.getByRole('button', { name: /forgot password/i }).click()
     await page.getByLabel(/email for password reset/i).fill('test@example.com')
     await page.getByRole('button', { name: /send reset link/i }).click()
@@ -78,6 +98,7 @@ test.describe('Auth page: Issue #4: forgot password', () => {
 test.describe('Auth page: Issue #6: OAuth providers', () => {
   test('Continue with Google is offered by default; no other providers', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
+    await openOtherWays(page)
     await expect(page.getByRole('button', { name: /google/i }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: /github|microsoft/i })).toHaveCount(0)
   })
@@ -107,6 +128,7 @@ test.describe('Auth page: Issue #13/#17: clean console', () => {
 test.describe('Auth page: password visibility toggle', () => {
   test('password field has a visibility toggle and shows plain text when clicked', async ({ page }) => {
     await mockSupabaseAndVisitLogin(page)
+    await openOtherWays(page)
     const passwordInput = page.getByLabel(/^password$/i)
     await expect(passwordInput).toHaveAttribute('type', 'password')
     const toggleBtn = page.getByRole('button', { name: /show password/i })

@@ -50,8 +50,23 @@ events in their own calendar view). Both use one Google OAuth client.
    server can renew calendar access (Google's access lasts one hour; without
    these people have to reconnect).
 
-To hide the Google button, set `NEXT_PUBLIC_AUTH_PROVIDERS=none`; to offer
-others too, list them, e.g. `google,github` (each must be enabled in Supabase).
+Sign-in and sign-up are with EXPA (see "EXPA" below). Google and email are
+only for accounts made before that, under "Signed up before with email or
+Google?" on the login page. To hide the Google button there, set
+`NEXT_PUBLIC_AUTH_PROVIDERS=none`; to offer others too, list them, e.g.
+`google,github` (each must be enabled in Supabase).
+
+### EXPA
+
+1. The app registered at auth.aiesec.org needs these redirect URIs:
+   `https://<your domain>/auth/expa/callback` and
+   `http://localhost:3000/auth/expa/callback`.
+2. In Vercel (and `.env` locally) set `AIESEC_CLIENT_ID` and
+   `AIESEC_CLIENT_SECRET`, and run `supabase/migrations/20261107004_expa.sql`.
+3. "Continue with EXPA" signs into the Torch account linked to that EXPA
+   person, or creates one and fills in onboarding from EXPA. It never signs
+   into an existing account just because the email matches: that person signs
+   in the old way once and presses Connect EXPA on the Pipeline page.
 
 ---
 
