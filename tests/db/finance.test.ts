@@ -6,7 +6,7 @@ import { createUser, createLc, addMember, asUserCommit, type Lc } from "./fixtur
 
 // LC with: president, Fiona (VP of Finance & Legality), Vera (VP of Marketing),
 // Omar (VP of oGV), members Mo (Marketing) and Gia (oGV). The LC is linked to an
-// MC whose VP Finance is Val; Max is a plain MC member.
+// MC whose VP Finance is Val; Max is its MCP.
 
 let db: PGlite;
 let lc: Lc;
@@ -117,7 +117,7 @@ describe("the ledger", () => {
     expect(all).toBeGreaterThan(0);
     for (const who of ["pres", "fiona", "vera", "omar"]) expect(await count(who), who).toBe(all);
     expect(await count("mo")).toBe(0);
-    expect(await count("max")).toBe(0);         // a plain MC member doesn't see LC books
+    expect(await count("max")).toBe(all);       // the MCP reads the books (read-only); plain MC members don't (mc-finance.test.ts)
   });
 
   it("logs every change: who, when, old → new", async () => {

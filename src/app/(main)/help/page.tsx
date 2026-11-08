@@ -5,6 +5,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { useProject } from "@/context/ProjectContext";
 import { HELP_TOPICS, RELEASES } from "@/lib/help";
 import { Button, Panel } from "@/components/lc/ui";
+import FeatureRequests from "@/components/helper/FeatureRequests";
 
 /** Short guides per feature, with a slot for a 30–60 s video each, and release notes. */
 export default function HelpPage() {
@@ -36,6 +37,8 @@ export default function HelpPage() {
             </Panel>
           ))}
         </div>
+
+        <div style={{ marginTop: 24 }}><FeatureRequests /></div>
 
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--color-navy)", margin: "28px 0 10px" }}>What&apos;s new</h2>
         {RELEASES.map((r) => (

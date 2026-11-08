@@ -89,9 +89,9 @@ export function Modal({ title, onClose, children, footer, width = 460 }: { title
   );
 }
 
-export function Panel({ title, action, children }: { title?: string; action?: ReactNode; children: ReactNode }) {
+export function Panel({ title, action, children, tour }: { title?: string; action?: ReactNode; children: ReactNode; /** Lets the guided tour point at this panel. */ tour?: string }) {
   return (
-    <section style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden" }}>
+    <section data-tour={tour} style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden" }}>
       {(title || action) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--color-border)" }}>
           {title && <h2 style={{ flex: 1, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: 0 }}>{title}</h2>}
@@ -120,7 +120,7 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
         const active = t.id === value;
         return (
           <button
-            key={t.id} type="button" role="tab" aria-selected={active} onClick={() => onChange(t.id)}
+            key={t.id} type="button" role="tab" aria-selected={active} data-tab={t.id} onClick={() => onChange(t.id)}
             style={{
               height: 32, padding: "0 12px", borderRadius: 7, fontSize: 13, fontWeight: active ? 700 : 500,
               border: "none", cursor: "pointer", whiteSpace: "nowrap",

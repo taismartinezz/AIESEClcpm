@@ -8770,6 +8770,181 @@ create trigger trg_projects_unique_lc_name
 notify pgrst, 'reload schema';
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- 20261108004_mc_handover.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 067: handing the MC over to the next MCP.
+--
+-- MCPs change every term. Until now the MC belonged to whoever created it,
+-- forever. Now:
+--
+--   1. The next MCP joins the MC with the member code, like anyone on the team.
+--   2. The current MCP picks them in the team list ("Make MCP"):
+--      offer_mcp_handover() stores the offer on the MC (mcs.handover_to).
+--   3. The next MCP accepts (accept_mcp_handover). They become the MCP; the old
+--      MCP stays on the MC as a member, so they can help with the transition,
+--      and leaves whenever they like. Either side can cancel before that.
+--
+-- Also:
+--   mc_team()                  the people on the MC, with names, for MC members.
+--   new_mc_member_code()       the MCP gives the MC a new member code, so last
+--                              term's team can't rejoin with the old one.
+--   mc_members_keep_an_mcp     an MC can never be left without an MCP: the MCP
+--                              can't leave or be demoted until they hand over.
+--                              (Deleting the whole MC still works.)
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+alter table mcs add column if not exists handover_to uuid references auth.users(id) on delete set null;
+alter table mcs add column if not exists handover_offered_at timestamptz;
+
+-- ── Who's on the MC ──────────────────────────────────────────────────────────
+
+create or replace function mc_team(p_mc_id uuid)
+returns table (user_id uuid, name text, role text, joined_at timestamptz, is_me boolean, handover_pending boolean)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select m.user_id,
+         coalesce(nullif(trim(up.name), ''), 'Unnamed'),
+         m.role,
+         m.joined_at,
+         m.user_id = auth.uid(),
+         coalesce(mc.handover_to = m.user_id, false)
+  from mc_members m
+  join mcs mc on mc.id = m.mc_id
+  left join user_profiles up on up.id = m.user_id
+  where m.mc_id = p_mc_id and is_mc_member(p_mc_id)
+  order by (m.role = 'mcp') desc, lower(coalesce(up.name, '')), m.joined_at;
+$$;
+
+-- ── Handover ─────────────────────────────────────────────────────────────────
+
+create or replace function offer_mcp_handover(p_mc_id uuid, p_to uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_mcp(p_mc_id) then
+    raise exception 'Only the MCP can hand the MC over.';
+  end if;
+  if p_to = auth.uid() then
+    raise exception 'You are already the MCP.';
+  end if;
+  if not exists (select 1 from mc_members where mc_id = p_mc_id and user_id = p_to) then
+    raise exception 'They need to join the MC with the member code first.';
+  end if;
+  update mcs set handover_to = p_to, handover_offered_at = now() where id = p_mc_id;
+end;
+$$;
+
+-- The MCP takes the offer back, or the person it was offered to declines.
+create or replace function cancel_mcp_handover(p_mc_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (is_mcp(p_mc_id) or exists (select 1 from mcs where id = p_mc_id and handover_to = auth.uid())) then
+    raise exception 'Only the MCP, or the person it was offered to, can cancel the handover.';
+  end if;
+  update mcs set handover_to = null, handover_offered_at = null where id = p_mc_id;
+end;
+$$;
+
+create or replace function accept_mcp_handover(p_mc_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_to uuid;
+begin
+  if auth.uid() is null then raise exception 'Not signed in'; end if;
+  select handover_to into v_to from mcs where id = p_mc_id for update;
+  if v_to is distinct from auth.uid() then
+    raise exception 'There is no handover waiting for you. Ask the MCP to choose you again.';
+  end if;
+  if not exists (select 1 from mc_members where mc_id = p_mc_id and user_id = auth.uid()) then
+    raise exception 'You are no longer on this MC. Join again with the member code.';
+  end if;
+  -- Promote first, then step the old MCP down, so the MC always has an MCP.
+  update mc_members set role = 'mcp' where mc_id = p_mc_id and user_id = auth.uid();
+  update mc_members set role = 'member' where mc_id = p_mc_id and user_id <> auth.uid() and role = 'mcp';
+  update mcs set handover_to = null, handover_offered_at = null where id = p_mc_id;
+end;
+$$;
+
+-- ── New member code ──────────────────────────────────────────────────────────
+
+create or replace function new_mc_member_code(p_mc_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_code text;
+begin
+  if not is_mcp(p_mc_id) then
+    raise exception 'Only the MCP can change the member code.';
+  end if;
+  loop
+    v_code := upper(substr(md5(gen_random_uuid()::text), 1, 8));
+    exit when not exists (select 1 from mcs where member_code = v_code or lc_code = v_code);
+  end loop;
+  update mcs set member_code = v_code where id = p_mc_id;
+  return v_code;
+end;
+$$;
+
+-- ── An MC always has an MCP ──────────────────────────────────────────────────
+
+create or replace function mc_members_keep_an_mcp()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.role = 'mcp'
+     and (tg_op = 'DELETE' or new.role <> 'mcp')
+     and exists (select 1 from mcs where id = old.mc_id)         -- not when the whole MC is deleted
+     and not exists (select 1 from mc_members where mc_id = old.mc_id and role = 'mcp' and user_id <> old.user_id)
+  then
+    raise exception 'The MC needs an MCP. Hand it over to someone on the team before you leave.';
+  end if;
+  if tg_op = 'DELETE' then
+    -- Someone who leaves can't accept a handover any more.
+    update mcs set handover_to = null, handover_offered_at = null where id = old.mc_id and handover_to = old.user_id;
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists mc_members_keep_an_mcp on mc_members;
+create trigger mc_members_keep_an_mcp
+  before update or delete on mc_members
+  for each row execute function mc_members_keep_an_mcp();
+
+revoke execute on function mc_team(uuid)                   from public, anon;
+revoke execute on function offer_mcp_handover(uuid, uuid)  from public, anon;
+revoke execute on function cancel_mcp_handover(uuid)       from public, anon;
+revoke execute on function accept_mcp_handover(uuid)       from public, anon;
+revoke execute on function new_mc_member_code(uuid)        from public, anon;
+grant  execute on function mc_team(uuid)                   to authenticated;
+grant  execute on function offer_mcp_handover(uuid, uuid)  to authenticated;
+grant  execute on function cancel_mcp_handover(uuid)       to authenticated;
+grant  execute on function accept_mcp_handover(uuid)       to authenticated;
+grant  execute on function new_mc_member_code(uuid)        to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- 20261108005_lc_name_matching.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 068: LC name matching for every alphabet, and no race.
@@ -9120,6 +9295,262 @@ revoke execute on function in_lc_of_mc(uuid, uuid) from public, anon;
 revoke execute on function lc_national(uuid)       from public, anon;
 grant  execute on function in_lc_of_mc(uuid, uuid) to authenticated;
 grant  execute on function lc_national(uuid)       to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261108009_mc_finance.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 072: the MC's finance view across LCs, and an optional university account.
+--
+--   finance_entries.account   'lc' (the LC account the MC VP Finance keeps, as
+--                             in the National Finance Tracker) or 'university'
+--                             (money the university gives the LC). Existing
+--                             entries are LC account entries.
+--   projects.has_university_account
+--                             the LC turns the university account on when its
+--                             university gives it money. Off by default.
+--   set_university_account()  the LC's finance lead (president or finance VP)
+--                             or the MC VP Finance turns it on or off. Turning
+--                             it off hides it; entries are kept.
+--   Who may write (enforced here, not just in the UI):
+--     LC account               MC VP Finance (unchanged)
+--     university account       MC VP Finance, and the LC's finance lead
+--   Who may read: LC president and VPs, the MC VP Finance (unchanged), and now
+--   the MCP of the LC's MC too (read-only).
+--   mc_finance_lcs(mc)        the MC's linked LCs with what the finance view
+--                             needs, for the MCP and the VP Finance only.
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+alter table finance_entries add column if not exists account text not null default 'lc';
+alter table finance_entries drop constraint if exists finance_entries_account_check;
+alter table finance_entries add constraint finance_entries_account_check check (account in ('lc', 'university'));
+create index if not exists finance_entries_project_account_idx on finance_entries (project_id, account, entry_date);
+
+alter table projects add column if not exists has_university_account boolean not null default false;
+
+-- ── Who may read and write ───────────────────────────────────────────────────
+
+-- The MCP of the MC this LC is linked to.
+create or replace function is_mc_mcp_of_lc(p_project_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from projects p
+    join mc_members m on m.mc_id = p.mc_id
+    where p.id = p_project_id and m.user_id = auth.uid() and m.role = 'mcp'
+  );
+$$;
+
+create or replace function can_read_finance(p_project_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_mc_vp_finance(p_project_id)
+      or is_mc_mcp_of_lc(p_project_id)
+      or coalesce(lc_role(p_project_id) in ('president', 'vp'), false);
+$$;
+
+create or replace function can_write_finance(p_project_id uuid, p_account text)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select is_mc_vp_finance(p_project_id)
+      or (p_account = 'university'
+          and is_finance_lead(p_project_id)
+          and exists (select 1 from projects where id = p_project_id and has_university_account));
+$$;
+
+drop policy if exists "MC VP Finance records entries"         on finance_entries;
+drop policy if exists "MC VP Finance edits entries"           on finance_entries;
+drop policy if exists "MC VP Finance deletes manual entries"  on finance_entries;
+drop policy if exists "finance keepers record entries"        on finance_entries;
+drop policy if exists "finance keepers edit entries"          on finance_entries;
+drop policy if exists "finance keepers delete manual entries" on finance_entries;
+
+create policy "finance keepers record entries" on finance_entries
+  for insert with check (claim_id is null and recorded_by = auth.uid() and can_write_finance(project_id, account));
+-- Entries made by an approved claim follow the claim (un-approving removes them).
+create policy "finance keepers edit entries" on finance_entries
+  for update using (claim_id is null and can_write_finance(project_id, account))
+  with check (claim_id is null and can_write_finance(project_id, account));
+create policy "finance keepers delete manual entries" on finance_entries
+  for delete using (claim_id is null and can_write_finance(project_id, account));
+
+-- The change log keeps which account an entry was in.
+create or replace function _finance_entries_log()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_by uuid := (select id from user_profiles where id = auth.uid());
+  v_keep text[] := array['type', 'amount', 'entry_date', 'description', 'payment_method', 'processed_via', 'area', 'notes', 'account'];
+  v_old jsonb;
+  v_new jsonb;
+begin
+  if tg_op = 'DELETE' then
+    if not exists (select 1 from projects where id = old.project_id) then return old; end if;
+    insert into finance_entry_changes (entry_id, project_id, op, changed_by, old_values)
+    values (old.id, old.project_id, 'delete', v_by, (select jsonb_object_agg(k, v) from jsonb_each(to_jsonb(old)) e(k, v) where k = any (v_keep)));
+    return old;
+  end if;
+  v_new := (select jsonb_object_agg(k, v) from jsonb_each(to_jsonb(new)) e(k, v) where k = any (v_keep));
+  if tg_op = 'INSERT' then
+    insert into finance_entry_changes (entry_id, project_id, op, changed_by, new_values) values (new.id, new.project_id, 'insert', v_by, v_new);
+    return new;
+  end if;
+  v_old := (select jsonb_object_agg(k, v) from jsonb_each(to_jsonb(old)) e(k, v) where k = any (v_keep));
+  if v_old is distinct from v_new then
+    insert into finance_entry_changes (entry_id, project_id, op, changed_by, old_values, new_values)
+    select new.id, new.project_id, 'update', v_by,
+           jsonb_object_agg(k, v_old -> k), jsonb_object_agg(k, v_new -> k)
+    from unnest(v_keep) k
+    where v_old -> k is distinct from v_new -> k;
+  end if;
+  return new;
+end;
+$$;
+
+-- ── University account on/off ────────────────────────────────────────────────
+
+create or replace function set_university_account(p_project_id uuid, p_on boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (is_finance_lead(p_project_id) or is_mc_vp_finance(p_project_id)) then
+    raise exception 'Only the LC''s finance lead or the MC VP Finance can change this';
+  end if;
+  update projects set has_university_account = coalesce(p_on, false) where id = p_project_id;
+end;
+$$;
+
+-- ── The MC's LCs, for the finance view ───────────────────────────────────────
+
+create or replace function mc_finance_lcs(p_mc_id uuid)
+returns table (project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date, has_university_account boolean)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select p.id, p.name, p.currency, coalesce(p.term_start_date, mc_term_start(p_mc_id)), p.finance_reviewed_on, p.has_university_account
+  from projects p
+  where p.mc_id = p_mc_id
+    and not coalesce(p.is_demo, false)
+    and exists (select 1 from mc_members m where m.mc_id = p_mc_id and m.user_id = auth.uid() and m.role in ('mcp', 'vp_finance'))
+  order by p.name;
+$$;
+
+revoke execute on function is_mc_mcp_of_lc(uuid)                from public, anon;
+revoke execute on function can_read_finance(uuid)               from public, anon;
+revoke execute on function can_write_finance(uuid, text)        from public, anon;
+revoke execute on function set_university_account(uuid, boolean) from public, anon;
+revoke execute on function mc_finance_lcs(uuid)                 from public, anon;
+grant  execute on function is_mc_mcp_of_lc(uuid)                to authenticated;
+grant  execute on function can_read_finance(uuid)               to authenticated;
+grant  execute on function can_write_finance(uuid, text)        to authenticated;
+grant  execute on function set_university_account(uuid, boolean) to authenticated;
+grant  execute on function mc_finance_lcs(uuid)                 to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261108010_helper_requests.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 073: the helper's feature requests, and the app's moderators.
+--
+-- When the helper can't find what someone asked for, the question is reported
+-- here as a feature request. Moderators (the people who run the app) read and
+-- triage them on Help → Feature requests.
+--
+--   app_moderators     who moderates the app. Add someone in the SQL Editor:
+--                        insert into app_moderators (user_id)
+--                        select id from auth.users where email = 'you@example.com';
+--   is_app_moderator() true for them.
+--   feature_requests   one row per question the helper couldn't answer. The
+--                      asker can read their own; moderators read all and set
+--                      the status. Nobody edits the question afterwards.
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create table if not exists app_moderators (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  added_at   timestamptz not null default now()
+);
+alter table app_moderators enable row level security;
+
+create or replace function is_app_moderator()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (select 1 from app_moderators where user_id = auth.uid());
+$$;
+
+drop policy if exists "moderators see the moderator list" on app_moderators;
+create policy "moderators see the moderator list" on app_moderators for select using (is_app_moderator());
+
+create table if not exists feature_requests (
+  id          uuid primary key default gen_random_uuid(),
+  created_by  uuid references auth.users(id) on delete set null default auth.uid(),
+  project_id  uuid references projects(id) on delete set null,
+  role        text check (role in ('member', 'vp', 'president', 'mc')),
+  question    text not null check (char_length(question) between 3 and 500),
+  page        text check (char_length(page) <= 200),
+  -- What the helper looked at before giving up (its closest guesses), for triage.
+  closest     text[] not null default '{}',
+  status      text not null default 'new' check (status in ('new', 'planned', 'done', 'declined')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists feature_requests_status_idx on feature_requests (status, created_at desc);
+alter table feature_requests enable row level security;
+
+drop policy if exists "people report what they couldn't find" on feature_requests;
+create policy "people report what they couldn't find" on feature_requests
+  for insert with check (created_by = auth.uid() and status = 'new');
+drop policy if exists "askers and moderators read requests" on feature_requests;
+create policy "askers and moderators read requests" on feature_requests
+  for select using (created_by = auth.uid() or is_app_moderator());
+
+-- Moderators change the status only.
+create or replace function set_feature_request_status(p_id uuid, p_status text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_app_moderator() then raise exception 'Only app moderators can triage feature requests'; end if;
+  if p_status not in ('new', 'planned', 'done', 'declined') then raise exception 'Unknown status %', p_status; end if;
+  update feature_requests set status = p_status, updated_at = now() where id = p_id;
+end;
+$$;
+
+grant select on app_moderators to authenticated;
+grant select, insert on feature_requests to authenticated;
+revoke execute on function is_app_moderator()                       from public, anon;
+revoke execute on function set_feature_request_status(uuid, text)  from public, anon;
+grant  execute on function is_app_moderator()                       to authenticated;
+grant  execute on function set_feature_request_status(uuid, text)  to authenticated;
 
 notify pgrst, 'reload schema';
 

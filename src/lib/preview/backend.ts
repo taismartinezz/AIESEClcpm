@@ -289,6 +289,12 @@ function rpc(name: string, args: Row): Response {
     case "touch_last_seen": return json(null);
     case "lc_mc_name": return json(null);
     case "mc_dashboard": return json([]);
+    case "lc_finance_keeper": return json([{ has_keeper: false, reviewed_on: null }]);   // the demo LC isn't on an MC
+    case "set_university_account": {
+      const lc = t.projects.find((p) => p.id === args.p_project_id);
+      if (lc) lc.has_university_account = Boolean(args.p_on);
+      return json(null);
+    }
     case "goal_progress": {
       const field: Record<string, string> = Object.fromEntries(STAGES.map((s) => [s, `${s}_at`]));
       return json(t.goals.map((g) => ({

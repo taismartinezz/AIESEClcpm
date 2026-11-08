@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, LogOut, Map as MapIcon } from "lucide-react";
+import OnboardingModal, { useOnboarding } from "@/components/ui/OnboardingModal";
+import { useMcs } from "@/hooks/useMcs";
+import Helper from "@/components/helper/Helper";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { ACTIVE_LC_STORAGE_KEY } from "@/context/ProjectContext";
 import BrandLogo from "@/components/ui/BrandLogo";
@@ -19,6 +22,10 @@ export default function McShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(!isSupabaseConfigured);
   const [inAnLc, setInAnLc] = useState(false);
+  // The MC tour: once someone is on an MC (not on the join/create screen).
+  const { mcs } = useMcs();
+  const onAnMc = ready && mcs.length > 0;
+  const { show: showTour, open: openTour, close: closeTour } = useOnboarding(onAnMc ? "mc" : null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -52,7 +59,7 @@ export default function McShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: "var(--color-canvas)" }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
+      <header style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
         <Link href="/mc" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flex: 1, minWidth: 0 }}>
           <BrandLogo size={24} />
           <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>{APP_NAME}</span>
@@ -61,9 +68,12 @@ export default function McShell({ children }: { children: React.ReactNode }) {
         {ready && (inAnLc
           ? <Link href="/" style={link}><ArrowLeft size={14} aria-hidden="true" /> Your LC</Link>
           : <Link href="/onboarding" style={link}>Join or create an LC</Link>)}
+        {ready && <Helper role="mc" projectId={null} compact />}
+        {onAnMc && <button type="button" onClick={openTour} style={link}><MapIcon size={14} aria-hidden="true" /> Take the tour</button>}
         <button type="button" onClick={signOut} style={link}><LogOut size={14} aria-hidden="true" /> Sign out</button>
       </header>
       <main className="flex-1 overflow-auto">{ready ? children : null}</main>
+      {showTour && onAnMc && <OnboardingModal role="mc" onClose={closeTour} />}
     </div>
   );
 }

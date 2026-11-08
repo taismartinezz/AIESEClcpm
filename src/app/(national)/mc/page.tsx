@@ -10,6 +10,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
+import McFinance from "@/components/mc/McFinance";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
@@ -28,12 +29,20 @@ export default function McPage() {
   const { mcs, loaded, error: mcError } = useMcs(version);
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
+  // Finance is for the MCP and the VP Finance only.
+  const [view, setView] = useState<"exchanges" | "finance">("exchanges");
+  const seesFinance = Boolean(mc && (mc.isMcp || mc.isVpFinance));
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id ?? null));
+  }, []);
   // The tab shows the MC's name ("AIESEC in Portugal · LC Manager").
   useDocumentTitle(`${mc?.name ?? "National"} · ${APP_NAME}`);
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc && seesFinance && view === "finance" ? "National view: every LC's account and university money, side by side." : mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -47,7 +56,14 @@ export default function McPage() {
             {mcs.length > 1 && (
               <Tabs value={mc.id} onChange={setChosen} tabs={mcs.map((m) => ({ id: m.id, label: m.name }))} />
             )}
-            <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
+            {seesFinance && (
+              <Tabs value={view} onChange={setView} tabs={[{ id: "exchanges", label: "Exchanges" }, { id: "finance", label: "Finance" }]} />
+            )}
+            {seesFinance && view === "finance" && userId ? (
+              <div style={{ marginTop: 12 }}><McFinance mc={mc} userId={userId} /></div>
+            ) : (
+              <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
+            )}
           </>
         )}
       </div>
@@ -208,6 +224,10 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const [editingTargets, setEditingTargets] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [savingTargets, setSavingTargets] = useState(false);
+  const [teamVersion, setTeamVersion] = useState(0);
+  const team = useMcTeam(mc.id, teamVersion);
+  // A handover or someone leaving changes who is MCP: reload the team and the MC.
+  const teamChanged = () => { setTeamVersion((v) => v + 1); onChanged(); };
 
   useEffect(() => {
     let cancelled = false;
@@ -354,10 +374,11 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
+      <HandoverBanner mc={mc} team={team} onChanged={teamChanged} />
       {/* Until LCs link, the codes are the next step; after that, what needs attention comes first. */}
       {loaded && lcs.length === 0 && <McCodes mc={mc} prominent onChanged={onChanged} />}
       {attention.length > 0 && (
-        <Panel title={`Needs attention (${attention.length})`}>
+        <Panel tour="mc-attention" title={`Needs attention (${attention.length})`}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {attention.map((a) => (
               <li key={a.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -383,7 +404,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
         <Stat label="Applied → approved" value={conv} note="national conversion" />
       </div>
       <ErrorText>{error}</ErrorText>
-      <Panel title="By LC" action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <Panel tour="mc-by-lc" title="By LC" action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         <Tabs value={metric} onChange={(m) => { setEditingTargets(false); setMetric(m); }} tabs={[{ id: "approved", label: "Approved" }, { id: "realized", label: "Realized" }, { id: "applied", label: "Applied" }, { id: "completed", label: "Completed" }]} />
         {hasTargets && termStart && lcs.length > 0 && (editingTargets ? (
           <>
@@ -466,6 +487,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
       <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
       <LinkStatus mc={mc} version={version} />
       {!(loaded && lcs.length === 0) && <McCodes mc={mc} prominent={false} onChanged={onChanged} />}
+      <McTeam mc={mc} team={team} onChanged={teamChanged} />
     </div>
   );
 }
@@ -511,7 +533,7 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
   const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
   const codeStyle: React.CSSProperties = { fontFamily: "monospace", fontSize: prominent ? 22 : 16, fontWeight: 700, letterSpacing: "0.08em", color: "var(--color-navy)" };
   return (
-    <Panel title={prominent ? "Next: get your LCs linked" : "Codes"}>
+    <Panel tour="mc-codes" title={prominent ? "Next: get your LCs linked" : "Codes"}>
       <div style={{ padding: 14, display: "grid", gap: 16 }}>
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>LC code, for LC presidents</p>
@@ -716,7 +738,7 @@ function FunnelPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; i
   const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
   const cell = (c: FunnelCounts, i: number) => <span style={{ fontSize: 11, color: "var(--color-secondary)" }}> {pct(stepRate(c, i))}</span>;
   return (
-    <Panel title="Where each LC loses people">
+    <Panel tour="mc-funnel" title="Where each LC loses people">
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
         This term, by the date each stage was reached. Percentages are each step&apos;s conversion (up to 100%: some reach a stage this term after the one before it last term). A step 20% or more below the national rate is flagged with what to coach on.
       </p>
@@ -771,7 +793,7 @@ function TeamPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; ins
   const th: React.CSSProperties = { textAlign: "right", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
   const td: React.CSSProperties = { fontSize: 13, padding: "8px 10px", borderTop: "1px solid var(--color-border)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
   return (
-    <Panel title="Beyond exchanges">
+    <Panel tour="mc-team-numbers" title="Beyond exchanges">
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
         What EXPA doesn&apos;t show, as counts only: the team, whether it uses {APP_NAME}, and whether VPs wrote their handover notes this term.
       </p>
@@ -854,7 +876,7 @@ function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string
   if (messages === null) return null;
   const nameOf = (id: string | null) => (id ? lcs.find((l) => l.id === id)?.name ?? "an LC" : "all LCs");
   return (
-    <Panel title="Messages to LCs">
+    <Panel tour="mc-messages" title="Messages to LCs">
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
         <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Everyone in the LCs you pick sees it on their dashboard for 60 days.</p>
         <textarea aria-label="Message to LCs" value={body} maxLength={2000} rows={3} onChange={(e) => setBody(e.target.value)}
@@ -886,6 +908,154 @@ function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string
             ))}
           </ul>
         )}
+      </div>
+    </Panel>
+  );
+}
+
+// ── The national team, and handing the MC over to the next MCP ───────────────
+
+interface TeamMember { user_id: string; name: string; role: "mcp" | "member" | "vp_finance"; joined_at: string; is_me: boolean; handover_pending: boolean }
+
+/** People on the MC. null until loaded, or before migration 20261108004 (no mc_team): then the team panel stays hidden. */
+function useMcTeam(mcId: string, version: number) {
+  const [team, setTeam] = useState<TeamMember[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("mc_team", { p_mc_id: mcId });
+      if (!cancelled) setTeam(error ? null : ((data ?? []) as TeamMember[]));
+    })();
+    return () => { cancelled = true; };
+  }, [mcId, version]);
+  return team;
+}
+
+async function runRpc(name: string, args: Record<string, unknown>) {
+  const { error } = await supabase.rpc(name, args);
+  if (error) throw new Error(error.message);
+}
+
+/** Shown to the person the MCP chose: accept or decline becoming MCP. */
+function HandoverBanner({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const me = team?.find((m) => m.is_me);
+  if (!me?.handover_pending) return null;
+  const mcp = team?.find((m) => m.role === "mcp");
+
+  async function act(accept: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      await runRpc(accept ? "accept_mcp_handover" : "cancel_mcp_handover", { p_mc_id: mc.id });
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't ${accept ? "accept" : "decline"}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-label="MCP handover" style={{ border: "1px solid var(--color-navy)", borderRadius: 10, padding: 14, backgroundColor: "var(--color-navy-dim)" }}>
+      <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px", color: "var(--color-navy)" }}>
+        {mcp ? `${mcp.name} is handing ${mc.name} over to you` : `You've been chosen as the next MCP of ${mc.name}`}
+      </p>
+      <p style={{ fontSize: 13, color: "var(--color-body)", margin: "0 0 10px", lineHeight: 1.5 }}>
+        As MCP you manage the codes, the linked LCs and the national team. {mcp ? `${mcp.name} stays on the MC as a member until they leave.` : ""}
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button onClick={() => act(true)} disabled={busy}>Become MCP</Button>
+        <Button variant="secondary" onClick={() => act(false)} disabled={busy}>Decline</Button>
+      </div>
+      <ErrorText>{error}</ErrorText>
+    </section>
+  );
+}
+
+/** The national team: who's on it, and (for the MCP) handover, removing people and a new member code. */
+function McTeam({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!team) return null;
+  const pending = team.find((m) => m.handover_pending);
+
+  async function run(what: string, fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't ${what}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function makeMcp(m: TeamMember) {
+    if (!(await askConfirm(`Hand ${mc.name} over to ${m.name}? They become MCP once they accept, and you stay on the MC as a member until you leave.`, { confirmLabel: "Hand over" }))) return;
+    await run("hand the MC over", () => runRpc("offer_mcp_handover", { p_mc_id: mc.id, p_to: m.user_id }));
+  }
+  async function remove(m: TeamMember) {
+    const self = m.is_me;
+    if (!(await askConfirm(self
+      ? `Leave ${mc.name}? You'll stop seeing the national view. You can join again with the member code.`
+      : `Remove ${m.name} from ${mc.name}? They can join again with the member code, unless you make a new one.`, { confirmLabel: self ? "Leave" : "Remove" }))) return;
+    await run(self ? "leave the MC" : `remove ${m.name}`, async () => {
+      const { error: err } = await supabase.from("mc_members").delete().eq("mc_id", mc.id).eq("user_id", m.user_id);
+      if (err) throw new Error(err.message);
+    });
+  }
+  async function setVpFinance(m: TeamMember, on: boolean) {
+    if (on && !(await askConfirm(`Make ${m.name} VP Finance? They'll keep every linked LC's books: add, edit and review transactions, and approve expense claims.`, { confirmLabel: "Make VP Finance" }))) return;
+    await run(on ? "name the VP Finance" : "change the role", () => runRpc("set_mc_member_role", { p_mc_id: mc.id, p_user_id: m.user_id, p_role: on ? "vp_finance" : "member" }));
+  }
+  async function newCode() {
+    if (!(await askConfirm("Make a new member code? The old one stops working, so last term's team can't rejoin with it. People already on the MC stay.", { confirmLabel: "New code" }))) return;
+    await run("make a new member code", () => runRpc("new_mc_member_code", { p_mc_id: mc.id }));
+  }
+
+  const link: React.CSSProperties = { background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" };
+  const badge: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 999, marginLeft: 6 };
+  return (
+    <Panel tour="mc-team" title={`National team (${team.length})`} action={mc.isMcp ? <Button variant="secondary" onClick={newCode} disabled={busy}>New member code</Button> : undefined}>
+      <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        {mc.isMcp && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, lineHeight: 1.5 }}>
+            Handing over to next term&apos;s MCP? Send them the member code, then choose <strong>Make MCP</strong> next to their name. They become MCP when they accept; you stay on the team until you leave.
+          </p>
+        )}
+        {pending && !pending.is_me && (
+          <p role="status" style={{ fontSize: 13, margin: 0 }}>
+            Waiting for <strong>{pending.name}</strong> to accept becoming MCP.
+            {mc.isMcp && <> · <button type="button" style={link} disabled={busy} onClick={() => run("cancel the handover", () => runRpc("cancel_mcp_handover", { p_mc_id: mc.id }))}>Cancel handover</button></>}
+          </p>
+        )}
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {team.map((m) => (
+            <li key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid var(--color-border)", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
+                {m.name}{m.is_me && <span style={{ color: "var(--color-secondary)" }}> (you)</span>}
+                {m.role === "mcp" && <span style={{ ...badge, backgroundColor: "var(--color-navy)", color: "white" }}>MCP</span>}
+                {m.role === "vp_finance" && <span style={{ ...badge, border: "1px solid var(--color-border)", color: "var(--color-body)" }}>VP Finance</span>}
+                {m.handover_pending && <span style={{ ...badge, border: "1px solid var(--color-navy)", color: "var(--color-navy)" }}>Next MCP?</span>}
+              </span>
+              {mc.isMcp && !m.is_me && m.role !== "mcp" && (
+                <>
+                  {!pending && <Button variant="secondary" onClick={() => makeMcp(m)} disabled={busy}>Make MCP</Button>}
+                  {m.role === "vp_finance"
+                    ? <button type="button" style={link} disabled={busy} onClick={() => setVpFinance(m, false)}>Not VP Finance</button>
+                    : <Button variant="secondary" onClick={() => setVpFinance(m, true)} disabled={busy}>Make VP Finance</Button>}
+                  <button type="button" style={link} disabled={busy} onClick={() => remove(m)}>Remove</button>
+                </>
+              )}
+              {m.is_me && m.role !== "mcp" && <button type="button" style={link} disabled={busy} onClick={() => remove(m)}>Leave the MC</button>}
+            </li>
+          ))}
+        </ul>
+        <ErrorText>{error}</ErrorText>
       </div>
     </Panel>
   );

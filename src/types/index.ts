@@ -277,7 +277,9 @@ export interface Reminder {
 
 // ── Finance ───────────────────────────────────────────────────────────────────
 
-export type FinanceEntryType = "income" | "expense";
+export type FinanceEntryType = "income" | "expense" | "opening";
+/** "lc": the LC account the MC VP Finance keeps; "university": money the university gives the LC (optional). */
+export type FinanceAccount = "lc" | "university";
 export type ClaimStatus = "pending" | "approved" | "rejected";
 
 export interface FinanceCategory {
@@ -302,6 +304,12 @@ export interface FinanceEntry {
   receiptPath: string | null;
   claimId: string | null;
   createdAt: string;
+  account: FinanceAccount;
+  // Columns from the National Finance Tracker.
+  paymentMethod: string | null;
+  processedVia: string | null;
+  area: string | null;
+  notes: string | null;
 }
 
 export interface ExpenseClaim {

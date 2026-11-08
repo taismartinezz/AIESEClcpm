@@ -38,7 +38,53 @@ test.describe('Finance page', () => {
     await expect(page.getByRole('tab', { name: 'Overview & ledger' })).toHaveAttribute('aria-selected', 'true', { timeout: 10000 })
     await expect(page.getByText('Current balance')).toBeVisible()
     await expect(page.getByRole('button', { name: /csv/i })).toBeEnabled()
-    await expect(page.getByRole('button', { name: /add entry/i })).toBeVisible()
+    // The LC account is kept by the MC VP Finance (as in the National Finance Tracker): the LC reads it.
+    await expect(page.getByRole('button', { name: /add entry/i })).toHaveCount(0)
+    await expect(page.getByRole('note')).toContainText("Your MC's VP Finance keeps this account")
+  })
+
+  test('the president turns on university money, then keeps it in its own statement', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { departments: [FL], tables: { projects: [{ id: 'project-abc', name: 'AIESEC in Northwestern', currency: 'USD', has_university_account: false }] } })
+    await page.addInitScript(() => {
+      const w = window as unknown as { __rpc: string[] }
+      w.__rpc = []
+      const inner = window.fetch
+      window.fetch = function (input, init) {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+        if (url.includes('/rpc/set_university_account')) w.__rpc.push(String(init?.body ?? ''))
+        return inner.call(this, input, init)
+      }
+    })
+    await page.goto('/finance')
+    await page.getByRole('tab', { name: 'University money' }).click({ timeout: 10000 })
+    await expect(page.getByText('Does your university give the LC money?')).toBeVisible()
+    await page.getByRole('button', { name: 'Turn on university money' }).click()
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __rpc: string[] }).__rpc.join())).toContain('"p_on":true')
+  })
+
+  test('university money has its own balance; the LC account leaves it out', async ({ page }) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const row = (id: string, account: string, type: string, amount: number, description: string) => ({ id, project_id: 'project-abc', type, amount, currency: 'USD', entry_date: today, category_id: null, department_id: null, description, recorded_by: null, receipt_path: null, claim_id: null, created_at: new Date().toISOString(), account, payment_method: 'Check', processed_via: 'Check', area: 'F&L', notes: 'Deposited 7/27' })
+    await setupAuthMocks(page, 'president', {
+      departments: [FL],
+      tables: {
+        projects: [{ id: 'project-abc', name: 'AIESEC in Northwestern', currency: 'USD', has_university_account: true }],
+        finance_entries: [row('a', 'lc', 'opening', 1401.16, 'Opening balance'), row('b', 'university', 'income', 1117.43, 'Northwestern reimbursement')],
+      },
+    })
+    await page.goto('/finance')
+    await expect(page.getByText('Current balance')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Northwestern reimbursement')).toHaveCount(0)
+    await page.getByRole('tab', { name: 'University money' }).click()
+    const statement = page.getByRole('region', { name: 'AIESEC in Northwestern: University money' })
+    await expect(statement).toContainText('$1,117.43')
+    await expect(statement).toContainText('Northwestern reimbursement')
+    await expect(statement).toContainText('Deposited 7/27')
+    await expect(statement.getByRole('columnheader', { name: 'Remaining balance' })).toBeVisible()
+    await statement.getByRole('button', { name: 'Add university money' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add university money' })).toBeVisible()
+    await expect(page.getByLabel('Payment method')).toBeVisible()
+    await expect(page.getByLabel('Department / Area')).toBeVisible()
   })
 })
 
