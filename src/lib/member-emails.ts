@@ -3,6 +3,7 @@
 
 import { APP_NAME } from "@/lib/brand";
 import { APP_URL, baseHtml, btn, escapeHtml, p, type EmailPayload } from "@/lib/email";
+import type { McWeek } from "@/lib/mcDigest";
 
 export interface EventForEmail {
   id: string; name: string; starts_on: string; ends_on: string; starts_at: string | null; ends_at: string | null;
@@ -141,4 +142,40 @@ export function buildAnnouncementEmail(opts: {
     to: opts.to, subject: opts.subject, html, fromName: opts.fromName, replyTo: opts.replyTo,
     text: `Hi ${opts.recipientName},\n\n${opts.body}\n\nSent by ${opts.authorName}.\n\nManage email preferences: ${APP_URL}/settings#notifications`,
   };
+}
+
+/** The MC's Monday email: approvals and realizations last week per LC, and what needs attention. */
+export function buildMcDigest(opts: { to: string; recipientName: string; mcName: string; week: McWeek }): EmailPayload {
+  const { week } = opts;
+  const diff = week.totals.approvedWeek - week.totals.approvedPrev;
+  const trend = diff === 0 ? "the same as the week before" : `${diff > 0 ? "up" : "down"} ${Math.abs(diff)} on the week before`;
+  const lead = `Last week your LCs got <strong>${week.totals.approvedWeek}</strong> ${week.totals.approvedWeek === 1 ? "approval" : "approvals"} (${trend}) and <strong>${week.totals.realizedWeek}</strong> ${week.totals.realizedWeek === 1 ? "realization" : "realizations"}.`;
+  const section = (title: string, body: string) =>
+    `<p style="margin:18px 0 8px;font-size:12px;font-weight:700;color:#0263C4;text-transform:uppercase;letter-spacing:0.05em;">${title}</p>${body}`;
+  const rows = [...week.lcs].sort((a, b) => b.approvedWeek - a.approvedWeek);
+  const table = `<table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;color:#1e293b;">
+    <tr><th align="left" style="padding:4px 0;font-size:12px;color:#64748b;">LC</th><th align="right" style="padding:4px 0;font-size:12px;color:#64748b;">Approved</th><th align="right" style="padding:4px 0;font-size:12px;color:#64748b;">Realized</th></tr>
+    ${rows.map((l) => `<tr><td style="padding:4px 0;border-top:1px solid #e2e8f0;">${escapeHtml(l.name)}</td><td align="right" style="padding:4px 0;border-top:1px solid #e2e8f0;">${l.approvedWeek}</td><td align="right" style="padding:4px 0;border-top:1px solid #e2e8f0;">${l.realizedWeek}</td></tr>`).join("")}
+  </table>`;
+  const attention = week.attention.length
+    ? `<ul style="margin:0;padding-left:20px;">${week.attention.map((a) => `<li style="font-size:14px;color:#1e293b;line-height:1.6;"><strong>${escapeHtml(a.name)}</strong>: ${a.reasons.map(escapeHtml).join("; ")}</li>`).join("")}</ul>`
+    : `<p style="margin:0;font-size:14px;color:#94a3b8;">Nothing flagged this week.</p>`;
+  const html = baseHtml(`
+    ${p(`Hi ${escapeHtml(opts.recipientName)}, here's last week in <strong>${escapeHtml(opts.mcName)}</strong>.`)}
+    ${p(lead)}
+    ${section("By LC", table)}
+    ${section("Needs attention", attention)}
+    ${btn("Open the national view", `${APP_URL}/mc`)}
+  `);
+  const text = [
+    `Hi ${opts.recipientName}, here's last week in ${opts.mcName}.`, "",
+    lead.replace(/<\/?strong>/g, ""), "",
+    "By LC (approved / realized):", ...rows.map((l) => `- ${l.name}: ${l.approvedWeek} / ${l.realizedWeek}`), "",
+    "Needs attention:", ...(week.attention.length ? week.attention.map((a) => `- ${a.name}: ${a.reasons.join("; ")}`) : ["- nothing flagged"]), "",
+    `${APP_URL}/mc`, `Manage email preferences: ${APP_URL}/settings#notifications`,
+  ].join("\n");
+  const subject = week.attention.length
+    ? `${week.totals.approvedWeek} approvals last week, ${week.attention.length} ${week.attention.length === 1 ? "LC needs" : "LCs need"} attention (${opts.mcName})`
+    : `${week.totals.approvedWeek} approvals last week (${opts.mcName})`;
+  return { to: opts.to, subject, html, text };
 }

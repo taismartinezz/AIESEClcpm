@@ -14,8 +14,9 @@ import {
   type EmailKind, type EmailMode,
 } from "@/lib/reminders";
 import {
-  buildAnnouncementEmail, buildCheckinEmail, buildEventEmail, buildTasksEmail, buildWeeklyDigest, type EventForEmail,
+  buildAnnouncementEmail, buildCheckinEmail, buildEventEmail, buildMcDigest, buildTasksEmail, buildWeeklyDigest, type EventForEmail,
 } from "@/lib/member-emails";
+import { mcTermStart, mcWeek, type DigestExchange } from "@/lib/mcDigest";
 
 const PACE_MS = 200;   // Resend's free tier allows ~2/s; spread sends out
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -311,6 +312,40 @@ export async function runDigest(db: SupabaseClient, mailer: Mailer, now: Date, f
   }
 }
 
+/**
+ * Monday: each MC member gets last week across the MC's linked LCs and what
+ * needs attention. Counts only, like the national view. Uses the digest
+ * setting, so someone who turned digests off doesn't get it either.
+ */
+export async function runMcDigest(db: SupabaseClient, mailer: Mailer, now: Date, force = false) {
+  const week = force ? isoDay(now) : digestWeek(now);
+  if (!week) return;
+  const { data: mcs, error } = await db.from("mcs").select("id, name, term_start");
+  if (error) { mailer.fail(`mc digest: ${error.message}`); return; }
+  for (const mc of mcs ?? []) {
+    const [members, projects] = await Promise.all([
+      db.from("mc_members").select("user_id").eq("mc_id", mc.id),
+      db.from("projects").select("id, name").eq("mc_id", mc.id).eq("is_demo", false),
+    ]);
+    const lcs = (projects.data ?? []) as { id: string; name: string }[];
+    const people = (members.data ?? []).map((m) => m.user_id as string);
+    if (!lcs.length || !people.length) continue;
+    const termStart = mcTermStart((mc.term_start as string | null) ?? null, now);
+    const [ex, targets] = await Promise.all([
+      db.from("exchanges").select("project_id, stage, applied_at, approved_at, realized_at, updated_at").in("project_id", lcs.map((l) => l.id)),
+      db.from("mc_lc_targets").select("project_id, target").eq("mc_id", mc.id).eq("metric", "approved").eq("term_start", termStart),
+    ]);
+    if (ex.error) { mailer.fail(`mc digest ${mc.id}: ${ex.error.message}`); continue; }
+    const approvedTargets: Record<string, number> = {};
+    for (const t of targets.data ?? []) approvedTargets[t.project_id as string] = (approvedTargets[t.project_id as string] ?? 0) + (t.target as number);
+    const summary = mcWeek(lcs, (ex.data ?? []) as DigestExchange[], approvedTargets, termStart, now);
+    await mailer.load(people);
+    for (const userId of people) {
+      await mailer.send("digest", `${week}:mc:${mc.id}`, userId, (to, name) => buildMcDigest({ to, recipientName: name, mcName: mc.name as string, week: summary }));
+    }
+  }
+}
+
 /** Everything the scheduled job does, in order. */
 export async function runScheduledEmails(db: SupabaseClient, now = new Date()): Promise<SendSummary> {
   const mailer = new Mailer(db);
@@ -318,6 +353,7 @@ export async function runScheduledEmails(db: SupabaseClient, now = new Date()): 
   await runTaskEmails(db, mailer, now);
   await runCheckinEmails(db, mailer, now);
   await runDigest(db, mailer, now);
+  await runMcDigest(db, mailer, now);
   const outreach = await runOutreach(db, now);
   return {
     sent: mailer.summary.sent + outreach.sent, skipped: mailer.summary.skipped + outreach.skipped,
