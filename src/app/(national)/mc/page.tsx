@@ -309,6 +309,17 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
     }
   }
 
+  const [nudged, setNudged] = useState<Record<string, boolean>>({});
+  async function nudge(lcId: string, lcName: string, reasons: string[]) {
+    const body = `Hi ${lcName}! Please bring your pipeline in ${APP_NAME} up to date, so the national numbers are right. What we noticed:\n${reasons.map((r) => `• ${r}`).join("\n")}`;
+    if (!(await askConfirm(`Send ${lcName} a reminder? Everyone in the LC sees it on their dashboard:\n\n${body}`, { confirmLabel: "Send" }))) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error: err } = await supabase.from("mc_messages").insert({ mc_id: mc.id, project_id: lcId, kind: "nudge", body, created_by: session?.user?.id });
+    if (err) { setError(`Couldn't send the reminder: ${err.message}`); return; }
+    setNudged((n) => ({ ...n, [lcId]: true }));
+    setVersion((v) => v + 1);
+  }
+
   async function removeLc(id: string, name: string) {
     if (!(await askConfirm(`Remove ${name} from ${mc.name}? Its president can link it again with the LC code.`, { confirmLabel: "Remove" }))) return;
     setError(null);
@@ -351,12 +362,15 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
             {attention.map((a) => (
               <li key={a.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <AlertTriangle size={14} color="var(--color-warning, #B45309)" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <strong style={{ fontSize: 13 }}>{a.name}</strong>
                   <ul style={{ margin: "2px 0 0", paddingLeft: 16, fontSize: 12, color: "var(--color-body)" }}>
                     {a.reasons.map((r) => <li key={r}>{r}</li>)}
                   </ul>
                 </div>
+                {nudged[a.id]
+                  ? <span role="status" style={{ fontSize: 12, color: "var(--color-secondary)" }}>Reminder sent</span>
+                  : <Button variant="secondary" onClick={() => nudge(a.id, a.name, a.reasons)}>Send a reminder</Button>}
               </li>
             ))}
           </ul>
@@ -448,6 +462,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
       </Panel>
       {hasInsights && <FunnelPanel lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} insights={insights} />}
       {hasInsights && <TeamPanel lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} insights={insights} />}
+      {lcs.length > 0 && <MessagesPanel mc={mc} lcs={lcs.map((l) => ({ id: l.id, name: l.name }))} version={version} onSent={() => setVersion((v) => v + 1)} />}
       <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
       <LinkStatus mc={mc} version={version} />
       {!(loaded && lcs.length === 0) && <McCodes mc={mc} prominent={false} onChanged={onChanged} />}
@@ -789,6 +804,88 @@ function TeamPanel({ lcs, insights }: { lcs: { id: string; name: string }[]; ins
             })}
           </tbody>
         </table>
+      </div>
+    </Panel>
+  );
+}
+
+interface McMessage { id: string; project_id: string | null; kind: "announcement" | "nudge"; body: string; created_by: string | null; created_at: string }
+
+/** Announcements to every linked LC, or to one; they show on the LCs' dashboards. */
+function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string; name: string }[]; version: number; onSent: () => void }) {
+  const [messages, setMessages] = useState<McMessage[] | null>(null);
+  const [body, setBody] = useState("");
+  const [to, setTo] = useState<string>("all");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ data: { session } }, res] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("mc_messages").select("id, project_id, kind, body, created_by, created_at").eq("mc_id", mc.id).order("created_at", { ascending: false }).limit(10),
+      ]);
+      if (cancelled) return;
+      setMe(session?.user?.id ?? null);
+      // Before migration 20261108008 there's no table: the panel stays hidden.
+      setMessages(res.error ? null : (res.data ?? []) as McMessage[]);
+    })();
+    return () => { cancelled = true; };
+  }, [mc.id, version]);
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.from("mc_messages").insert({ mc_id: mc.id, project_id: to === "all" ? null : to, body: body.trim(), created_by: me });
+    setBusy(false);
+    if (err) { setError(`Couldn't send: ${err.message}`); return; }
+    setBody("");
+    onSent();
+  }
+
+  async function remove(m: McMessage) {
+    if (!(await askConfirm("Delete this message? LCs stop seeing it.", { confirmLabel: "Delete" }))) return;
+    const { error: err } = await supabase.from("mc_messages").delete().eq("id", m.id);
+    if (err) setError(`Couldn't delete: ${err.message}`); else onSent();
+  }
+
+  if (messages === null) return null;
+  const nameOf = (id: string | null) => (id ? lcs.find((l) => l.id === id)?.name ?? "an LC" : "all LCs");
+  return (
+    <Panel title="Messages to LCs">
+      <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>Everyone in the LCs you pick sees it on their dashboard for 60 days.</p>
+        <textarea aria-label="Message to LCs" value={body} maxLength={2000} rows={3} onChange={(e) => setBody(e.target.value)}
+          placeholder="e.g. National targets for this term are set: check yours on your dashboard."
+          style={{ ...inputStyle, height: "auto", padding: "8px 10px", resize: "vertical" }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label htmlFor="mc-msg-to" style={{ fontSize: 12, color: "var(--color-secondary)" }}>To</label>
+          <select id="mc-msg-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 180 }}>
+            <option value="all">All linked LCs</option>
+            {lcs.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <Button onClick={send} disabled={busy || !body.trim()}>{busy ? "Sending…" : "Send"}</Button>
+        </div>
+        <ErrorText>{error}</ErrorText>
+        {messages.length > 0 && (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {messages.map((m) => (
+              <li key={m.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid var(--color-border)", fontSize: 13 }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{m.kind === "nudge" ? "Reminder" : "Announcement"} to {nameOf(m.project_id)} · {formatDay(m.created_at)}</span>
+                  <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
+                </div>
+                {(m.created_by === me || mc.isMcp) && (
+                  <button type="button" aria-label="Delete message" onClick={() => remove(m)} style={{ background: "none", border: "none", cursor: "pointer", alignSelf: "flex-start" }}>
+                    <Trash2 size={13} color="var(--color-secondary)" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </Panel>
   );

@@ -189,7 +189,7 @@ test.describe('National (MC)', () => {
     ]
     await setupAuthMocks(page, 'member', { tables: { mcs: [mc], mc_members: [{ mc_id: 'mc1', role: 'mcp' }] }, rpc: { mc_dashboard: rows } })
     await page.goto('/mc')
-    await expect(page.getByText('LC Lisbon')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('cell', { name: /LC Lisbon/ }).first()).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('rowheader', { name: 'National' })).toBeVisible()
     await expect(page.getByText('33%')).toBeVisible()
     await expect(page.getByRole('link', { name: 'National' }).first()).toBeVisible()

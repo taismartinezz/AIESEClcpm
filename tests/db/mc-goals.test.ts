@@ -41,12 +41,13 @@ describe("MC targets", () => {
     await expect(setTarget("pres", linked.id, 1)).rejects.toThrow();           // LCs don't set their own
   });
 
-  it("are read by the MC and by that LC's president only", async () => {
+  it("are read by the MC and by that LC's president and VPs only", async () => {
     const read = (who: string) => asUser(db, u[who], async (tx) => (await tx.query<{ target: number }>("select target from mc_lc_targets")).rows.map((r) => r.target));
     expect(await read("mcvp")).toEqual([40]);
     expect(await read("pres")).toEqual([40]);
     expect(await read("pres2")).toEqual([]);
-    expect(await read("olga")).toEqual([]);
+    expect(await read("olga")).toEqual([40]);                                 // a VP of that LC
+
     expect(await read("nobody")).toEqual([]);
   });
 });
@@ -98,5 +99,32 @@ describe("LC insights for the MC", () => {
     expect(r.recruits_joined).toBe(1);
     expect(JSON.stringify(rows)).not.toMatch(/Secret/);
     expect(await asUser(db, u.pres, async (tx) => (await tx.query("select * from mc_lc_insights($1)", [mcId])).rows)).toEqual([]);
+  });
+});
+
+describe("MC messages", () => {
+  const send = (who: string, body: string, project: string | null = null, kind = "announcement") => asUserCommit(db, u[who], () => db.query(
+    "insert into mc_messages (mc_id, project_id, kind, body, created_by) values ($1, $2, $3, $4, $5)", [mcId, project, kind, body, u[who]]));
+  const inbox = (who: string) => asUser(db, u[who], async (tx) => (await tx.query<{ body: string }>("select body from mc_messages order by created_at")).rows.map((r) => r.body));
+
+  it("go from MC members to every linked LC, or to one, and members of those LCs read them", async () => {
+    await send("mcvp", "National targets are set");
+    await send("mcp", "Please update your pipeline", linked.id, "nudge");
+    expect(await inbox("olga")).toEqual(["National targets are set", "Please update your pipeline"]);   // in the linked LC
+    expect(await inbox("pres2")).toEqual([]);                                                            // LC not linked
+    expect(await inbox("nobody")).toEqual([]);
+    expect(await inbox("mcvp")).toHaveLength(2);
+  });
+
+  it("can't be sent by LCs or to LCs outside the MC", async () => {
+    await expect(send("pres", "From an LC")).rejects.toThrow();
+    await expect(send("mcp", "To Porto", unlinked.id)).rejects.toThrow();
+  });
+
+  it("lc_national tells an LC's members their MC and its term", async () => {
+    const { rows } = await asUser(db, u.olga, async (tx) => tx.query<{ mc_name: string; term_start: string }>("select mc_name, term_start::text from lc_national($1)", [linked.id]));
+    expect(rows[0].mc_name).toBe("AIESEC in Portugal");
+    expect(rows[0].term_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(await asUser(db, u.nobody, async (tx) => (await tx.query("select * from lc_national($1)", [linked.id])).rows)).toEqual([]);
   });
 });

@@ -290,6 +290,24 @@ test.describe('National goals and pace', () => {
     await expect(team.getByRole('row', { name: /AIESEC in Porto/ })).toContainText('2 (10%)')
   })
 
+  test('the MC sends an announcement to every LC, and a reminder to an LC that needs attention', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { ...mcOptions([]), tables: { ...mcOptions([]).tables, mc_messages: [] } })
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByLabel('Message to LCs').fill('Targets are set for this term.', { timeout: 10000 })
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mc_messages'))?.body ?? '').toContain('"body":"Targets are set for this term."')
+    expect((await writes(page)).find((w) => w.url.includes('/rest/v1/mc_messages'))?.body).toContain('"project_id":null')
+
+    const panel = page.locator('section', { has: page.getByRole('heading', { name: /Needs attention/ }) })
+    await panel.getByRole('button', { name: 'Send a reminder' }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Send' }).click()
+    await expect(panel.getByText('Reminder sent')).toBeVisible()
+    const nudge = (await writes(page)).filter((w) => w.url.includes('/rest/v1/mc_messages')).map((w) => w.body).find((b) => b.includes('"kind":"nudge"')) ?? ''
+    expect(nudge).toContain('"project_id":"lc-2"')
+    expect(nudge).toContain('Pipeline not updated in')
+  })
+
   test('an MC member sets targets for the term', async ({ page }) => {
     await setupAuthMocks(page, 'member', mcOptions([]))
     await intercept(page)
@@ -312,4 +330,25 @@ test('the LC president sets the LC country in Settings', async ({ page }) => {
   await page.getByRole('option', { name: /Dominican Republic/ }).click()
   await page.getByRole('button', { name: /save/i }).first().click()
   await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/projects') && w.method === 'PATCH')?.body ?? '').toContain('"country_code":"DO"')
+})
+
+test('the LC dashboard shows what its MC sent, and the national targets with pace', async ({ page }) => {
+  const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10)
+  await setupAuthMocks(page, 'president', {
+    rpc: { lc_national: [{ mc_id: 'mc-1', mc_name: 'AIESEC in Portugal', term_start: day(182) }] },
+    tables: {
+      mc_messages: [{ id: 'm1', kind: 'announcement', body: 'National targets are set.', created_at: new Date().toISOString(), project_id: null }],
+      mc_lc_targets: [{ product: 'ogv', metric: 'approved', target: 30 }],
+      exchanges: [
+        { id: 'e1', project_id: 'project-abc', product: 'ogv', stage: 'approved', person_name: 'A', approved_at: day(10), realized_at: null },
+        { id: 'e2', project_id: 'project-abc', product: 'ogv', stage: 'approved', person_name: 'B', approved_at: day(400), realized_at: null },
+      ],
+    },
+  })
+  await page.goto('/')
+  const card = page.getByRole('region', { name: 'From AIESEC in Portugal' })
+  await expect(card).toContainText('National targets are set.', { timeout: 10000 })
+  await expect(card).toContainText('oGV approvals')
+  await expect(card).toContainText('1 / 30')                // the one from 400 days ago was last term
+  await expect(card).toContainText('Behind')
 })
