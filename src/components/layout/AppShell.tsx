@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, CheckSquare, FolderOpen, Users, Globe2, CalendarDays, Bell, ChevronDown, ChevronLeft, ChevronRight,
   LogOut, User as UserIcon, MoreHorizontal, Menu, X, Settings, CircleCheck, Plus, Search, MessageSquare, Check, Wallet,
-  LifeBuoy, HeartPulse, Plane, Handshake,
+  LifeBuoy, HeartPulse, Plane, Handshake, CalendarClock,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
@@ -61,6 +61,8 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
   ["/finance",    "Finance",    Wallet         ],
   ["/drive",      "Drive",      FolderOpen     ],
   ["/checkin",    "Check-in",   HeartPulse     ],
+  // Planning = Routines (more to come from the LC planning template).
+  ["/routines",   "Planning",   CalendarClock  ],
   ["/mc",         "National (MC)", Globe2      ],
 ] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
 
@@ -85,8 +87,8 @@ function pageTitle(pathname: string): string {
 
 const PRIMARY: Record<UserRole, string[]> = {
   member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/routines", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/routines", "/drive", "/checkin"],
 };
 
 function useNavGroups(): NavGroup[] {
