@@ -24,6 +24,7 @@ export const SECTIONS: { id: string; label: string; tabs: { href: string; label:
   ] },
   { id: "planning", label: "Planning", tabs: [
     { href: "/routines", label: "Routines" },
+    { href: "/compliance", label: "Membership criteria" },
   ] },
   { id: "drive", label: "Drive", tabs: [
     { href: "/drive",    label: "Files" },

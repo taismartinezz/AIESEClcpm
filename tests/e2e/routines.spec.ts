@@ -77,3 +77,34 @@ test.describe('Plan backwards from approvals', () => {
     await expect(ogv).toContainText('394')
   })
 })
+
+test.describe('Membership criteria', () => {
+  const data = (over: Record<string, unknown> = {}) => [{
+    balance: '-40.00', currency: 'USD', approvals_12m: 6, meetings_12m: 3, boa_members: 3, university_affiliated: true, debt_plan: null, checks: [], ...over,
+  }]
+
+  test('each criterion shows met, at risk or not met, with its owner, and monthly reports can be ticked off', async ({ page }) => {
+    await setupAuthMocks(page, 'president', { rpc: { lc_compliance: data() } })
+    await recordWrites(page)
+    await page.goto('/compliance')
+    const row = (name: RegExp) => page.getByRole('listitem').filter({ hasText: name })
+    await expect(row(/Bank balance not below zero/)).toContainText('Not met', { timeout: 10000 })
+    await expect(row(/Bank balance not below zero/)).toContainText('no debt repayment plan')
+    await expect(row(/5 oGX approvals a year/)).toContainText('Met')
+    await expect(row(/8 iGTa meetings a year/)).toContainText('Not met')
+    await expect(row(/3 board of advisors/)).toContainText('Met')
+    // A debt plan moves the balance to "at risk".
+    await page.getByLabel('Debt repayment plan').fill('Repay 20 a month')
+    await page.getByRole('button', { name: 'Save plan' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_compliance_info'))?.body ?? '').toContain('"debt_plan":"Repay 20 a month"')
+    // Tick this month's SONA.
+    await row(/SONA to the MC/).getByRole('button', { name: /Mark as done today/ }).last().click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_compliance_checks'))?.body ?? '').toContain('"kind":"sona"')
+  })
+
+  test('members are told the execs keep track of it', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { rpc: { lc_compliance: data() } })
+    await page.goto('/compliance')
+    await expect(page.getByText(/president and VPs keep track of the membership criteria/)).toBeVisible({ timeout: 10000 })
+  })
+})

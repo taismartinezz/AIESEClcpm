@@ -74,7 +74,7 @@ const NAV: Record<string, NavItem> = Object.fromEntries(([
 // Tab titles ("Tasks · LC Manager") for pages that aren't in the menu themselves.
 const TITLE_FOR: Record<string, string> = {
   "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
-  "/attendance": "Calendar", "/tabling": "Calendar", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
+  "/attendance": "Calendar", "/tabling": "Calendar", "/compliance": "Membership criteria", "/goals": "Pipeline", "/outreach": "Pipeline", "/handover": "Drive",
 };
 
 function pageTitle(pathname: string): string {
