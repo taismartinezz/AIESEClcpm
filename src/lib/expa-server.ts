@@ -4,7 +4,8 @@
 // auth.aiesec.org. Its redirect URI must be <app origin>/auth/expa/callback.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { APPLICATIONS_QUERY, CURRENT_PERSON_QUERY, POSITIONS_QUERY, PROFILE_QUERY, profileFromExpa, type ExpaApplication, type ExpaProfile } from "@/lib/expa-sync";
+import { APPLICATIONS_QUERY, CURRENT_PERSON_QUERY, POSITIONS_QUERY, POSITIONS_QUERY_BASIC, PROFILE_QUERY, profileFromExpa, type ExpaApplication, type ExpaProfile } from "@/lib/expa-sync";
+import { placementFromExpa } from "@/lib/expa-profile";
 
 const AUTHORIZE_URL = "https://auth.aiesec.org/oauth/authorize";
 const TOKEN_URL = "https://auth.aiesec.org/oauth/token";
@@ -77,16 +78,18 @@ export async function currentPerson(token: string) {
 }
 
 /**
- * The profile details onboarding fills in. The extra queries may fail (a
- * renamed field, a hidden photo); what they'd add is then simply left out.
+ * The profile details onboarding fills in, and where sign-in places them (their
+ * LC or MC and role). The extra queries may fail (a renamed field, a hidden
+ * photo); what they'd add is then simply left out.
  */
 export async function fetchProfile(token: string, me: Awaited<ReturnType<typeof currentPerson>>): Promise<ExpaProfile> {
   type Extra = { currentPerson: Record<string, unknown> | null };
   const [extra, positions] = await Promise.all([
     gql<Extra>(token, PROFILE_QUERY).catch(() => null),
-    gql<Extra>(token, POSITIONS_QUERY).catch(() => null),
+    gql<Extra>(token, POSITIONS_QUERY).catch(() => gql<Extra>(token, POSITIONS_QUERY_BASIC)).catch(() => null),
   ]);
-  return profileFromExpa({ ...me, ...(extra?.currentPerson ?? {}), ...(positions?.currentPerson ?? {}) });
+  const profile = profileFromExpa({ ...me, ...(extra?.currentPerson ?? {}), ...(positions?.currentPerson ?? {}) });
+  return { ...profile, placement: placementFromExpa(profile) };
 }
 
 /** A usable access token for the member, renewing it when it has expired. */
