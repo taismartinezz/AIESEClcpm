@@ -146,6 +146,7 @@ export default function SettingsPage() {
   const [projectName, setProjectName] = useState("");
   const [projectInstitution, setProjectInstitution] = useState("");
   const [lcCurrency, setLcCurrency] = useState("EUR");
+  const [lcCountry, setLcCountry] = useState("");
   const [senderName, setSenderName] = useState("");
   const [termStart, setTermStart] = useState("");
   const [savingLabSettings, setSavingLabSettings] = useState(false);
@@ -185,6 +186,7 @@ export default function SettingsPage() {
             setProjectInstitution((proj.institution as string) ?? "");
             setSenderName((proj.email_sender_name as string | null) ?? "");
             setLcCurrency((proj.currency as string) ?? "EUR");
+            setLcCountry((proj.country_code as string | null) ?? "");
             setTermStart((proj.term_start_date as string) ?? "");
           }
 
@@ -295,6 +297,7 @@ export default function SettingsPage() {
         name: projectName,
         institution: projectInstitution,
         currency: lcCurrency.trim().toUpperCase(),
+        country_code: lcCountry || null,
         term_start_date: termStart || null,
         email_sender_name: senderName.trim() || null,
       }).eq("id", project.id);
@@ -305,7 +308,7 @@ export default function SettingsPage() {
     } finally {
       setSavingLabSettings(false);
     }
-  }, [project, projectName, projectInstitution, lcCurrency, senderName, termStart]);
+  }, [project, projectName, projectInstitution, lcCurrency, lcCountry, senderName, termStart]);
 
   const handleSendEmailInvites = useCallback(async () => {
     if (!project?.id) return;
@@ -926,6 +929,11 @@ export default function SettingsPage() {
               <input value={projectInstitution} onChange={e => setProjectInstitution(e.target.value)}
                 placeholder="e.g. University of Lisbon"
                 style={{ ...readonlyInputStyle, cursor: "text", backgroundColor: "var(--color-surface)" }} />
+            </div>
+            <div style={{ maxWidth: 360 }}>
+              <label style={labelStyle} htmlFor="lc-country">LC country</label>
+              <CountryCombobox id="lc-country" value={lcCountry} onChange={setLcCountry} />
+              <p style={{ fontSize: 11, color: "var(--color-secondary)", margin: "4px 0 0" }}>Your MC finds your LC by its country. While the currency is still the default, it follows the country.</p>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
               <div>

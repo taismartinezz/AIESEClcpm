@@ -156,4 +156,30 @@ test.describe('National (MC)', () => {
     await option.click()
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mcs') && w.method === 'PATCH')?.body ?? '').toContain('"country_code":"ES"')
   })
+
+  test('the tab is titled with the MC name, and Change can be cancelled', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
+    })
+    await page.goto('/mc')
+    await expect(page).toHaveTitle(`AIESEC in Portugal · ${APP_NAME}`, { timeout: 10000 })
+    await page.getByRole('button', { name: 'Change' }).click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByText('Country:')).toContainText('Portugal')
+    await page.getByRole('button', { name: 'Change' }).click()
+    await page.locator('#mc-set-country').press('Escape')
+    await expect(page.getByText('Country:')).toContainText('Portugal')
+    await expect(page.getByText(/Only LCs with a country saved are listed/)).toBeVisible()
+  })
+})
+
+test('the LC president sets the LC country in Settings', async ({ page }) => {
+  await setupAuthMocks(page, 'president', { tables: { projects: [{ id: 'project-abc', name: 'AIESEC in Test City', country_code: null, currency: 'EUR' }] } })
+  await intercept(page)
+  await page.goto('/settings#lc')
+  await page.locator('#lc-country').fill('dominican', { timeout: 10000 })
+  await page.getByRole('option', { name: /Dominican Republic/ }).click()
+  await page.getByRole('button', { name: /save/i }).first().click()
+  await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/projects') && w.method === 'PATCH')?.body ?? '').toContain('"country_code":"DO"')
 })

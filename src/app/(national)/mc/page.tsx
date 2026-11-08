@@ -28,6 +28,8 @@ export default function McPage() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* The tab shows the MC's name ("AIESEC in Portugal · LC Manager"). */}
+      {mc && <title>{`${mc.name} · ${APP_NAME}`}</title>}
       <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
@@ -334,9 +336,14 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
           <div style={row}><span style={{ ...codeStyle, fontSize: 16 }}>{mc.memberCode}</span><CopyButton text={mc.memberCode} label="Copy code" /><CopyButton text={memberMessage} label="Copy invite message" /></div>
         </div>
         {mc.isMcp && (!mc.countryCode || editingCountry) ? (
-          <div style={{ maxWidth: 320 }}>
+          <div style={{ maxWidth: 360 }} onKeyDown={(e) => { if (e.key === "Escape" && editingCountry) setEditingCountry(false); }}>
             <label htmlFor="mc-set-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country, to see which LCs haven&apos;t linked yet</label>
-            <CountryCombobox id="mc-set-country" value={country} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <CountryCombobox id="mc-set-country" value={country} autoFocus={editingCountry} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
+              </div>
+              {editingCountry && <Button variant="ghost" onClick={() => setEditingCountry(false)}>Cancel</Button>}
+            </div>
           </div>
         ) : mc.countryCode ? (
           <p style={{ fontSize: 13, margin: 0 }}>
@@ -390,6 +397,11 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
             {linked.length === 0
               ? `No LCs in ${countryName} are on ${APP_NAME} yet. Once an LCP creates their LC here, it shows up in this list until they link it.`
               : `Every LC in ${countryName} that's on ${APP_NAME} is linked.`}
+          </p>
+        )}
+        {mc.countryCode && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
+            Only LCs with a country saved are listed. An LC without one gets it the next time its president signs in (they&apos;re asked once).
           </p>
         )}
         {notYet.length > 0 && (

@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import { freshDatabase, asUser } from "./harness";
 import { createUser, createLc, asUserCommit } from "./fixtures";
@@ -49,5 +51,16 @@ describe("currency follows the LC's country", () => {
   it("maps every country to a three-letter currency", async () => {
     const { rows } = await db.query<{ n: number }>("select count(*)::int as n from unnest(array['US','DO','PT','CI','BG','JP']) c where currency_for_country(c) ~ '^[A-Z]{3}$'");
     expect(rows[0].n).toBe(6);
+  });
+
+  it("an LC without a country gets its president's (migration 20261108002), and the currency follows", async () => {
+    const pres = await createUser(db, "dora");
+    const lc = await createLc(db, pres, "AIESEC in Santo Domingo");
+    await db.query("update user_profiles set country_code = 'DO' where id = $1", [pres]);
+    await db.query("update projects set country_code = null, currency = 'EUR' where id = $1", [lc.id]);
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261108002_lc_country_backfill.sql"), "utf8");
+    await db.exec(sql);
+    const { rows } = await db.query<{ country_code: string; currency: string }>("select country_code, currency from projects where id = $1", [lc.id]);
+    expect(rows[0]).toEqual({ country_code: "DO", currency: "DOP" });
   });
 });
