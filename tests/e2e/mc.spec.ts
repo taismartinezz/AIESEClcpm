@@ -192,6 +192,59 @@ test.describe('National (MC)', () => {
     await expect(page.getByText('Country:')).toContainText('Portugal')
     await expect(page.getByText(/Only LCs with a country saved are listed/)).toBeVisible()
   })
+
+  const TEAM = [
+    { user_id: 'u-ana', name: 'Ana Costa', role: 'mcp', joined_at: '2026-02-01T00:00:00Z', is_me: true, handover_pending: false },
+    { user_id: 'u-rui', name: 'Rui Silva', role: 'member', joined_at: '2026-10-01T00:00:00Z', is_me: false, handover_pending: false },
+  ]
+
+  test('handover: the MCP chooses the next MCP from the team, after confirming', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_team: TEAM },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    const team = page.locator('section', { has: page.getByRole('heading', { name: 'National team (2)' }) })
+    await expect(team).toContainText('Ana Costa (you)', { timeout: 10000 })
+    await expect(team).toContainText('MCP')
+    await expect(team.getByRole('button', { name: 'Make MCP' })).toHaveCount(1)       // not next to yourself
+    await team.getByRole('button', { name: 'Make MCP' }).click()
+    await page.getByRole('button', { name: 'Hand over' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rpc/offer_mcp_handover'))?.body ?? '').toContain('"p_to":"u-rui"')
+  })
+
+  test('handover: while waiting, the MCP sees who it is waiting for and can cancel', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_team: [TEAM[0], { ...TEAM[1], handover_pending: true }] },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    await expect(page.getByText('Waiting for Rui Silva to accept becoming MCP.')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Make MCP' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Cancel handover' }).click()
+    await expect.poll(async () => (await writes(page)).some((w) => w.url.includes('/rpc/cancel_mcp_handover'))).toBe(true)
+  })
+
+  test('handover: the chosen person accepts from a banner; members can leave but not hand over', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'member' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_team: [
+        { ...TEAM[0], is_me: false },
+        { ...TEAM[1], is_me: true, handover_pending: true },
+      ] },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    const banner = page.getByRole('region', { name: 'MCP handover' })
+    await expect(banner).toContainText('Ana Costa is handing AIESEC in Portugal over to you', { timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Make MCP' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'New member code' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Leave the MC' })).toBeVisible()
+    await banner.getByRole('button', { name: 'Become MCP' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rpc/accept_mcp_handover'))?.body ?? '').toContain('"p_mc_id":"mc-1"')
+  })
 })
 
 test('the LC president sets the LC country in Settings', async ({ page }) => {
