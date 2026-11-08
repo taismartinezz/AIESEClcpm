@@ -10,6 +10,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
+import McFinance from "@/components/mc/McFinance";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
@@ -28,12 +29,20 @@ export default function McPage() {
   const { mcs, loaded, error: mcError } = useMcs(version);
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
+  // Finance is for the MCP and the VP Finance only.
+  const [view, setView] = useState<"exchanges" | "finance">("exchanges");
+  const seesFinance = Boolean(mc && (mc.isMcp || mc.isVpFinance));
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id ?? null));
+  }, []);
   // The tab shows the MC's name ("AIESEC in Portugal · LC Manager").
   useDocumentTitle(`${mc?.name ?? "National"} · ${APP_NAME}`);
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc && seesFinance && view === "finance" ? "National view: every LC's account and university money, side by side." : mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -47,7 +56,14 @@ export default function McPage() {
             {mcs.length > 1 && (
               <Tabs value={mc.id} onChange={setChosen} tabs={mcs.map((m) => ({ id: m.id, label: m.name }))} />
             )}
-            <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
+            {seesFinance && (
+              <Tabs value={view} onChange={setView} tabs={[{ id: "exchanges", label: "Exchanges" }, { id: "finance", label: "Finance" }]} />
+            )}
+            {seesFinance && view === "finance" && userId ? (
+              <div style={{ marginTop: 12 }}><McFinance mc={mc} userId={userId} /></div>
+            ) : (
+              <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
+            )}
           </>
         )}
       </div>
@@ -899,7 +915,7 @@ function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string
 
 // ── The national team, and handing the MC over to the next MCP ───────────────
 
-interface TeamMember { user_id: string; name: string; role: "mcp" | "member"; joined_at: string; is_me: boolean; handover_pending: boolean }
+interface TeamMember { user_id: string; name: string; role: "mcp" | "member" | "vp_finance"; joined_at: string; is_me: boolean; handover_pending: boolean }
 
 /** People on the MC. null until loaded, or before migration 20261108004 (no mc_team): then the team panel stays hidden. */
 function useMcTeam(mcId: string, version: number) {
@@ -992,6 +1008,10 @@ function McTeam({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; on
       if (err) throw new Error(err.message);
     });
   }
+  async function setVpFinance(m: TeamMember, on: boolean) {
+    if (on && !(await askConfirm(`Make ${m.name} VP Finance? They'll keep every linked LC's books: add, edit and review transactions, and approve expense claims.`, { confirmLabel: "Make VP Finance" }))) return;
+    await run(on ? "name the VP Finance" : "change the role", () => runRpc("set_mc_member_role", { p_mc_id: mc.id, p_user_id: m.user_id, p_role: on ? "vp_finance" : "member" }));
+  }
   async function newCode() {
     if (!(await askConfirm("Make a new member code? The old one stops working, so last term's team can't rejoin with it. People already on the MC stay.", { confirmLabel: "New code" }))) return;
     await run("make a new member code", () => runRpc("new_mc_member_code", { p_mc_id: mc.id }));
@@ -1019,11 +1039,15 @@ function McTeam({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; on
               <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
                 {m.name}{m.is_me && <span style={{ color: "var(--color-secondary)" }}> (you)</span>}
                 {m.role === "mcp" && <span style={{ ...badge, backgroundColor: "var(--color-navy)", color: "white" }}>MCP</span>}
+                {m.role === "vp_finance" && <span style={{ ...badge, border: "1px solid var(--color-border)", color: "var(--color-body)" }}>VP Finance</span>}
                 {m.handover_pending && <span style={{ ...badge, border: "1px solid var(--color-navy)", color: "var(--color-navy)" }}>Next MCP?</span>}
               </span>
               {mc.isMcp && !m.is_me && m.role !== "mcp" && (
                 <>
                   {!pending && <Button variant="secondary" onClick={() => makeMcp(m)} disabled={busy}>Make MCP</Button>}
+                  {m.role === "vp_finance"
+                    ? <button type="button" style={link} disabled={busy} onClick={() => setVpFinance(m, false)}>Not VP Finance</button>
+                    : <Button variant="secondary" onClick={() => setVpFinance(m, true)} disabled={busy}>Make VP Finance</Button>}
                   <button type="button" style={link} disabled={busy} onClick={() => remove(m)}>Remove</button>
                 </>
               )}

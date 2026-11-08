@@ -62,7 +62,8 @@ async function loadFinance(projectId: string) {
   if (failed?.error) throw new Error(failed.error.message);
   return {
     currency: (proj.data?.currency as string) ?? "EUR",
-    entries: (entries.data ?? []).map(mapEntry) as FinanceEntry[],
+    // The LC account only: university money has its own balance on the Finance page.
+    entries: (entries.data ?? []).map(mapEntry).filter((e) => e.account === "lc") as FinanceEntry[],
     pending: pending.count ?? 0,
   };
 }

@@ -22,13 +22,15 @@ interface Props {
   memberNames: Record<string, string>;
   /** Finance lead: full ledger + editing. Otherwise a VP's department-only view. */
   canEdit: boolean;
+  /** Whether they may add, edit and delete entries. Defaults to canEdit. The LC account is kept by the MC VP Finance, so the LC reads it. */
+  canWrite?: boolean;
   onChanged: () => void;
 }
 
 const thStyle: React.CSSProperties = { textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--color-secondary)", padding: "8px 10px", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { fontSize: 13, color: "var(--color-body)", padding: "8px 10px", borderTop: "1px solid var(--color-border)", verticalAlign: "top" };
 
-export default function LedgerView({ projectId, userId, currency, entries, categories, departments, memberNames, canEdit, onChanged }: Props) {
+export default function LedgerView({ projectId, userId, currency, entries, categories, departments, memberNames, canEdit, canWrite = canEdit, onChanged }: Props) {
   const [type, setType] = useState<"all" | "income" | "expense">("all");
   const [categoryId, setCategoryId] = useState("all");
   const [departmentId, setDepartmentId] = useState("all");
@@ -114,7 +116,7 @@ export default function LedgerView({ projectId, userId, currency, entries, categ
         title="Ledger"
         action={<div style={{ display: "flex", gap: 8 }}>
           <Button variant="secondary" onClick={exportCsv} disabled={filtered.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
-          {canEdit && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add entry</Button>}
+          {canWrite && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add entry</Button>}
         </div>}
       >
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--color-border)" }}>
@@ -176,7 +178,7 @@ export default function LedgerView({ projectId, userId, currency, entries, categ
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", textAlign: "right" }}>
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                         {e.receiptPath && <ReceiptButton path={e.receiptPath} />}
-                        {canEdit && !e.claimId && (
+                        {canWrite && !e.claimId && (
                           <>
                             <button type="button" onClick={() => setEditing(e)} aria-label={`Edit ${e.description}`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Pencil size={13} color="var(--color-secondary)" /></button>
                             <button type="button" onClick={() => remove(e)} disabled={deletingId === e.id} aria-label={`Delete ${e.description}`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={13} color="var(--color-secondary)" /></button>

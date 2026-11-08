@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
-export interface Mc { id: string; name: string; memberCode: string; lcCode: string; termStart: string | null; countryCode: string | null; isMcp: boolean }
+export interface Mc { id: string; name: string; memberCode: string; lcCode: string; termStart: string | null; countryCode: string | null; isMcp: boolean; isVpFinance: boolean }
 
 /** The MCs (national teams) the signed-in person belongs to. */
 export function useMcs(version = 0) {
@@ -29,7 +29,7 @@ export function useMcs(version = 0) {
         const roles = new Map((mine.data ?? []).map((r) => [r.mc_id as string, r.role as string]));
         if (!cancelled) setState({
           loaded: true, error: null,
-          mcs: (mcs.data ?? []).map((m) => ({ id: m.id as string, name: m.name as string, memberCode: m.member_code as string, lcCode: m.lc_code as string, termStart: (m.term_start as string | null) ?? null, countryCode: ((m as { country_code?: string | null }).country_code) ?? null, isMcp: roles.get(m.id as string) === "mcp" })),
+          mcs: (mcs.data ?? []).map((m) => ({ id: m.id as string, name: m.name as string, memberCode: m.member_code as string, lcCode: m.lc_code as string, termStart: (m.term_start as string | null) ?? null, countryCode: ((m as { country_code?: string | null }).country_code) ?? null, isMcp: roles.get(m.id as string) === "mcp", isVpFinance: roles.get(m.id as string) === "vp_finance" })),
         });
       } catch (e) {
         if (!cancelled) setState({ mcs: [], loaded: true, error: e instanceof Error ? e.message : String(e) });

@@ -373,6 +373,86 @@ test.describe('National goals and pace', () => {
     expect(body).toContain(`"term_start":"${termStart}"`)
     expect(body).toContain('"project_id":"lc-1"')
   })
+
+  const today = new Date().toISOString().slice(0, 10)
+  const FIN_LCS = [
+    { project_id: 'lc-nw', name: 'AIESEC in Northwestern', currency: 'USD', term_start_date: `${today.slice(0, 4)}-01-01`, finance_reviewed_on: null, has_university_account: true },
+    { project_id: 'lc-ch', name: 'AIESEC in Chicago', currency: 'USD', term_start_date: `${today.slice(0, 4)}-01-01`, finance_reviewed_on: today, has_university_account: false },
+  ]
+  const fin = (id: string, project: string, account: string, type: string, amount: number, description: string) => ({
+    id, project_id: project, account, type, amount, currency: 'USD', entry_date: today, category_id: null, department_id: null, description,
+    recorded_by: null, receipt_path: null, claim_id: null, created_at: new Date().toISOString(), payment_method: null, processed_via: null, area: 'MXP', notes: null,
+  })
+  const FIN_ENTRIES = [
+    fin('1', 'lc-nw', 'lc', 'opening', 1401.16, 'Opening balance'),
+    fin('2', 'lc-nw', 'university', 'income', 1117.43, 'Northwestern reimbursement'),
+    fin('3', 'lc-ch', 'lc', 'expense', 250, 'Conference fees'),
+  ]
+
+  test('finance: the MCP sees every LC at a glance, read-only, and opens one LC as its statement', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }], finance_entries: FIN_ENTRIES },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
+    })
+    await page.goto('/mc')
+    await page.getByRole('tab', { name: 'Finance' }).click({ timeout: 10000 })
+    await expect(page.getByText('Read-only: your VP Finance keeps the books.')).toBeVisible()
+    await expect(page.getByText("Every LC's balance")).toBeVisible()
+    await expect(page.getByRole('button', { name: /AIESEC in Northwestern: \$1,401.16/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /AIESEC in Chicago: -\$250.00 \(below zero\)/ })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Not used' })).toBeVisible()               // Chicago has no university money
+    await page.getByRole('tab', { name: /University money/ }).click()
+    await expect(page.getByRole('button', { name: /AIESEC in Northwestern: \$1,117.43/ })).toBeVisible()
+    await page.getByRole('tab', { name: 'LC accounts' }).click()
+    await page.getByRole('button', { name: 'AIESEC in Northwestern', exact: true }).click()
+    const statement = page.getByRole('region', { name: 'AIESEC in Northwestern: Account statement' })
+    await expect(statement).toContainText('$1,401.16')
+    await expect(statement.getByRole('button', { name: 'Add transaction' })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'University money' }).click()
+    await expect(page.getByRole('region', { name: 'AIESEC in Northwestern: University money' })).toContainText('Northwestern reimbursement')
+  })
+
+  test('finance: the VP Finance keeps the books from the national view', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'vp_finance' }], finance_entries: FIN_ENTRIES },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
+    })
+    await page.goto('/mc')
+    await page.getByRole('tab', { name: 'Finance' }).click({ timeout: 10000 })
+    await expect(page.getByText('You keep the books')).toBeVisible()
+    await page.getByRole('button', { name: /AIESEC in Chicago: / }).click()
+    const statement = page.getByRole('region', { name: 'AIESEC in Chicago: Account statement' })
+    await expect(statement.getByRole('button', { name: 'Mark reviewed today' })).toBeVisible()
+    await statement.getByRole('button', { name: 'Add transaction' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add a transaction' })).toBeVisible()
+    await expect(page.getByRole('radio', { name: 'Opening balance' })).toBeVisible()
+    await expect(page.getByLabel('Processed on')).toBeVisible()
+  })
+
+  test('finance: other MC members have no Finance tab; the MCP can name a VP Finance', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'member' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
+    })
+    await page.goto('/mc')
+    await expect(page.getByText('LC code, for LC presidents')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0)
+  })
+
+  test('finance: the MCP names a VP Finance from the team', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
+      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_team: [
+        { user_id: 'u-ana', name: 'Ana Costa', role: 'mcp', joined_at: '2026-02-01T00:00:00Z', is_me: true, handover_pending: false },
+        { user_id: 'u-rui', name: 'Rui Silva', role: 'member', joined_at: '2026-10-01T00:00:00Z', is_me: false, handover_pending: false },
+      ] },
+    })
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('button', { name: 'Make VP Finance' }).click({ timeout: 10000 })
+    await page.getByRole('button', { name: 'Make VP Finance' }).last().click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rpc/set_mc_member_role'))?.body ?? '').toContain('"p_role":"vp_finance"')
+  })
 })
 
 test('the LC president sets the LC country in Settings', async ({ page }) => {
