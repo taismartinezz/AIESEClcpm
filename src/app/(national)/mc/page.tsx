@@ -555,10 +555,19 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
   const notYet = inCountry.filter((n) => !linked.includes(n));
   if (linked.length === 0 && notYet.length === 0 && !mc.countryCode) return null;
   const countryName = countryByCode(mc.countryCode)?.name ?? mc.countryCode;
+  const known = linked.length + notYet.length;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const reminder = `Hi! ${notYet.join(", ")}: ${mc.name} follows national numbers in ${APP_NAME} and your LC isn't linked yet. LCPs: open ${origin}/settings#national and enter the LC code ${mc.lcCode}. We only see counts, never names.`;
   const chip: React.CSSProperties = { display: "inline-block", fontSize: 12, padding: "3px 8px", borderRadius: 999, margin: "0 6px 6px 0" };
   return (
-    <Panel title="LCs">
+    <Panel title={mc.countryCode && known > 0 ? `LCs: ${linked.length} of ${known} in ${countryName} linked` : "LCs"}>
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        {mc.countryCode && known > 0 && (
+          <div role="progressbar" aria-label="LCs linked" aria-valuemin={0} aria-valuemax={known} aria-valuenow={linked.length}
+            style={{ height: 6, borderRadius: 999, backgroundColor: "var(--color-dimmed-bg)", overflow: "hidden" }}>
+            <div style={{ width: `${(linked.length / known) * 100}%`, height: "100%", backgroundColor: "var(--color-navy)" }} />
+          </div>
+        )}
         {linked.length > 0 && (
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: "0 0 6px" }}>Linked ({linked.length})</p>
@@ -581,6 +590,9 @@ function LinkStatus({ mc, version }: { mc: Mc; version: number }) {
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", margin: "0 0 6px" }}>On {APP_NAME} but not linked yet ({notYet.length})</p>
             {notYet.map((n) => <span key={n} style={{ ...chip, border: "1px solid var(--color-border)", color: "var(--color-body)" }}>{n}</span>)}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <CopyButton text={reminder} label="Copy reminder message" />
+            </div>
           </div>
         )}
       </div>

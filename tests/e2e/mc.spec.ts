@@ -96,6 +96,9 @@ test.describe('National (MC)', () => {
     await expect(page.getByText('Linked (1)')).toBeVisible()
     await expect(page.getByText(/not linked yet \(1\)/)).toBeVisible()
     await expect(page.getByText('AIESEC in Porto')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'LCs: 1 of 2 in Portugal linked' })).toBeVisible()
+    await expect(page.getByRole('progressbar', { name: 'LCs linked' })).toHaveAttribute('aria-valuenow', '1')
+    await expect(page.getByRole('button', { name: 'Copy reminder message' })).toBeVisible()
   })
 
   test('onboarding offers the MC as a third card, which leads to the national view', async ({ page }) => {
