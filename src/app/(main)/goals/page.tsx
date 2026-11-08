@@ -27,7 +27,9 @@ export default function GoalsPage() {
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
     let cancelled = false;
-    supabase.rpc("lc_term_start", { p_project_id: projectId }).then(({ data }) => { if (!cancelled && data) setTermStart(data as string); });
+    supabase.rpc("lc_term_start", { p_project_id: projectId }).then(({ data }) => {
+      if (!cancelled && typeof data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data)) setTermStart(data);
+    });
     return () => { cancelled = true; };
   }, [projectId]);
 
@@ -67,7 +69,13 @@ export default function GoalsPage() {
     if (g.metric === "pipeline" && g.stage === "approved" && g.product) approvalGoals[g.product] = (approvalGoals[g.product] ?? 0) + g.target;
   }
   const termEnd = goals.filter((g) => g.metric === "pipeline" && g.stage === "approved").map((g) => g.endsOn).sort().at(-1)
-    ?? (() => { const d = new Date(`${termStart}T00:00:00Z`); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
+    ?? (() => {
+      // A year after the term starts (the day before its anniversary).
+      const d = new Date(`${termStart}T00:00:00Z`);
+      if (Number.isNaN(d.getTime())) return `${new Date().getUTCFullYear() + 1}-01-31`;
+      d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCDate(d.getUTCDate() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
 
   const sections = [
     { key: "lc", title: "Whole LC", color: undefined as string | undefined, items: goals.filter((g) => !g.departmentId) },
