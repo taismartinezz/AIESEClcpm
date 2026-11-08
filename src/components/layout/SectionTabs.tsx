@@ -22,6 +22,11 @@ export const SECTIONS: { id: string; label: string; tabs: { href: string; label:
     { href: "/team",    label: "Directory" },
     { href: "/members", label: "Recruitment & onboarding" },
   ] },
+  { id: "planning", label: "Planning", tabs: [
+    { href: "/plan",     label: "Our LC" },
+    { href: "/routines", label: "Routines" },
+    { href: "/compliance", label: "Membership criteria" },
+  ] },
   { id: "drive", label: "Drive", tabs: [
     { href: "/drive",    label: "Files" },
     { href: "/handover", label: "Handover" },

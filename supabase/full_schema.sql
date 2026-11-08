@@ -9554,3 +9554,444 @@ grant  execute on function set_feature_request_status(uuid, text)  to authentica
 
 notify pgrst, 'reload schema';
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261109001_google_event_sync.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 072: LC events in members' Google Calendars.
+--
+-- People who connected Google Calendar (with permission to add events) get
+-- their LC's events in it: added when an event they're invited to is created,
+-- updated when it changes, removed when it's deleted, when they're no longer
+-- invited, or when they answer "Not going". The server does it with their
+-- own Google token (google_connections, service role only).
+--
+--   google_connections.add_events   the person's switch (on by default).
+--   google_event_links              which Google event belongs to which LC
+--                                   event, per person. No foreign key to
+--                                   lc_events on purpose: when an event is
+--                                   deleted, the links are what tell the
+--                                   server which Google events to remove.
+--   google_calendar_status()        now also says whether the connection may
+--                                   add events (older connections were
+--                                   read-only and need reconnecting).
+--   The switch is flipped through /api/google/add-events, which also adds or
+--   removes the events right away.
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+alter table google_connections add column if not exists add_events boolean not null default true;
+
+create table if not exists google_event_links (
+  user_id          uuid not null references auth.users(id) on delete cascade,
+  event_id         uuid not null,
+  google_event_id  text not null,
+  synced_at        timestamptz not null default now(),
+  primary key (user_id, event_id)
+);
+
+create index if not exists google_event_links_event_idx on google_event_links (event_id);
+
+alter table google_event_links enable row level security;   -- no policies: service role only
+revoke all on google_event_links from anon, authenticated;
+grant select, insert, update, delete on google_event_links to service_role;
+grant select, insert, update, delete on google_connections to service_role;
+
+drop function if exists google_calendar_status();
+create or replace function google_calendar_status()
+returns table (connected_at timestamptz, google_email text, can_add_events boolean, add_events boolean)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select connected_at, google_email, coalesce(scope, '') like '%calendar.events%', add_events
+  from google_connections where user_id = auth.uid();
+$$;
+
+revoke execute on function google_calendar_status()      from public, anon;
+grant  execute on function google_calendar_status()      to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261109002_routines.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 073: recurring routines (the planning template's "Calendar
+-- suggestions"): the weekly EB meeting, SONA to the MC by the 1st, the
+-- finance audit in February and September…
+--
+--   routines              what repeats, who does it, and why. Schedules:
+--                         weekly (a weekday), biweekly (a weekday, every other
+--                         week from an anchor date), monthly (a day of the
+--                         month, the last day, or the first…fourth / last given
+--                         weekday), optionally only in some months (quarterly,
+--                         twice a year).
+--   routine_occurrences   which dates already became a task, so each one is
+--                         created once.
+--   routine_due_on(r, d)  does routine r fall on date d?
+--   run_routines(lc)      create the tasks due in the next lead_days days,
+--                         assigned to the LCP, the department's VP (or the LCP
+--                         when it has none) or a chosen person. The daily job
+--                         runs it for every LC; an LC's exec can run it for
+--                         theirs (the Routines page does, after a change).
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create table if not exists routines (
+  id               uuid primary key default gen_random_uuid(),
+  project_id       uuid not null references projects(id) on delete cascade,
+  title            text not null check (length(trim(title)) between 1 and 200),
+  why              text check (why is null or length(why) <= 1000),
+  department_id    uuid references departments(id) on delete set null,
+  assignee         text not null default 'department_vp' check (assignee in ('president', 'department_vp', 'person')),
+  assignee_user_id uuid references user_profiles(id) on delete set null,
+  freq             text not null check (freq in ('weekly', 'biweekly', 'monthly')),
+  weekday          smallint check (weekday between 1 and 7),          -- ISO: 1 = Monday
+  anchor           date,                                               -- biweekly: a date it falls on
+  month_day        smallint check (month_day = -1 or month_day between 1 and 28),   -- -1 = last day
+  nth              smallint check (nth = -1 or nth between 1 and 4),   -- with weekday: first…fourth, -1 = last
+  months           smallint[] check (months is null or months <@ array[1,2,3,4,5,6,7,8,9,10,11,12]::smallint[]),
+  lead_days        smallint not null default 3 check (lead_days between 0 and 30),
+  active           boolean not null default true,
+  template_key     text,
+  created_by       uuid not null references auth.users(id),
+  created_at       timestamptz not null default now(),
+  constraint routines_schedule check (
+    (freq = 'weekly'   and weekday is not null)
+    or (freq = 'biweekly' and weekday is not null and anchor is not null and extract(isodow from anchor) = weekday)
+    or (freq = 'monthly'  and ((month_day is not null and nth is null) or (nth is not null and weekday is not null and month_day is null)))
+  ),
+  constraint routines_person check (assignee <> 'person' or assignee_user_id is not null)
+);
+
+create index if not exists routines_project_idx on routines (project_id) where active;
+
+create table if not exists routine_occurrences (
+  routine_id uuid not null references routines(id) on delete cascade,
+  due_on     date not null,
+  task_id    uuid references tasks(id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (routine_id, due_on)
+);
+
+alter table routines            enable row level security;
+alter table routine_occurrences enable row level security;
+grant select, insert, update, delete on routines            to authenticated;
+grant select                         on routine_occurrences to authenticated;
+grant select, insert, update, delete on routines, routine_occurrences to service_role;
+
+drop policy if exists "lc members read routines" on routines;
+create policy "lc members read routines" on routines
+  for select using (auth_is_project_member(project_id));
+
+drop policy if exists "lc execs manage routines" on routines;
+create policy "lc execs manage routines" on routines
+  for all using (is_lc_exec(project_id))
+  with check (is_lc_exec(project_id) and created_by = auth.uid());
+
+drop policy if exists "lc members read routine occurrences" on routine_occurrences;
+create policy "lc members read routine occurrences" on routine_occurrences
+  for select using (exists (select 1 from routines r where r.id = routine_id and auth_is_project_member(r.project_id)));
+
+create or replace function routine_due_on(r routines, d date)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select case r.freq
+    when 'weekly'   then extract(isodow from d) = r.weekday
+    when 'biweekly' then extract(isodow from d) = r.weekday and (d - r.anchor) % 14 = 0
+    when 'monthly'  then
+      (r.months is null or extract(month from d)::smallint = any (r.months))
+      and case
+        when r.month_day = -1 then d = (date_trunc('month', d) + interval '1 month - 1 day')::date
+        when r.month_day is not null then extract(day from d) = r.month_day
+        when r.nth = -1 then extract(isodow from d) = r.weekday and (d + 7) > (date_trunc('month', d) + interval '1 month - 1 day')::date
+        else extract(isodow from d) = r.weekday and ceil(extract(day from d) / 7.0) = r.nth
+      end
+    else false
+  end;
+$$;
+
+create or replace function run_routines(p_project_id uuid default null, p_today date default current_date)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r        routines%rowtype;
+  d        date;
+  v_task   uuid;
+  v_who    uuid[];
+  v_count  integer := 0;
+begin
+  -- The daily job (no signed-in user) runs every LC; a person only their own, as an exec.
+  if auth.uid() is not null and (p_project_id is null or not is_lc_exec(p_project_id)) then
+    raise exception 'Only the LC''s president or a VP can run its routines';
+  end if;
+
+  for r in select * from routines where active and (p_project_id is null or project_id = p_project_id) loop
+    for d in select g::date from generate_series(p_today, p_today + r.lead_days, interval '1 day') as g loop
+      continue when not routine_due_on(r, d);
+      continue when exists (select 1 from routine_occurrences o where o.routine_id = r.id and o.due_on = d);
+
+      v_who := case r.assignee
+        when 'person' then array[r.assignee_user_id]
+        when 'department_vp' then array(select vp_user_id from departments where id = r.department_id and vp_user_id is not null)
+        else '{}'::uuid[] end;
+      -- No VP (or no department): the LCP does it.
+      if coalesce(array_length(v_who, 1), 0) = 0 then
+        v_who := array(select user_id from team_members where project_id = r.project_id and role = 'president');
+      end if;
+
+      insert into tasks (project_id, title, description, due_date, department_id, created_by, scope, priority)
+      values (r.project_id, r.title, coalesce(r.why, ''), d, r.department_id, r.created_by, 'lab', 'medium')
+      returning id into v_task;
+      insert into task_assignees (task_id, user_id)
+      select v_task, u from unnest(v_who) as u
+      where exists (select 1 from team_members tm where tm.project_id = r.project_id and tm.user_id = u)
+      on conflict do nothing;
+      insert into routine_occurrences (routine_id, due_on, task_id) values (r.id, d, v_task);
+      v_count := v_count + 1;
+    end loop;
+  end loop;
+  return v_count;
+end;
+$$;
+
+revoke execute on function run_routines(uuid, date)      from public, anon;
+grant  execute on function run_routines(uuid, date)      to authenticated, service_role;
+revoke execute on function routine_due_on(routines, date) from public, anon;
+grant  execute on function routine_due_on(routines, date) to authenticated, service_role;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261109003_compliance.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 074: membership criteria (the planning template's "Membership
+-- criteria"): what an LC must meet to keep full-member status.
+--
+--   lc_compliance_info     what the app can't know: BoA members, university
+--                          affiliation, and a debt repayment plan when the
+--                          balance is below zero. Set by the LC's execs.
+--   lc_compliance_checks   monthly deadlines ticked off: 'sona' (to the MC by
+--                          the 1st) and 'hr_report' (HR data, by the end of the
+--                          month), one row per kind and month.
+--   lc_compliance(lc)      for the LC's execs, in one call: the bank balance
+--                          (from the books, which not every exec may read),
+--                          outgoing approvals and partner meetings in the last
+--                          12 months, the info above and the monthly checks.
+--                          The app turns it into green / yellow / red.
+--
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create table if not exists lc_compliance_info (
+  project_id            uuid primary key references projects(id) on delete cascade,
+  boa_members           smallint not null default 0 check (boa_members between 0 and 50),
+  university_affiliated boolean not null default false,
+  debt_plan             text check (debt_plan is null or length(debt_plan) <= 2000),
+  updated_by            uuid references auth.users(id) on delete set null default auth.uid(),
+  updated_at            timestamptz not null default now()
+);
+
+create table if not exists lc_compliance_checks (
+  project_id uuid not null references projects(id) on delete cascade,
+  kind       text not null check (kind in ('sona', 'hr_report')),
+  month      date not null check (extract(day from month) = 1),     -- the month it's for
+  done_on    date not null default current_date,
+  done_by    uuid references auth.users(id) on delete set null default auth.uid(),
+  primary key (project_id, kind, month)
+);
+
+alter table lc_compliance_info   enable row level security;
+alter table lc_compliance_checks enable row level security;
+grant select, insert, update, delete on lc_compliance_info, lc_compliance_checks to authenticated;
+grant select, insert, update, delete on lc_compliance_info, lc_compliance_checks to service_role;
+
+drop policy if exists "lc execs keep compliance info" on lc_compliance_info;
+create policy "lc execs keep compliance info" on lc_compliance_info
+  for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+drop policy if exists "lc execs tick compliance checks" on lc_compliance_checks;
+create policy "lc execs tick compliance checks" on lc_compliance_checks
+  for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+create or replace function lc_compliance(p_project_id uuid)
+returns table (
+  balance numeric, currency text, approvals_12m integer, meetings_12m integer,
+  boa_members integer, university_affiliated boolean, debt_plan text, checks jsonb
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  if not is_lc_exec(p_project_id) then
+    return;
+  end if;
+  return query
+  select
+    -- Income and the opening balance add; expenses subtract.
+    coalesce((select sum(case when f.type = 'expense' then -f.amount else f.amount end) from finance_entries f where f.project_id = p_project_id), 0),
+    (select p.currency from projects p where p.id = p_project_id),
+    (select count(*)::int from exchanges e where e.project_id = p_project_id
+       and e.product in ('ogv', 'ogta', 'ogte') and e.approved_at > current_date - 365),
+    (select count(*)::int from partner_activities a join partners pa on pa.id = a.partner_id
+       where pa.project_id = p_project_id and a.kind = 'meeting' and a.happened_on > current_date - 365),
+    coalesce((select i.boa_members::int from lc_compliance_info i where i.project_id = p_project_id), 0),
+    coalesce((select i.university_affiliated from lc_compliance_info i where i.project_id = p_project_id), false),
+    (select i.debt_plan from lc_compliance_info i where i.project_id = p_project_id),
+    coalesce((select jsonb_agg(jsonb_build_object('kind', c.kind, 'month', c.month, 'done_on', c.done_on) order by c.month)
+              from lc_compliance_checks c where c.project_id = p_project_id and c.month > current_date - 400), '[]'::jsonb);
+end;
+$$;
+
+revoke execute on function lc_compliance(uuid) from public, anon;
+grant  execute on function lc_compliance(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261109004_lc_plan.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 075: the LC's plan (the planning template's Intro, EB Identity,
+-- Team Understanding and LC Calendar tabs).
+--
+--   lc_identity     one per LC: team name, vision, values, non-negotiable
+--                   rules, ambition, headline goals, the EB's main channel
+--                   and links to the other tools it uses.
+--   lc_swot         strengths, weaknesses, opportunities and threats, each
+--                   tagged with the areas it affects; lc_identity.swot_takeaways
+--                   holds what the EB takes from it.
+--   lc_battles      each month's key priorities ("battles"), with who owns them.
+--
+-- Everyone in the LC reads them; the president and VPs write them.
+-- Grants are written out: some projects don't expose new objects automatically.
+
+create table if not exists lc_identity (
+  project_id      uuid primary key references projects(id) on delete cascade,
+  team_name       text check (team_name is null or length(team_name) <= 120),
+  vision          text check (vision is null or length(vision) <= 2000),
+  values          text[] not null default '{}',
+  rules           text[] not null default '{}',
+  ambition        text check (ambition is null or length(ambition) <= 2000),
+  headline_goals  text check (headline_goals is null or length(headline_goals) <= 2000),
+  main_channel    text check (main_channel is null or length(main_channel) <= 200),
+  tool_links      jsonb not null default '[]'::jsonb,     -- [{ label, url }]
+  swot_takeaways  text check (swot_takeaways is null or length(swot_takeaways) <= 4000),
+  updated_by      uuid references auth.users(id) on delete set null default auth.uid(),
+  updated_at      timestamptz not null default now(),
+  constraint lc_identity_lists check (cardinality(values) <= 20 and cardinality(rules) <= 30)
+);
+
+create table if not exists lc_swot (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references projects(id) on delete cascade,
+  kind        text not null check (kind in ('strength', 'weakness', 'opportunity', 'threat')),
+  body        text not null check (length(trim(body)) between 1 and 500),
+  areas       text[] not null default '{}',               -- LCP, MXP, oGX, iGX, MKT, FIN, BD…
+  created_by  uuid references auth.users(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists lc_battles (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references projects(id) on delete cascade,
+  month       date not null check (extract(day from month) = 1),
+  title       text not null check (length(trim(title)) between 1 and 200),
+  owner_id    uuid references user_profiles(id) on delete set null,
+  done        boolean not null default false,
+  created_by  uuid references auth.users(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists lc_swot_project_idx    on lc_swot (project_id, kind);
+create index if not exists lc_battles_project_idx on lc_battles (project_id, month);
+
+alter table lc_identity enable row level security;
+alter table lc_swot     enable row level security;
+alter table lc_battles  enable row level security;
+grant select, insert, update, delete on lc_identity, lc_swot, lc_battles to authenticated;
+grant select, insert, update, delete on lc_identity, lc_swot, lc_battles to service_role;
+
+drop policy if exists "lc members read identity" on lc_identity;
+create policy "lc members read identity" on lc_identity for select using (auth_is_project_member(project_id));
+drop policy if exists "lc execs write identity" on lc_identity;
+create policy "lc execs write identity" on lc_identity for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+drop policy if exists "lc members read swot" on lc_swot;
+create policy "lc members read swot" on lc_swot for select using (auth_is_project_member(project_id));
+drop policy if exists "lc execs write swot" on lc_swot;
+create policy "lc execs write swot" on lc_swot for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+drop policy if exists "lc members read battles" on lc_battles;
+create policy "lc members read battles" on lc_battles for select using (auth_is_project_member(project_id));
+drop policy if exists "lc execs write battles" on lc_battles;
+create policy "lc execs write battles" on lc_battles for all using (is_lc_exec(project_id)) with check (is_lc_exec(project_id));
+
+-- The owner of a battle can tick it off too.
+drop policy if exists "battle owners tick them off" on lc_battles;
+create policy "battle owners tick them off" on lc_battles for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+-- A battle's owner must be in the LC.
+create or replace function _lc_battles_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.owner_id is not null and not exists (select 1 from team_members where project_id = new.project_id and user_id = new.owner_id) then
+    raise exception 'The owner must be a member of this LC';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_lc_battles_guard on lc_battles;
+create trigger trg_lc_battles_guard before insert or update on lc_battles for each row execute function _lc_battles_guard();
+
+notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 20261109005_eb_profiles.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 076: getting to know the EB (the planning template's EB member
+-- profiles): per LC, each president or VP answers about their role and how
+-- they work. Read by their LC only (not on user_profiles, which people from
+-- shared groups outside the LC can read); written by the person themselves.
+
+create table if not exists eb_profiles (
+  project_id        uuid not null references projects(id) on delete cascade,
+  user_id           uuid not null references user_profiles(id) on delete cascade,
+  skills            text check (skills is null or length(skills) <= 1000),
+  why_elected       text check (why_elected is null or length(why_elected) <= 1000),
+  impact            text check (impact is null or length(impact) <= 1000),
+  working_style     text check (working_style is null or length(working_style) <= 1000),
+  frustrations      text check (frustrations is null or length(frustrations) <= 1000),
+  needs_help_signs  text check (needs_help_signs is null or length(needs_help_signs) <= 1000),
+  appreciation      text check (appreciation is null or length(appreciation) <= 1000),
+  updated_at        timestamptz not null default now(),
+  primary key (project_id, user_id)
+);
+
+alter table eb_profiles enable row level security;
+grant select, insert, update, delete on eb_profiles to authenticated;
+grant select, insert, update, delete on eb_profiles to service_role;
+
+drop policy if exists "lc members read eb profiles" on eb_profiles;
+create policy "lc members read eb profiles" on eb_profiles
+  for select using (auth_is_project_member(project_id));
+
+-- Your own, while you're on the LC's EB.
+drop policy if exists "eb members write their own" on eb_profiles;
+create policy "eb members write their own" on eb_profiles
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid() and is_lc_exec(project_id));
+
+notify pgrst, 'reload schema';
+

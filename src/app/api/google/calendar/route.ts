@@ -23,8 +23,10 @@ export async function GET(request: Request) {
   });
   if (res.status === 401 || res.status === 403) return Response.json({ error: "Google refused access. Connect again.", reconnect: true }, { status: 401 });
   if (!res.ok) return Response.json({ error: `Google Calendar answered ${res.status}` }, { status: 502 });
-  const body = await res.json() as { items?: { id: string; summary?: string; status?: string; htmlLink?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }[] };
+  const body = await res.json() as { items?: { id: string; summary?: string; status?: string; htmlLink?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }; extendedProperties?: { private?: Record<string, string> } }[] };
   const events = (body.items ?? [])
+    // LC events the app put in their calendar already show as LC events: skip the copies.
+    .filter((e) => !e.extendedProperties?.private?.lcEventId)
     .filter((e) => e.status !== "cancelled" && (e.start?.dateTime || e.start?.date))
     .map((e) => ({
       id: e.id, title: e.summary || "(busy)", allDay: !e.start?.dateTime,
