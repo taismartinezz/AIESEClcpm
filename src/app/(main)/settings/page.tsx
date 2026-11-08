@@ -454,7 +454,7 @@ export default function SettingsPage() {
       </h1>
       <div role="tablist" aria-label="Settings" style={{ display: "flex", flexWrap: "wrap", gap: 4, borderBottom: "1px solid var(--color-border)", marginBottom: 20 }}>
         {settingsTabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id}
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} data-tab={t.id}
             onClick={() => { setTab(t.id); try { history.replaceState(null, "", t.id === "profile" ? location.pathname : `#${t.id}`); } catch { /* ignore */ } }}
             style={{ padding: "8px 12px", fontSize: 13, fontWeight: tab === t.id ? 700 : 500, whiteSpace: "nowrap", background: "none", border: "none", cursor: "pointer",
               color: tab === t.id ? "var(--color-navy)" : "var(--color-secondary)", borderBottom: `2px solid ${tab === t.id ? "var(--color-navy)" : "transparent"}`, marginBottom: -1, fontFamily: "inherit" }}>
