@@ -208,6 +208,10 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
   const [editingTargets, setEditingTargets] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [savingTargets, setSavingTargets] = useState(false);
+  const [teamVersion, setTeamVersion] = useState(0);
+  const team = useMcTeam(mc.id, teamVersion);
+  // A handover or someone leaving changes who is MCP: reload the team and the MC.
+  const teamChanged = () => { setTeamVersion((v) => v + 1); onChanged(); };
 
   useEffect(() => {
     let cancelled = false;
@@ -354,6 +358,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
+      <HandoverBanner mc={mc} team={team} onChanged={teamChanged} />
       {/* Until LCs link, the codes are the next step; after that, what needs attention comes first. */}
       {loaded && lcs.length === 0 && <McCodes mc={mc} prominent onChanged={onChanged} />}
       {attention.length > 0 && (
@@ -466,6 +471,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
       <McTemplateReview lcNames={Object.fromEntries(lcs.map((l) => [l.id, l.name]))} />
       <LinkStatus mc={mc} version={version} />
       {!(loaded && lcs.length === 0) && <McCodes mc={mc} prominent={false} onChanged={onChanged} />}
+      <McTeam mc={mc} team={team} onChanged={teamChanged} />
     </div>
   );
 }
@@ -886,6 +892,146 @@ function MessagesPanel({ mc, lcs, version, onSent }: { mc: Mc; lcs: { id: string
             ))}
           </ul>
         )}
+      </div>
+    </Panel>
+  );
+}
+
+// ── The national team, and handing the MC over to the next MCP ───────────────
+
+interface TeamMember { user_id: string; name: string; role: "mcp" | "member"; joined_at: string; is_me: boolean; handover_pending: boolean }
+
+/** People on the MC. null until loaded, or before migration 20261108004 (no mc_team): then the team panel stays hidden. */
+function useMcTeam(mcId: string, version: number) {
+  const [team, setTeam] = useState<TeamMember[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("mc_team", { p_mc_id: mcId });
+      if (!cancelled) setTeam(error ? null : ((data ?? []) as TeamMember[]));
+    })();
+    return () => { cancelled = true; };
+  }, [mcId, version]);
+  return team;
+}
+
+async function runRpc(name: string, args: Record<string, unknown>) {
+  const { error } = await supabase.rpc(name, args);
+  if (error) throw new Error(error.message);
+}
+
+/** Shown to the person the MCP chose: accept or decline becoming MCP. */
+function HandoverBanner({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const me = team?.find((m) => m.is_me);
+  if (!me?.handover_pending) return null;
+  const mcp = team?.find((m) => m.role === "mcp");
+
+  async function act(accept: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      await runRpc(accept ? "accept_mcp_handover" : "cancel_mcp_handover", { p_mc_id: mc.id });
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't ${accept ? "accept" : "decline"}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-label="MCP handover" style={{ border: "1px solid var(--color-navy)", borderRadius: 10, padding: 14, backgroundColor: "var(--color-navy-dim)" }}>
+      <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px", color: "var(--color-navy)" }}>
+        {mcp ? `${mcp.name} is handing ${mc.name} over to you` : `You've been chosen as the next MCP of ${mc.name}`}
+      </p>
+      <p style={{ fontSize: 13, color: "var(--color-body)", margin: "0 0 10px", lineHeight: 1.5 }}>
+        As MCP you manage the codes, the linked LCs and the national team. {mcp ? `${mcp.name} stays on the MC as a member until they leave.` : ""}
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button onClick={() => act(true)} disabled={busy}>Become MCP</Button>
+        <Button variant="secondary" onClick={() => act(false)} disabled={busy}>Decline</Button>
+      </div>
+      <ErrorText>{error}</ErrorText>
+    </section>
+  );
+}
+
+/** The national team: who's on it, and (for the MCP) handover, removing people and a new member code. */
+function McTeam({ mc, team, onChanged }: { mc: Mc; team: TeamMember[] | null; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!team) return null;
+  const pending = team.find((m) => m.handover_pending);
+
+  async function run(what: string, fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      onChanged();
+    } catch (e) {
+      setError(`Couldn't ${what}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function makeMcp(m: TeamMember) {
+    if (!(await askConfirm(`Hand ${mc.name} over to ${m.name}? They become MCP once they accept, and you stay on the MC as a member until you leave.`, { confirmLabel: "Hand over" }))) return;
+    await run("hand the MC over", () => runRpc("offer_mcp_handover", { p_mc_id: mc.id, p_to: m.user_id }));
+  }
+  async function remove(m: TeamMember) {
+    const self = m.is_me;
+    if (!(await askConfirm(self
+      ? `Leave ${mc.name}? You'll stop seeing the national view. You can join again with the member code.`
+      : `Remove ${m.name} from ${mc.name}? They can join again with the member code, unless you make a new one.`, { confirmLabel: self ? "Leave" : "Remove" }))) return;
+    await run(self ? "leave the MC" : `remove ${m.name}`, async () => {
+      const { error: err } = await supabase.from("mc_members").delete().eq("mc_id", mc.id).eq("user_id", m.user_id);
+      if (err) throw new Error(err.message);
+    });
+  }
+  async function newCode() {
+    if (!(await askConfirm("Make a new member code? The old one stops working, so last term's team can't rejoin with it. People already on the MC stay.", { confirmLabel: "New code" }))) return;
+    await run("make a new member code", () => runRpc("new_mc_member_code", { p_mc_id: mc.id }));
+  }
+
+  const link: React.CSSProperties = { background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" };
+  const badge: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 999, marginLeft: 6 };
+  return (
+    <Panel title={`National team (${team.length})`} action={mc.isMcp ? <Button variant="secondary" onClick={newCode} disabled={busy}>New member code</Button> : undefined}>
+      <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        {mc.isMcp && (
+          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, lineHeight: 1.5 }}>
+            Handing over to next term&apos;s MCP? Send them the member code, then choose <strong>Make MCP</strong> next to their name. They become MCP when they accept; you stay on the team until you leave.
+          </p>
+        )}
+        {pending && !pending.is_me && (
+          <p role="status" style={{ fontSize: 13, margin: 0 }}>
+            Waiting for <strong>{pending.name}</strong> to accept becoming MCP.
+            {mc.isMcp && <> · <button type="button" style={link} disabled={busy} onClick={() => run("cancel the handover", () => runRpc("cancel_mcp_handover", { p_mc_id: mc.id }))}>Cancel handover</button></>}
+          </p>
+        )}
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {team.map((m) => (
+            <li key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid var(--color-border)", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
+                {m.name}{m.is_me && <span style={{ color: "var(--color-secondary)" }}> (you)</span>}
+                {m.role === "mcp" && <span style={{ ...badge, backgroundColor: "var(--color-navy)", color: "white" }}>MCP</span>}
+                {m.handover_pending && <span style={{ ...badge, border: "1px solid var(--color-navy)", color: "var(--color-navy)" }}>Next MCP?</span>}
+              </span>
+              {mc.isMcp && !m.is_me && m.role !== "mcp" && (
+                <>
+                  {!pending && <Button variant="secondary" onClick={() => makeMcp(m)} disabled={busy}>Make MCP</Button>}
+                  <button type="button" style={link} disabled={busy} onClick={() => remove(m)}>Remove</button>
+                </>
+              )}
+              {m.is_me && m.role !== "mcp" && <button type="button" style={link} disabled={busy} onClick={() => remove(m)}>Leave the MC</button>}
+            </li>
+          ))}
+        </ul>
+        <ErrorText>{error}</ErrorText>
       </div>
     </Panel>
   );
