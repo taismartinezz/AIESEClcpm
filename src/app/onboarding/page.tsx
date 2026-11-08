@@ -799,7 +799,8 @@ export default function OnboardingPage() {
       }
     }
 
-    router.push("/profile");
+    // "Go to my workspace": the LC's Dashboard.
+    router.push("/");
   }
 
   if (!sessionReady) return null;

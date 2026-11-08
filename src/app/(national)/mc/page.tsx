@@ -265,7 +265,7 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
               <tbody>
                 {lcs.map((l) => (
                   <tr key={l.id}>
-                    <td style={{ ...td, textAlign: "left" }}><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} members</span></td>
+                    <td style={{ ...td, textAlign: "left" }}><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ fontSize: 11, color: "var(--color-secondary)" }}>{l.members} {l.members === 1 ? "member" : "members"}</span></td>
                     {PRODUCTS.map((p) => <td key={p.code} style={td}>{l.values[p.code]?.[metric] ?? 0}</td>)}
                     <td style={{ ...td, fontWeight: 700 }}>{Object.values(l.values).reduce((s, r) => s + r[metric], 0)}</td>
                     {mc.isMcp && <td style={td}><button type="button" aria-label={`Remove ${l.name}`} onClick={() => removeLc(l.id, l.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><Trash2 size={13} color="var(--color-secondary)" /></button></td>}

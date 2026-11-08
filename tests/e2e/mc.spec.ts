@@ -157,6 +157,16 @@ test.describe('National (MC)', () => {
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mcs') && w.method === 'PATCH')?.body ?? '').toContain('"country_code":"ES"')
   })
 
+  test('the LC table says "1 member", not "1 members"', async ({ page }) => {
+    await setupAuthMocks(page, 'member', {
+      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'member' }] },
+      rpc: { mc_dashboard: [{ project_id: 'lc-1', lc_name: 'Claude Test LC', members: 1, product: 'ogv', applied: 1, approved: 1, realized: 0, completed: 0 }], mc_linked_lcs: [], lcs_in_country: [] },
+    })
+    await page.goto('/mc')
+    await expect(page.getByRole('cell', { name: /Claude Test LC/ })).toContainText('1 member', { timeout: 10000 })
+    await expect(page.getByRole('cell', { name: /Claude Test LC/ })).not.toContainText('1 members')
+  })
+
   test('the tab is titled with the MC name, and Change can be cancelled', async ({ page }) => {
     await setupAuthMocks(page, 'member', {
       tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
