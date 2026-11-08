@@ -14,6 +14,7 @@ import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
 import { copyText } from "@/lib/clipboard";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { APP_NAME } from "@/lib/brand";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
@@ -25,11 +26,11 @@ export default function McPage() {
   const { mcs, loaded, error: mcError } = useMcs(version);
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
+  // The tab shows the MC's name ("AIESEC in Portugal · LC Manager").
+  useDocumentTitle(`${mc?.name ?? "National"} · ${APP_NAME}`);
 
   return (
     <div className="flex flex-col h-full">
-      {/* The tab shows the MC's name ("AIESEC in Portugal · LC Manager"). */}
-      {mc && <title>{`${mc.name} · ${APP_NAME}`}</title>}
       <PageHeader title={mc?.name ?? "National (MC)"} subtitle={mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>

@@ -15,6 +15,7 @@ import { computeInitials } from "@/lib/utils";
 import type { User, SubProject, UserRole } from "@/types";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import WhatsNew from "@/components/ui/WhatsNew";
 import { getStoredProject, getStoredUser } from "@/lib/mock-data";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -758,10 +759,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.replace(myMcs.length > 0 ? "/mc" : "/onboarding");
   }, [authed, lcLoading, mcsLoaded, lcs.length, myMcs.length, router]);
 
-  useEffect(() => {
-    const title = pageTitle(pathname);
-    document.title = title ? `${title} · ${APP_NAME}` : APP_NAME;
-  }, [pathname]);
+  const navTitle = pageTitle(pathname);
+  useDocumentTitle(navTitle ? `${navTitle} · ${APP_NAME}` : APP_NAME);
   const [profile, setProfile] = useState<UserProfileRecord | null>(null);
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [notifications, setNotifications] = useState<SupabaseNotif[]>([]);
