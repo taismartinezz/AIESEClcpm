@@ -94,4 +94,17 @@ test.describe('Moderator sign-in at /moderators', () => {
     await page.getByRole('button', { name: 'Continue with email' }).click()
     await expect(page).toHaveURL(/\/onboarding/, { timeout: 15000 })
   })
+
+  test('says why sign-in failed: a wrong password, or an email that isn\'t confirmed', async ({ page }) => {
+    await mockSupabase(page, true)
+    let reply = { code: 'invalid_credentials', msg: 'Invalid login credentials' }
+    await page.route('**/auth/v1/token**', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ code: 400, error_code: reply.code, msg: reply.msg }) }))
+    await page.goto('/moderators')
+    await signIn(page)
+    await expect(page.getByText('Wrong email or password.')).toBeVisible()
+    reply = { code: 'email_not_confirmed', msg: 'Email not confirmed' }
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page.getByText(/isn't confirmed yet/)).toBeVisible()
+    await expect(page).toHaveURL(/\/moderators$/)
+  })
 })
