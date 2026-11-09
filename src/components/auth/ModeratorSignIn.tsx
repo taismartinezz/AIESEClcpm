@@ -9,6 +9,19 @@ import BrandLogo from "@/components/ui/BrandLogo";
 const NOT_A_MODERATOR = "This account isn't a moderator.";
 
 /**
+ * Supabase's reason, in plain words. Wrong passwords and unknown emails get
+ * the same answer; the rest (unconfirmed email, too many tries, the server)
+ * only show up after a right password or say nothing about the account.
+ */
+function signInError(err: { message: string; code?: string; status?: number }): string {
+  const code = err.code ?? "";
+  if (code === "invalid_credentials" || /invalid login credentials/i.test(err.message)) return "Wrong email or password.";
+  if (code === "email_not_confirmed" || /not confirmed/i.test(err.message)) return "This email isn't confirmed yet. Confirm it in Supabase (Authentication → Users), then try again.";
+  if (code === "over_request_rate_limit" || err.status === 429) return "Too many tries. Wait a minute and try again.";
+  return `Couldn't sign in: ${err.message}`;
+}
+
+/**
  * /moderators: email and password only (accounts made in Supabase →
  * Authentication), no EXPA or Google. Anyone who isn't a moderator is signed
  * straight out again; wrong passwords and non-moderators get the same kind of
@@ -39,7 +52,7 @@ export default function ModeratorSignIn() {
     setError("");
     setNotice("");
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (err) { setError("Wrong email or password."); setLoading(false); return; }
+    if (err) { setError(signInError(err)); setLoading(false); return; }
     if (await isAppModerator()) { router.replace("/moderation"); return; }
     await supabase.auth.signOut();
     setPassword("");
