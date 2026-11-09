@@ -14,6 +14,7 @@ import { countryByCode } from "@/lib/aiesecCountries";
 import { countryFromMc, isLcPresident, lcDisplayName, type ExpaProfile } from "@/lib/expa-profile";
 import { lcNameKey } from "@/lib/lcNames";
 import BrandLogo from "@/components/ui/BrandLogo";
+import { isAppModerator } from "@/lib/postAuthRedirect";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -556,6 +557,12 @@ export default function OnboardingPage() {
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/login"); return; }
+
+      // Moderators need no LC: their home is /moderation (unless they chose to add an LC).
+      if (!new URLSearchParams(window.location.search).has("add") && await isAppModerator()) {
+        router.replace("/moderation");
+        return;
+      }
 
       // Pre-fill invite code if the member arrived via an invite link
       const pendingInvite = localStorage.getItem("pendingInviteCode");

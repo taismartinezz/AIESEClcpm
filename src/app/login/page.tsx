@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Globe } from "lucide-react";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import BrandLogo from "@/components/ui/BrandLogo";
+import { isAppModerator } from "@/lib/postAuthRedirect";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -297,6 +298,7 @@ export default function LoginPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) { setChecking(false); return; }
       try {
+        if (await isAppModerator()) { router.replace("/moderation"); return; }
         const { data: member, error: memberError } = await supabase
           .from("team_members").select("id").eq("user_id", session.user.id).limit(1).maybeSingle();
         if (memberError) { setChecking(false); return; }
@@ -385,6 +387,7 @@ export default function LoginPage() {
         return;
       }
 
+      if (await isAppModerator()) { router.push("/moderation"); return; }
       const { data: member, error: memberError } = await supabase
         .from("team_members").select("id").eq("user_id", user.id).limit(1).maybeSingle();
       if (memberError) { setFormError(`Signed in, but couldn't load your LC: ${memberError.message}`); setLoading(false); return; }

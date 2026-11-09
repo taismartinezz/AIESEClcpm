@@ -8,6 +8,7 @@ import { askConfirm } from "@/components/ui/confirm";
 import { Button } from "@/components/lc/ui";
 import { formatDay } from "@/lib/dates";
 import { APP_NAME } from "@/lib/brand";
+import { isAppModerator } from "@/lib/postAuthRedirect";
 
 interface Status { expa_name: string | null; home_lc_name: string | null; last_synced_at: string | null }
 interface SyncResult { lc: string | null; inserted: number; updated: number; failed: number; skipped: number; errors: string[] }
@@ -20,6 +21,8 @@ export default function ExpaSync({ projectId, onSynced }: { projectId: string; o
   const [status, setStatus] = useState<Status | null | undefined>(undefined);   // undefined = loading, null = not connected
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  // Moderators don't use EXPA: no Connect EXPA for them (sync still shows if they connected anyway).
+  const [moderator, setModerator] = useState(false);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -31,9 +34,10 @@ export default function ExpaSync({ projectId, onSynced }: { projectId: string; o
         ? { text: "EXPA is connected. Press Sync from EXPA to bring in your LC's applications." }
         : { text: `Couldn't connect EXPA: ${q.get("reason") ?? "unknown error"}`, error: true });
     }
-    supabase.rpc("expa_status").then(({ data, error }) => {
+    Promise.all([supabase.rpc("expa_status"), isAppModerator()]).then(([{ data, error }, moderator]) => {
       // Before the EXPA migration runs, the function is missing: show Connect, which explains itself.
       setStatus(error ? null : ((data as Status[] | null)?.[0] ?? null));
+      setModerator(moderator);
     });
   }, []);
 
@@ -77,7 +81,7 @@ export default function ExpaSync({ projectId, onSynced }: { projectId: string; o
     setMessage({ text: "EXPA is disconnected." });
   }
 
-  if (status === undefined) return null;
+  if (status === undefined || (moderator && !status)) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
       {status ? (
