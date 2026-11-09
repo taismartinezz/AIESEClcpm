@@ -34,6 +34,7 @@ import { UndoToastProvider } from "@/context/UndoToastContext";
 import KeyboardShortcutsModal from "@/components/ui/KeyboardShortcutsModal";
 import ChatDock from "@/components/chat/ChatDock";
 import BrandLogo from "@/components/ui/BrandLogo";
+import { isAppModerator } from "@/lib/postAuthRedirect";
 
 function contrastTextColor(hex: string): "#000000" | "#ffffff" {
   if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return "#ffffff";
@@ -756,11 +757,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
 
   // Someone in no LC has nothing to see here: the national view if they're on
-  // an MC, otherwise onboarding. (Not the "??" shell with empty LC pages.)
+  // an MC, the moderation page if they moderate the app, otherwise onboarding. (Not the "??" shell with empty LC pages.)
   useEffect(() => {
     if (!authed || !isSupabaseConfigured || isPreview || lcLoading || !mcsLoaded || lcs.length > 0) return;
     try { localStorage.removeItem("aiesec_project"); } catch { /* storage blocked */ }
-    router.replace(myMcs.length > 0 ? "/mc" : "/onboarding");
+    if (myMcs.length > 0) { router.replace("/mc"); return; }
+    isAppModerator().then((mod) => router.replace(mod ? "/moderation" : "/onboarding"));
   }, [authed, lcLoading, mcsLoaded, lcs.length, myMcs.length, router]);
 
   const navTitle = pageTitle(pathname);
