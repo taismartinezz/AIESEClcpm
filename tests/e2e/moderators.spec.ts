@@ -107,4 +107,17 @@ test.describe('Moderator sign-in at /moderators', () => {
     await expect(page.getByText(/isn't confirmed yet/)).toBeVisible()
     await expect(page).toHaveURL(/\/moderators$/)
   })
+
+  test('a missing moderator check says so instead of "not a moderator"', async ({ page }) => {
+    await mockSupabase(page, true)
+    await page.route('**/rest/v1/rpc/is_app_moderator**', (route) => route.fulfill({
+      status: 404, contentType: 'application/json',
+      body: JSON.stringify({ code: 'PGRST202', message: 'Could not find the function public.is_app_moderator without parameters in the schema cache' }),
+    }))
+    await page.goto('/moderators')
+    await signIn(page)
+    await expect(page.getByText(/couldn't check moderator access: Could not find the function/)).toBeVisible()
+    await expect(page.getByText("This account isn't a moderator.")).toHaveCount(0)
+    await expect(page).toHaveURL(/\/moderators$/)
+  })
 })

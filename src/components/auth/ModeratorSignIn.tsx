@@ -53,10 +53,15 @@ export default function ModeratorSignIn() {
     setNotice("");
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (err) { setError(signInError(err)); setLoading(false); return; }
-    if (await isAppModerator()) { router.replace("/moderation"); return; }
+    // Asked directly, so a missing is_app_moderator() (migration 073 not run
+    // in this project) isn't mistaken for "not a moderator".
+    const { data: moderator, error: checkErr } = await supabase.rpc("is_app_moderator");
+    if (moderator === true) { router.replace("/moderation"); return; }
     await supabase.auth.signOut();
     setPassword("");
-    setError(NOT_A_MODERATOR);
+    setError(checkErr
+      ? `Signed in, but couldn't check moderator access: ${checkErr.message}. Run migration 20261108010_helper_requests.sql in Supabase, then try again.`
+      : NOT_A_MODERATOR);
     setLoading(false);
   }
 
