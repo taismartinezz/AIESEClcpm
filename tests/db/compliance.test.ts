@@ -24,10 +24,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("membership criteria", () => {
-  it("come in one call for the LC's execs: balance, approvals, meetings and what they set", async () => {
+  it("come in one call for the LCP: balance, approvals, meetings and what they set", async () => {
     await asUserCommit(db, u.pres, () => db.query("insert into lc_compliance_info (project_id, boa_members, university_affiliated) values ($1, 2, true)", [lc.id]));
     await asUserCommit(db, u.vp, () => db.query("insert into lc_compliance_checks (project_id, kind, month, done_on) values ($1, 'sona', '2026-11-01', '2026-10-31')", [lc.id]));
-    const r = await asUser(db, u.vp, async (tx) => (await tx.query<Record<string, unknown>>("select * from lc_compliance($1)", [lc.id])).rows[0]);
+    const r = await asUser(db, u.pres, async (tx) => (await tx.query<Record<string, unknown>>("select * from lc_compliance($1)", [lc.id])).rows[0]);
+    expect(await asUser(db, u.vp, async tx => (await tx.query("select * from lc_compliance($1)", [lc.id])).rows)).toEqual([]);
     expect(Number(r.balance)).toBe(120);                  // the opening balance adds, the expense subtracts
     expect(r.approvals_12m).toBe(1);                      // outgoing, last 12 months only
     expect(r.meetings_12m).toBe(1);

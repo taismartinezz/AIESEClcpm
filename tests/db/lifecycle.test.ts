@@ -32,9 +32,9 @@ describe("recruitment", () => {
 });
 
 describe("onboarding", () => {
-  it("seeds five steps; members tick their own, their VP can tick theirs, other VPs cannot", async () => {
+  it("seeds four steps without requiring a check-in; members tick their own, their VP can tick theirs, other VPs cannot", async () => {
     const { rows: steps } = await db.query<{ id: string }>("select id from onboarding_steps where project_id = $1 order by sort_order", [lc.id]);
-    expect(steps).toHaveLength(5);
+    expect(steps).toHaveLength(4);
     const tick = (who: string, member: string) => asUser(db, u[who], (tx) =>
       tx.query("insert into member_onboarding (project_id, user_id, step_id) values ($1, $2, $3)", [lc.id, u[member], steps[0].id]));
     await expect(tick("tom", "tom")).resolves.toBeTruthy();

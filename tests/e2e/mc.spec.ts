@@ -293,7 +293,7 @@ test.describe('National goals and pace', () => {
     },
   })
 
-  test('targets show as "actual / target (pct%)" with a pace badge; the source of each LC\'s numbers is shown', async ({ page }) => {
+  test('targets show as "actual / target (pct%)" with a pace badge and no private activity metadata', async ({ page }) => {
     await setupAuthMocks(page, 'member', mcOptions([
       { project_id: 'lc-1', product: 'ogv', metric: 'approved', target: 30 },
       { project_id: 'lc-2', product: 'ogv', metric: 'approved', target: 30 },
@@ -302,11 +302,11 @@ test.describe('National goals and pace', () => {
     const lisbon = page.getByRole('row', { name: /AIESEC in Lisbon/ })
     await expect(lisbon).toContainText('15 / 30 (50%)', { timeout: 10000 })
     await expect(lisbon).toContainText('On track')
-    await expect(lisbon).toContainText(/EXPA sync today/)
+    await expect(lisbon).not.toContainText(/EXPA sync today/)
     const porto = page.getByRole('row', { name: /AIESEC in Porto/ })
     await expect(porto).toContainText('3 / 30 (10%)')
     await expect(porto).toContainText('Behind')
-    await expect(porto).toContainText('entered by hand')
+    await expect(porto).not.toContainText('entered by hand')
   })
 
   test('"Needs attention" lists what an MCVP should act on, with counts only', async ({ page }) => {
@@ -314,35 +314,24 @@ test.describe('National goals and pace', () => {
     await page.goto('/mc')
     const panel = page.locator('section', { has: page.getByRole('heading', { name: /Needs attention \(1\)/ }) })
     await expect(panel).toContainText('AIESEC in Porto', { timeout: 10000 })
-    await expect(panel).toContainText(/No approvals in 4[4-6] days/)   // ±1 for time zones
-    await expect(panel).toContainText('2 approved 60+ days ago, not realized yet')
-    await expect(panel).toContainText(/Pipeline not updated in (39|40|41) days/)
+    await expect(panel).not.toContainText(/No approvals in 4[4-6] days/)   // ±1 for time zones
+    await expect(panel).not.toContainText('2 approved 60+ days ago, not realized yet')
+    await expect(panel).not.toContainText(/Pipeline not updated in (39|40|41) days/)
     await expect(panel).toContainText('Applied → approved 8% (national 23%)')
     await expect(panel).toContainText(/Behind pace: 3 \/ 30 approvals/)
     await expect(panel).not.toContainText('AIESEC in Lisbon')
   })
 
-  test('trends, the funnel with what to coach on, and team numbers EXPA cannot show', async ({ page }) => {
-    const insight = (id: string, over: Record<string, unknown>) => ({
-      project_id: id, weekly: [0, 1, 0, 2, 1, 0, 3, 1, 2, 0, 1, 4], last_term_to_date: 10,
-      applied: 50, accepted: 30, approved: 15, realized: 12, completed: 5,
-      members: 20, joined_term: 6, term_ended: 2, active_14d: 15, handover_due: 5, handover_written: 3, recruits_term: 12, recruits_joined: 6, ...over,
-    })
+  test('legacy private team and activity RPCs are neither called nor displayed', async ({ page }) => {
     const options = mcOptions([])
-    await setupAuthMocks(page, 'member', { ...options, rpc: { ...options.rpc, mc_lc_insights: [
-      insight('lc-1', { approved: 15 }),
-      insight('lc-2', { approved: 3, accepted: 30, last_term_to_date: 8, active_14d: 2 }),
-    ] } })
+    await setupAuthMocks(page, 'member', { ...options, rpc: { ...options.rpc, mc_lc_insights: [{ project_id: 'lc-1', active_14d: 15, handover_written: 3 }] } })
+    await intercept(page)
     await page.goto('/mc')
-    await expect(page.getByRole('img', { name: /AIESEC in Lisbon: approvals per week/ })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('row', { name: /AIESEC in Lisbon/ }).first()).toContainText('+5 vs last term')
-    await expect(page.getByRole('row', { name: /AIESEC in Porto/ }).first()).toContainText('−5 vs last term')
-    const funnel = page.locator('section', { has: page.getByRole('heading', { name: 'Where each LC loses people' }) })
-    await expect(funnel.getByRole('row', { name: /AIESEC in Porto/ })).toContainText('sales')
-    await expect(funnel.getByRole('row', { name: /AIESEC in Lisbon/ })).not.toContainText('sales')
-    const team = page.locator('section', { has: page.getByRole('heading', { name: 'Beyond exchanges' }) })
-    await expect(team.getByRole('row', { name: /AIESEC in Lisbon/ })).toContainText('3 / 5')
-    await expect(team.getByRole('row', { name: /AIESEC in Porto/ })).toContainText('2 (10%)')
+    await expect(page.getByRole('row', { name: /AIESEC in Lisbon/ }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'Beyond exchanges' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Where each LC loses people' })).toHaveCount(0)
+    await expect(page.getByRole('img', { name: /approvals per week/ })).toHaveCount(0)
+    expect((await writes(page)).some(w => /mc_lc_health|mc_lc_insights/.test(w.url))).toBe(false)
   })
 
   test('the MC sends an announcement to every LC, and a reminder to an LC that needs attention', async ({ page }) => {
@@ -360,7 +349,7 @@ test.describe('National goals and pace', () => {
     await expect(panel.getByText('Reminder sent')).toBeVisible()
     const nudge = (await writes(page)).filter((w) => w.url.includes('/rest/v1/mc_messages')).map((w) => w.body).find((b) => b.includes('"kind":"nudge"')) ?? ''
     expect(nudge).toContain('"project_id":"lc-2"')
-    expect(nudge).toContain('Pipeline not updated in')
+    expect(nudge).toContain('Applied → approved')
   })
 
   test('an MC member sets targets for the term', async ({ page }) => {
@@ -391,45 +380,21 @@ test.describe('National goals and pace', () => {
     fin('3', 'lc-ch', 'lc', 'expense', 250, 'Conference fees'),
   ]
 
-  test('finance: the MCP sees every LC at a glance, read-only, and opens one LC as its statement', async ({ page }) => {
-    await setupAuthMocks(page, 'member', {
-      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }], finance_entries: FIN_ENTRIES },
-      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
+  for (const nationalRole of ['mcp', 'vp_finance']) {
+    test(`finance: ${nationalRole} has counts only and no LC ledger view`, async ({ page }) => {
+      await setupAuthMocks(page, 'member', {
+        tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: nationalRole }], finance_entries: FIN_ENTRIES },
+        rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
+      })
+      await intercept(page)
+      await page.goto('/mc')
+      await expect(page.getByText('LC code, for LC presidents')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0)
+      await expect(page.getByText('Northwestern reimbursement')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Add transaction' })).toHaveCount(0)
+      expect((await writes(page)).some(w => w.url.includes('/rpc/mc_finance_lcs'))).toBe(false)
     })
-    await page.goto('/mc')
-    await page.getByRole('tab', { name: 'Finance' }).click({ timeout: 10000 })
-    await expect(page.getByText('Read-only: your VP Finance keeps the books.')).toBeVisible()
-    await expect(page.getByText("Every LC's balance")).toBeVisible()
-    await expect(page.getByRole('button', { name: /AIESEC in Northwestern: \$1,401.16/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /AIESEC in Chicago: -\$250.00 \(below zero\)/ })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'Not used' })).toBeVisible()               // Chicago has no university money
-    await page.getByRole('tab', { name: /University money/ }).click()
-    await expect(page.getByRole('button', { name: /AIESEC in Northwestern: \$1,117.43/ })).toBeVisible()
-    await page.getByRole('tab', { name: 'LC accounts' }).click()
-    await page.getByRole('button', { name: 'AIESEC in Northwestern', exact: true }).click()
-    const statement = page.getByRole('region', { name: 'AIESEC in Northwestern: Account statement' })
-    await expect(statement).toContainText('$1,401.16')
-    await expect(statement.getByRole('button', { name: 'Add transaction' })).toHaveCount(0)
-    await page.getByRole('tab', { name: 'University money' }).click()
-    await expect(page.getByRole('region', { name: 'AIESEC in Northwestern: University money' })).toContainText('Northwestern reimbursement')
-  })
-
-  test('finance: the VP Finance keeps the books from the national view', async ({ page }) => {
-    await setupAuthMocks(page, 'member', {
-      tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'vp_finance' }], finance_entries: FIN_ENTRIES },
-      rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
-    })
-    await page.goto('/mc')
-    await page.getByRole('tab', { name: 'Finance' }).click({ timeout: 10000 })
-    await expect(page.getByText('You keep the books')).toBeVisible()
-    await page.getByRole('button', { name: /AIESEC in Chicago: / }).click()
-    const statement = page.getByRole('region', { name: 'AIESEC in Chicago: Account statement' })
-    await expect(statement.getByRole('button', { name: 'Mark reviewed today' })).toBeVisible()
-    await statement.getByRole('button', { name: 'Add transaction' }).click()
-    await expect(page.getByRole('dialog', { name: 'Add a transaction' })).toBeVisible()
-    await expect(page.getByRole('radio', { name: 'Opening balance' })).toBeVisible()
-    await expect(page.getByLabel('Processed on')).toBeVisible()
-  })
+  }
 
   test('finance: other MC members have no Finance tab; the MCP can name a VP Finance', async ({ page }) => {
     await setupAuthMocks(page, 'member', {

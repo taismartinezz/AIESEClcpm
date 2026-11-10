@@ -24,14 +24,14 @@ const history = (who: string, id: string) => asUser(db, u[who], async (tx) =>
 
 describe("exchange history", () => {
   it("records creation, stage changes and owner changes, with who made them", async () => {
-    const id = await asUserCommit(db, u.otto, async () => (await db.query<{ id: string }>(
-      "insert into exchanges (project_id, product, person_name, created_by) values ($1, 'ogv', 'Ana', $2) returning id", [lc.id, u.otto])).rows[0].id);
+    const id = await asUserCommit(db, u.olga, async () => (await db.query<{ id: string }>(
+      "insert into exchanges (project_id, product, person_name, created_by) values ($1, 'ogv', 'Ana', $2) returning id", [lc.id, u.olga])).rows[0].id);
     await asUserCommit(db, u.olga, () => db.query("update exchanges set stage = 'applied', owner_id = $2 where id = $1", [id, u.otto]));
     await asUserCommit(db, u.olga, () => db.query("update exchanges set notes = 'called' where id = $1", [id]));
 
     const rows = await history("olga", id);
     expect(rows).toEqual(expect.arrayContaining([
-      { kind: "created", from_value: null, to_value: "signed_up", changed_by: u.otto },
+      { kind: "created", from_value: null, to_value: "signed_up", changed_by: u.olga },
       { kind: "stage", from_value: "signed_up", to_value: "applied", changed_by: u.olga },
       { kind: "owner", from_value: null, to_value: u.otto, changed_by: u.olga },
     ]));

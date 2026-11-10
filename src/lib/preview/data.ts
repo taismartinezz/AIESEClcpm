@@ -147,7 +147,7 @@ export function buildPreviewTables(now = new Date(), myName = "Alex Rivera"): Ta
     { id: id(14, 3), name: "Hana Kim", email: "hana@preview.example", source: "Referral", department_id: null, stage: "offer" },
   ].map((r) => ({ ...r, project_id: lc, phone: null, interview_at: null, notes: null, owner_id: null, applied_on: day(now, -5), created_by: me, created_at: iso, updated_at: iso }));
 
-  const onboarding_steps = ["Meet your VP", "Join the LC chat", "Read the LC handbook", "Attend your first LC meeting", "Do your first check-in"]
+  const onboarding_steps = ["Meet your VP", "Join the LC chat", "Read the LC handbook", "Attend your first LC meeting"]
     .map((title, i) => ({ id: id(15, i + 1), project_id: lc, title, description: null, department_id: null, sort_order: i + 1, created_at: iso }));
   const member_onboarding = [{ project_id: lc, user_id: uid(7), step_id: id(15, 1), done_at: iso, done_by: uid(7) }];
 

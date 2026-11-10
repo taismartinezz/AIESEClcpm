@@ -22,7 +22,7 @@ interface Props {
   memberNames: Record<string, string>;
   /** Finance lead: full ledger + editing. Otherwise a VP's department-only view. */
   canEdit: boolean;
-  /** Whether they may add, edit and delete entries. Defaults to canEdit. The LC account is kept by the MC VP Finance, so the LC reads it. */
+  /** Whether they may add, edit and delete entries. The LC president records manual entries. */
   canWrite?: boolean;
   onChanged: () => void;
 }

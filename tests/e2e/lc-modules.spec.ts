@@ -38,9 +38,8 @@ test.describe('Finance page', () => {
     await expect(page.getByRole('tab', { name: 'Overview & ledger' })).toHaveAttribute('aria-selected', 'true', { timeout: 10000 })
     await expect(page.getByText('Current balance')).toBeVisible()
     await expect(page.getByRole('button', { name: /csv/i })).toBeEnabled()
-    // The LC account is kept by the MC VP Finance (as in the National Finance Tracker): the LC reads it.
-    await expect(page.getByRole('button', { name: /add entry/i })).toHaveCount(0)
-    await expect(page.getByRole('note')).toContainText("Your MC's VP Finance keeps this account")
+    // The LCP keeps the LC ledger; national roles do not see its details.
+    await expect(page.getByRole('button', { name: /add entry/i })).toBeEnabled()
   })
 
   test('the president turns on university money, then keeps it in its own statement', async ({ page }) => {
