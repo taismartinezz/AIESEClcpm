@@ -88,17 +88,21 @@ function pageTitle(pathname: string): string {
 }
 
 const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/chat", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  member:    ["/", "/tasks", "/reminders", "/scheduling", "/team", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
 };
+
+// Never under "More": National is in the main list for MC members only, and
+// Chat opens from the top bar (with its unread count).
+const NOT_IN_MORE = ["/mc", "/chat"];
 
 function useNavGroups(): NavGroup[] {
   const { mcs } = useMcs();
   const { role } = useProject();
   // People on an MC also get the National view in the main list.
   const primary = [...(PRIMARY[role ?? "member"] ?? PRIMARY.member), ...(mcs.length > 0 ? ["/mc"] : [])];
-  const rest = Object.keys(NAV).filter((href) => !primary.includes(href) && href !== "/mc");
+  const rest = Object.keys(NAV).filter((href) => !primary.includes(href) && !NOT_IN_MORE.includes(href));
   // No "More" for a single leftover item: that's just an extra click.
   return [
     { id: "main", label: null, items: primary.map((h) => NAV[h]) },
@@ -1239,17 +1243,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           {/* Mobile wordmark + logo */}
-          <div className="md:hidden flex items-center gap-2">
+          {/* Narrow phones get just the logo: the name would run under the buttons. */}
+          <div className="md:hidden flex items-center gap-2 min-w-0">
             <BrandLogo size={24} />
-            <span style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)" }}>
+            <span className="hidden min-[440px]:inline" style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)", whiteSpace: "nowrap" }}>
               {APP_NAME}
             </span>
           </div>
 
           {/* Desktop: breadcrumb - "LC" or "LC / Group" */}
-          <div className="hidden md:flex items-center gap-1.5 min-w-0">
+          <div className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
             {project?.name && activeScope !== "personal" && (
-              <Link href="/" style={{ fontSize: 12, color: "var(--color-secondary)", whiteSpace: "nowrap", textDecoration: "none" }}
+              <Link href="/" title={project.name} style={{ fontSize: 12, color: "var(--color-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, textDecoration: "none" }}
                 className="transition-colors hover:text-[var(--color-body)] hover:underline">
                 {project.name}
               </Link>
@@ -1268,34 +1273,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })()}
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             {/* The helper: "where do I…?", or a feature request when the app can't */}
             <Helper role={lcRole ?? null} projectId={projectId} />
             {/* Global search button */}
             <Tooltip label="Search (⌘K)" placement="bottom">
               <button
                 onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
-                className="hidden sm:flex items-center gap-2 px-3 rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
-                style={{ height: 34, fontSize: 12, color: "var(--color-secondary)", border: "1px solid var(--color-border)", backgroundColor: "var(--color-canvas)" }}
+                className="hidden sm:flex items-center gap-2 px-3 transition-colors hover:bg-[var(--color-navy-dim)]"
+                style={{ height: 34, borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", cursor: "pointer" }}
                 aria-label="Open search"
               >
-                <Search size={13} />
+                <Search size={15} />
                 <span>Search</span>
                 <kbd style={{ fontSize: 10, fontFamily: "monospace", backgroundColor: "var(--color-strip)", borderRadius: 4, padding: "1px 5px", color: "var(--color-secondary)", marginLeft: 2 }}>⌘K</kbd>
               </button>
             </Tooltip>
-
-            {/* Institution badge - navigates to team page */}
-            {project?.institution && (
-              <Tooltip label="View LC team" placement="bottom">
-                <Link href="/team" aria-label={`View ${project.institution} team`}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 shrink-0 transition-opacity hover:opacity-80"
-                  style={{ backgroundColor: "var(--color-btn-primary)", color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none" }}>
-                  {project.institution}
-                  <Users size={11} style={{ opacity: 0.7, flexShrink: 0 }} />
-                </Link>
-              </Tooltip>
-            )}
 
             {/* Search on phones (the wide search box is hidden there). */}
             <button type="button" aria-label="Search"

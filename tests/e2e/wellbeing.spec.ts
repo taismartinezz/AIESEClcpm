@@ -87,9 +87,14 @@ test.describe('Wellbeing on the dashboard', () => {
     await page.goto('/checkin')
     await expect(page.getByRole('heading', { name: 'Check-in' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/Your VP and LCP see the average for your department, never your individual answers/)).toBeVisible()
-    const submit = page.getByRole('button', { name: 'Submit check-in' })
+    await expect(page.getByText('Over the last two weeks…')).toBeVisible()
+    // The scale is labelled once, not under every question.
+    await expect(page.getByText('Strongly disagree', { exact: true })).toHaveCount(1)
+    const submit = page.getByRole('button', { name: 'Submit', exact: true })
     await expect(submit).toBeDisabled()
-    for (const choice of await page.getByRole('button', { name: /^4: Agree$/ }).all()) await choice.click()
+    await expect(page.getByText('0 of 6 answered')).toBeVisible()
+    for (const choice of await page.getByRole('radio', { name: /^4: Agree$/ }).all()) await choice.check()
+    await expect(page.getByText('6 of 6 answered')).toBeVisible()
     await expect(submit).toBeEnabled()
   })
 

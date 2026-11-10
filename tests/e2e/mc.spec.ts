@@ -49,6 +49,8 @@ test.describe('National (MC)', () => {
     await expect(page.getByText(/It will be called/)).toContainText('AIESEC in Portugal')
     await expect(page.getByRole('button', { name: 'Create AIESEC in Portugal' })).toBeEnabled()
     await expect(page.getByText(/Ask your MCP for the member code/).first()).toBeVisible()
+    await page.getByLabel('MC member code').fill('ABC123')
+    await expect(join).toBeEnabled()
     expect(await join.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await create.evaluate((el) => getComputedStyle(el).backgroundColor))
   })
 

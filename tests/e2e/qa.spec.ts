@@ -164,12 +164,28 @@ test('a member sees a short sidebar, with the rest under More', async ({ page })
   await setupAuthMocks(page, 'member')
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'People', 'Drive', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Calendar', 'People', 'Drive', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
   await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
   await nav.getByRole('button', { name: 'More' }).click()
   await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Check-in' })).toBeVisible()
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections') ?? '[]'))).toContain('more')
+  // Chat opens from the top bar, not from the menu as well.
+  await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0)
+})
+
+test('the top bar: a long LC name stops before the buttons, and no second LC badge', async ({ page }) => {
+  const name = 'AIESEC in Northwestern University of Very Long Names'
+  await setupAuthMocks(page, 'member', { tables: { projects: [{ id: 'project-abc', name, institution: 'Northwestern University', active_prompt_ids: [] }] } })
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto('/')
+  const bar = page.getByRole('banner')
+  const crumb = bar.getByRole('link', { name })
+  await expect(crumb).toBeVisible({ timeout: 10000 })
+  const crumbBox = await crumb.boundingBox()
+  const askBox = await bar.getByRole('button', { name: 'Ask' }).boundingBox()
+  expect(crumbBox!.x + crumbBox!.width).toBeLessThanOrEqual(askBox!.x)
+  await expect(bar.getByText('Northwestern University', { exact: true })).toHaveCount(0)
 })
 
 test('merged sections: one menu item, tabs inside, and the item stays lit on every tab', async ({ page }) => {

@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import CheckinQuestion from "@/components/wellbeing/CheckinQuestion";
+import CheckinGrid from "@/components/wellbeing/CheckinGrid";
 import { Button, ErrorText, Panel } from "@/components/lc/ui";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
-  DEFAULT_CADENCE, activeQuestions, audienceCopy, cadenceLabel, periodEnd, periodStart,
+  DEFAULT_CADENCE, activeQuestions, audienceCopy, checkinLeadIn, periodEnd, periodStart,
   questionText, thisPeriod, type CheckinCadence,
 } from "@/lib/wellbeing";
 import type { CheckinResponse } from "@/types";
@@ -136,12 +136,12 @@ export default function CheckinPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Check-in" subtitle={`${fmt(start)} – ${fmt(end)} · ${cadenceLabel(cadence)} · about a minute`} />
+      <PageHeader title="Check-in" subtitle={`${fmt(start)} – ${fmt(end)}`} />
 
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px) 80px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-          <p style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--color-body)", lineHeight: 1.5, margin: 0, padding: "10px 14px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)" }}>
-            <ShieldCheck size={16} color="var(--color-navy)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+          <p style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.45, margin: 0 }}>
+            <ShieldCheck size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
             {audienceCopy(role)}
           </p>
 
@@ -156,22 +156,18 @@ export default function CheckinPage() {
             <div className="animate-pulse" style={{ height: 320, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
           ) : (
             <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {questions.map((q) => (
-                  <CheckinQuestion
-                    key={q.id}
-                    question={{ id: q.id, text: questionText(q, role) }}
-                    response={answers.find((a) => a.questionId === q.id)}
-                    onScore={(score) => setScore(q.id, score)}
-                  />
-                ))}
-              </div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-body)", margin: 0 }}>{checkinLeadIn(cadence)}</p>
+              <CheckinGrid
+                questions={questions.map((q) => ({ id: q.id, text: questionText(q, role) }))}
+                answers={answers}
+                onScore={setScore}
+              />
 
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <Button onClick={submit} disabled={!complete || saving}>
-                  {saving ? "Saving…" : submittedAt ? "Update my answers" : "Submit check-in"}
+                  {saving ? "Saving…" : submittedAt ? "Update my answers" : "Submit"}
                 </Button>
-                <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>{answered.length} / {questions.length} answered</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: complete ? "var(--color-success)" : "var(--color-body)", fontVariantNumeric: "tabular-nums" }}>{answered.length} of {questions.length} answered</span>
                 {notice && <span role="status" style={{ fontSize: 12, color: "var(--color-success)" }}>{notice}</span>}
               </div>
               <ErrorText>{error}</ErrorText>
