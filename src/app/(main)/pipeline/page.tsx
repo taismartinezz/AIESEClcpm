@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Download, ExternalLink, Plus, Search, Upload } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import Tooltip from "@/components/ui/Tooltip";
 import TeachingEmpty, { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
@@ -108,6 +109,7 @@ export default function PipelinePage() {
   }
 
   const loading = isLoading || (enabled && !loaded);
+  const hasExchanges = !loading && exchanges.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -116,9 +118,14 @@ export default function PipelinePage() {
         subtitle="Every exchange from sign-up to completed, per product."
         action={<>
           {myProducts.length > 0 && projectId && !isPreview && <ExpaSync projectId={projectId} onSynced={reload} />}
-          <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
-          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)} data-tour="import"><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
-          {myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}
+          {/* An empty pipeline has its own Import and Add buttons, and nothing to export. */}
+          {hasExchanges && (
+            <Tooltip label="Download CSV" placement="bottom">
+              <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0} aria-label="Download CSV"><Download size={14} aria-hidden="true" /></Button>
+            </Tooltip>
+          )}
+          {hasExchanges && myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)} data-tour="import"><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
+          {hasExchanges && myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}
         </>}
       >
         <div role="tablist" aria-label="Product" data-tour="pipeline-products" style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
@@ -156,7 +163,7 @@ export default function PipelinePage() {
           </p>
         ) : exchanges.length === 0 ? (
           <TeachingEmpty title="Your exchange pipeline" actions={<>
-            <Button onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import exchanges</Button>
+            <Button onClick={() => setImporting(true)} data-tour="import"><Upload size={14} aria-hidden="true" /> Import exchanges</Button>
             <Button variant="secondary" onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add one by hand</Button>
           </>}>
             Track every sign-up through Applied, Accepted, Approved, Realized, Finished and Completed, per product. Approvals and

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
@@ -147,8 +148,8 @@ export default function FinancePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p role="note" style={{ fontSize: 12, margin: 0, padding: "8px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", color: "var(--color-body)" }}>
             {hasKeeper === false
-              ? "Your MC's VP Finance keeps this account, as in the National Finance Tracker, and nobody does yet: link your LC to your MC (Settings → LC & departments) and ask your MCP to name a VP Finance."
-              : "Your MC's VP Finance keeps this account, as in the National Finance Tracker. Expense claims they approve show up here."}
+              ? <>Your MC&apos;s VP Finance keeps this account, and none is named yet. <Link href="/settings#national" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Link your LC to your MC</Link></>
+              : "Your MC's VP Finance keeps this account; claims they approve show up here."}
           </p>
           <LedgerView
             projectId={projectId} userId={userId} currency={currency}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, type ReactNode, useState, useRef, useCallback, useEffect, useSyncExternalStore } from "react";
+import Tooltip from "@/components/ui/Tooltip";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { SubProject } from "@/types";
 
@@ -86,10 +87,11 @@ function NavRow({ id, color, label, count, selected, onClick }: {
 function IconRailBtn({ isActive, color, icon, label, onClick }: {
   isActive: boolean; color: string; icon: ReactNode; label: string; onClick: () => void;
 }) {
+  // Folded, the rail is icons only: the name shows on hover and focus.
   return (
+    <Tooltip label={label} placement="right">
     <button
       onClick={onClick}
-      title={label}
       aria-label={label}
       className="flex items-center justify-center rounded-lg"
       style={{
@@ -104,6 +106,7 @@ function IconRailBtn({ isActive, color, icon, label, onClick }: {
     >
       {icon}
     </button>
+    </Tooltip>
   );
 }
 

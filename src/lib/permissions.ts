@@ -5,7 +5,7 @@ import type { Department, UserRole } from "@/types";
 // rule; these only decide what the UI offers.
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  president: "President",
+  president: "LCP",
   vp: "VP",
   member: "Member",
 };
@@ -16,6 +16,15 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   vp: "Vice President (Executive Board)",
   member: "Member",
 };
+
+/**
+ * A role's name as people read it. The built-in role is stored as "President"
+ * (the database and onboarding look it up by that name); everywhere it shows, it's the LCP.
+ */
+export function roleName(stored: string | null | undefined): string | undefined {
+  if (stored == null) return undefined;
+  return stored === "President" ? "LCP" : stored;
+}
 
 const LEGACY_ROLES: Record<string, UserRole> = { pi: "president", researcher: "member" };
 

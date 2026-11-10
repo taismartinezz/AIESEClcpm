@@ -14,7 +14,7 @@ import { WorkingHoursEditor } from "@/components/ui/WorkingHoursEditor";
 import SupportResourcesSettings from "@/components/support/SupportResourcesSettings";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { useProject } from "@/context/ProjectContext";
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, toUserRole } from "@/lib/permissions";
+import { ROLE_DESCRIPTIONS, ROLE_LABELS, roleName, toUserRole } from "@/lib/permissions";
 import DepartmentsManager from "@/components/lc/DepartmentsManager";
 import McLinkSettings from "@/components/lc/McLinkSettings";
 import GoogleCalendarSettings from "@/components/scheduling/GoogleCalendarSettings";
@@ -592,7 +592,7 @@ export default function SettingsPage() {
                       ) : (
                         <>
                           <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)" }}>
-                            {role.name}
+                            {roleName(role.name)}
                             <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-secondary)" }}>
                               ({ROLE_LABELS[role.permissionLevel]} access)
                             </span>
@@ -709,7 +709,7 @@ export default function SettingsPage() {
                       aria-label="Role for email invites"
                     >
                       {labRoles.map((r) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                        <option key={r.id} value={r.id}>{roleName(r.name)}</option>
                       ))}
                     </select>
                     <ChevronDown size={13} color="var(--color-secondary)" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
@@ -834,7 +834,7 @@ export default function SettingsPage() {
                             style={{ height: 38, border: "1px solid var(--color-border)", borderRadius: 8, padding: "0 28px 0 12px", fontSize: 13, fontFamily: "var(--font-roboto)", backgroundColor: "var(--color-canvas)", color: "var(--color-body)", outline: "none", cursor: "pointer", appearance: "none" }}
                             aria-label="Role for new generic invite">
                             {labRoles.map((r) => (
-                              <option key={r.id} value={r.id}>{r.name}</option>
+                              <option key={r.id} value={r.id}>{roleName(r.name)}</option>
                             ))}
                           </select>
                           <ChevronDown size={13} color="var(--color-secondary)" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />

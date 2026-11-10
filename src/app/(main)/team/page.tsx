@@ -6,7 +6,7 @@ import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, emptyTaskCounts } from "@/lib/t
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
 import type { TeamMember, TaskStatus, LabRole, Department } from "@/types";
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, toUserRole } from "@/lib/permissions";
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, roleName, toUserRole } from "@/lib/permissions";
 import { groupDirectory } from "@/lib/team";
 import Avatar from "@/components/ui/Avatar";
 import { X, Users, ChevronDown, ChevronRight } from "lucide-react";
@@ -100,7 +100,7 @@ function MemberPanel({
                         aria-label={`Role for ${member.name}`}
                       >
                         {labRoles.map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
+                          <option key={r.id} value={r.id}>{roleName(r.name)}</option>
                         ))}
                       </select>
                       <ChevronDown size={11} color="var(--color-secondary)" style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
@@ -125,7 +125,7 @@ function MemberPanel({
                   </div>
                 ) : (
                   <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 3 }}>
-                    {member.labRoleName ?? ROLE_DESCRIPTIONS[member.role]}
+                    {roleName(member.labRoleName) ?? ROLE_DESCRIPTIONS[member.role]}
                     {department && <> · {department.name}</>}
                   </p>
                 )}
@@ -198,7 +198,7 @@ function MemberCard({ member, onClick, isCurrentUser, department }: { member: Te
             {isCurrentUser && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--color-secondary)", marginLeft: 6 }}>(you)</span>}
           </p>
           <p style={{ fontSize: 12, color: "var(--color-secondary)", marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span>{member.labRoleName ?? ROLE_LABELS[member.role]}</span>
+            <span>{roleName(member.labRoleName) ?? ROLE_LABELS[member.role]}</span>
             {department && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: department.color }} />

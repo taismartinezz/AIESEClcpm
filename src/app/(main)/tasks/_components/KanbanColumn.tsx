@@ -130,6 +130,7 @@ function QuickAdd({ status, onQuickAdd, onMore }: {
 }) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
   async function submit() {
     const t = title.trim();
     if (!t || busy) return;
@@ -142,14 +143,18 @@ function QuickAdd({ status, onQuickAdd, onMore }: {
       <Plus size={13} color="var(--color-secondary)" aria-hidden="true" style={{ flexShrink: 0 }} />
       <input
         value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submit(); } if (e.key === "Escape") setTitle(""); }}
         placeholder="Add a task…" aria-label={`Add a task to ${STATUS_CONFIG[status].label}`} maxLength={300}
         style={{ flex: 1, minWidth: 0, height: 28, border: "none", outline: "none", background: "transparent", fontSize: 12, color: "var(--color-body)", fontFamily: "var(--font-roboto)" }}
       />
-      <button type="button" onClick={onMore} title="Add with details (assignees, due date, priority…)"
-        style={{ fontSize: 11, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap", padding: "2px 4px" }}>
-        Details
-      </button>
+      {/* Only on the row you're typing in, not on every column. onMouseDown keeps the input's focus long enough to click it. */}
+      {(focused || title) && (
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onMore} title="Add with details (assignees, due date, priority…)"
+          style={{ fontSize: 11, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap", padding: "2px 4px" }}>
+          Details
+        </button>
+      )}
     </div>
   );
 }

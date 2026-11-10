@@ -9,6 +9,7 @@ import { useLcMembers } from "@/hooks/useLcMembers";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { askConfirm } from "@/components/ui/confirm";
 import { Button, ErrorText, Field, Panel, inputStyle } from "@/components/lc/ui";
+import { battleMonths, monthOf } from "@/lib/plan";
 
 interface Identity {
   team_name: string | null; vision: string | null; values: string[]; rules: string[]; ambition: string | null;
@@ -25,6 +26,7 @@ const SWOT: { kind: SwotKind; label: string }[] = [
 ];
 const AREAS = ["LCP", "MXP", "oGX", "iGX", "MKT", "FIN", "BD"];
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
+const identityEmpty = (v: Identity) => !v.team_name && !v.vision && !v.values.length && !v.rules.length && !v.ambition && !v.headline_goals && !v.main_channel && !v.tool_links.length;
 
 /** The LC's plan: who the EB is as a team, its SWOT, and each month's battles. */
 export default function PlanPage() {
@@ -38,6 +40,9 @@ export default function PlanPage() {
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  // Sections not started yet stay hidden until someone starts them from the setup card.
+  const [opened, setOpened] = useState<{ swot?: boolean; battles?: boolean }>({});
 
   useEffect(() => {
     if (!isSupabaseConfigured || !projectId || isLoading) return;
@@ -57,6 +62,7 @@ export default function PlanPage() {
       setBattles((bt.data ?? []) as Battle[]);
       setTermStart(typeof term.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(term.data) ? term.data : null);
       setError(null);
+      setLoaded(true);
     })();
     return () => { cancelled = true; };
   }, [projectId, isLoading, version]);
@@ -70,28 +76,55 @@ export default function PlanPage() {
     return true;
   }
 
-  // The term's twelve months, from its start (or this month).
+  // The term's twelve months, from its start (or this month); this month and the next two show.
   const months = (() => {
-    const start = termStart ?? `${new Date().toISOString().slice(0, 7)}-01`;
+    const start = termStart ?? monthOf(new Date());
     const [y, m] = start.split("-").map(Number);
     return Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(y, m - 1 + i, 1)).toISOString().slice(0, 10));
   })();
+  const { earlier, shown, later } = battleMonths(months, monthOf(new Date()));
+  const started = {
+    identity: !identityEmpty(identity),
+    swot: swot.length > 0 || Boolean(identity.swot_takeaways),
+    battles: battles.length > 0,
+  };
+  const showSwot = started.swot || Boolean(opened.swot);
+  const showBattles = started.battles || Boolean(opened.battles);
+  const monthCard = (m: string) => (
+    <MonthCard key={m} month={m} battles={battles.filter((b) => b.month === m)} members={members} exec={exec}
+      onAdd={(title, owner) => run(supabase.from("lc_battles").insert({ project_id: projectId, month: m, title, owner_id: owner || null }), "add")}
+      onToggle={(b) => run(supabase.from("lc_battles").update({ done: !b.done }).eq("id", b.id), "update")}
+      onRemove={async (b) => { if (await askConfirm(`Remove "${b.title}"?`, { confirmLabel: "Remove" })) await run(supabase.from("lc_battles").delete().eq("id", b.id), "remove"); }} />
+  );
+  const monthGrid = (list: string[]) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 10 }}>{list.map(monthCard)}</div>
+  );
+  const fold = (label: string, list: string[]) => list.length > 0 && (
+    <details style={{ padding: "0 14px 12px" }}>
+      <summary style={{ fontSize: 12, fontWeight: 600, color: "var(--color-navy)", cursor: "pointer", padding: "4px 0 8px" }}>{label} ({list.length})</summary>
+      {monthGrid(list)}
+    </details>
+  );
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Our LC" subtitle="Who your EB is as a team, where the LC stands, and each month's priorities."
+      <PageHeader title="Planning" subtitle="Who your EB is as a team, where the LC stands, and each month's priorities."
         action={exec && isSupabaseConfigured ? <Button variant="secondary" onClick={() => setEditing((v) => !v)}><Pencil size={14} aria-hidden="true" /> {editing ? "Done" : "Edit identity"}</Button> : undefined} />
       <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
         {!isSupabaseConfigured ? (
-          <NeedsDatabase what="Our LC">Your EB&apos;s identity, a SWOT tagged by area, and the battles for each month of the term.</NeedsDatabase>
+          <NeedsDatabase what="Planning">Your EB&apos;s identity, a SWOT tagged by area, and the battles for each month of the term.</NeedsDatabase>
         ) : (
           <>
             <ErrorText>{error}</ErrorText>
+            {loaded && !(started.identity && started.swot && started.battles) && (
+              <PlanSetup exec={exec} started={started} opened={{ ...opened, identity: editing }}
+                onStart={(k) => { if (k === "identity") setEditing(true); else setOpened((o) => ({ ...o, [k]: true })); }} />
+            )}
             {editing && exec
               ? <IdentityForm value={identity} onSave={async (v) => { if (await run(supabase.from("lc_identity").upsert({ project_id: projectId, ...v, updated_at: new Date().toISOString() }, { onConflict: "project_id" }), "save")) setEditing(false); }} />
-              : <IdentityView value={identity} exec={exec} />}
+              : started.identity && <IdentityView value={identity} exec={exec} />}
 
-            <Panel title="SWOT">
+            {showSwot && <Panel title="SWOT">
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 1, backgroundColor: "var(--color-border)" }}>
                 {SWOT.map(({ kind, label }) => (
                   <SwotQuadrant key={kind} label={label} items={swot.filter((s) => s.kind === kind)} exec={exec}
@@ -101,21 +134,18 @@ export default function PlanPage() {
               </div>
               <TakeawaysEditor value={identity.swot_takeaways} exec={exec}
                 onSave={(t) => run(supabase.from("lc_identity").upsert({ project_id: projectId, swot_takeaways: t || null, updated_at: new Date().toISOString() }, { onConflict: "project_id" }), "save")} />
-            </Panel>
+            </Panel>}
+
+            {showBattles && (
+              <Panel title="Battles, month by month">
+                <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>Each month&apos;s key priorities and who owns them. The owner can tick a battle off.</p>
+                <div data-tour="plan-battles" style={{ padding: 14 }}>{monthGrid(shown)}</div>
+                {fold("Earlier months", earlier)}
+                {fold("Later months", later)}
+              </Panel>
+            )}
 
             <EbPanel projectId={projectId!} userId={userId} exec={exec} members={members} departments={departments} />
-
-            <Panel title="Battles, month by month">
-              <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>Each month&apos;s key priorities and who owns them. The owner can tick a battle off.</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 10, padding: 14 }}>
-                {months.map((m) => (
-                  <MonthCard key={m} month={m} battles={battles.filter((b) => b.month === m)} members={members} exec={exec}
-                    onAdd={(title, owner) => run(supabase.from("lc_battles").insert({ project_id: projectId, month: m, title, owner_id: owner || null }), "add")}
-                    onToggle={(b) => run(supabase.from("lc_battles").update({ done: !b.done }).eq("id", b.id), "update")}
-                    onRemove={async (b) => { if (await askConfirm(`Remove "${b.title}"?`, { confirmLabel: "Remove" })) await run(supabase.from("lc_battles").delete().eq("id", b.id), "remove"); }} />
-                ))}
-              </div>
-            </Panel>
           </>
         )}
       </div>
@@ -123,8 +153,46 @@ export default function PlanPage() {
   );
 }
 
+type PlanPart = "identity" | "swot" | "battles";
+const PLAN_STEPS: { key: PlanPart; title: string; what: string; start: string }[] = [
+  { key: "identity", title: "Identity", what: "Your EB's name, vision, values and rules.", start: "Write it" },
+  { key: "swot", title: "SWOT", what: "Where the LC stands, tagged by area.", start: "Start the SWOT" },
+  { key: "battles", title: "Battles", what: "Each month's priorities and who owns them.", start: "Set this month's" },
+];
+
+/** One card for an unfinished plan, in order, instead of empty sections stacked up. */
+function PlanSetup({ exec, started, opened, onStart }: {
+  exec: boolean; started: Record<PlanPart, boolean>; opened: Partial<Record<PlanPart, boolean>>; onStart: (k: PlanPart) => void;
+}) {
+  if (!exec) {
+    return Object.values(started).some(Boolean) ? null : (
+      <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>Your EB hasn&apos;t written the LC plan yet. It shows here once they do.</p>
+    );
+  }
+  return (
+    <section aria-label="Set up your LC plan" data-tour="plan-setup" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderLeft: "3px solid var(--color-navy)", borderRadius: 10, padding: "14px 16px" }}>
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--color-navy)", margin: "0 0 10px" }}>Set up your LC plan</h2>
+      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 10 }}>
+        {PLAN_STEPS.map((s, i) => (
+          <li key={s.key} style={{ flex: "1 1 200px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span aria-hidden="true" style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700,
+              backgroundColor: started[s.key] ? "var(--color-success)" : "var(--color-navy-dim)", color: started[s.key] ? "#fff" : "var(--color-navy)" }}>
+              {started[s.key] ? <Check size={13} /> : i + 1}
+            </span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>{s.title}{started[s.key] && <span className="sr-only"> (started)</span>}</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", margin: "2px 0 6px" }}>{s.what}</span>
+              {!started[s.key] && !opened[s.key] && <Button variant="secondary" onClick={() => onStart(s.key)} style={{ height: 30 }}>{s.start}</Button>}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function IdentityView({ value: v, exec }: { value: Identity; exec: boolean }) {
-  const empty = !v.team_name && !v.vision && !v.values.length && !v.rules.length && !v.ambition && !v.headline_goals && !v.main_channel && !v.tool_links.length;
+  const empty = identityEmpty(v);
   const row = (label: string, body: React.ReactNode) => (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(110px, 160px) 1fr", gap: 10, padding: "8px 0", borderTop: "1px solid var(--color-border)", fontSize: 13 }}>
       <span style={{ color: "var(--color-secondary)", fontSize: 12, fontWeight: 600 }}>{label}</span><div>{body}</div>

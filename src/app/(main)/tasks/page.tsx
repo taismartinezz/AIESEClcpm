@@ -32,6 +32,13 @@ type ModalState =
   | { mode: "edit"; task: Task }
   | null;
 
+
+// All five columns side by side whenever each gets at least this much room;
+// narrower boards scroll sideways a column at a time.
+const MIN_COLUMN = 136;
+const COLUMN_GAP = 10;
+const GRID_FROM = MIN_COLUMN * 5 + COLUMN_GAP * 4;
+
 export default function TasksPage() {
   const { show: showUndoToast } = useUndoToast();
   const searchParams = useSearchParams();
@@ -767,19 +774,19 @@ export default function TasksPage() {
             <div ref={boardScrollRef} onScroll={checkBoardOverflow} style={{
               overflowX: boardWidth < 640 ? "visible" : "auto",
               WebkitOverflowScrolling: "touch",
-              scrollSnapType: boardWidth >= 640 && boardWidth < 1024 ? "x mandatory" : undefined,
+              scrollSnapType: boardWidth >= 640 && boardWidth < GRID_FROM ? "x mandatory" : undefined,
             }}>
               <div style={{
-                display: boardWidth >= 1024 ? "grid" : "flex",
+                display: boardWidth >= GRID_FROM ? "grid" : "flex",
                 flexDirection: boardWidth < 640 ? "column" : "row",
                 // One column per status (Backlog made it five); too narrow → the board scrolls sideways.
-                gridTemplateColumns: boardWidth >= 1024 ? `repeat(${STATUS_ORDER.length}, minmax(172px, 1fr))` : undefined,
-                gap: boardWidth >= 1024 ? 12 : 16,
+                gridTemplateColumns: boardWidth >= GRID_FROM ? `repeat(${STATUS_ORDER.length}, minmax(${MIN_COLUMN}px, 1fr))` : undefined,
+                gap: boardWidth >= GRID_FROM ? COLUMN_GAP : 16,
                 alignItems: "start",
               }}>
                 {STATUS_ORDER.map((status) => (
                   <div key={status} style={
-                    boardWidth >= 1024 ? {} :
+                    boardWidth >= GRID_FROM ? {} :
                     boardWidth < 640 ? { width: "100%", minWidth: 0 } :
                     { minWidth: 252, maxWidth: 280, flexShrink: 0, scrollSnapAlign: "start" }
                   }>

@@ -33,4 +33,20 @@ describe("membership criteria", () => {
     expect(hr.current).toMatchObject({ due: "2026-11-30", missed: false });
     expect(hr.missed).toBe(4);                       // July to October
   });
+
+  it("don't count deadlines from before the LC existed", () => {
+    // Created on November 9: July to October, and November's SONA (due the 1st), weren't its to miss.
+    const sona = monthlyDeadline("sona", [], "2026-11-09", "2026-11-09");
+    expect(sona.missed).toBe(0);
+    expect(sona.months).toEqual([]);
+    expect(evaluate(base, "2026-11-09", "2026-11-09").find((c) => c.key === "sona")).toMatchObject({
+      status: "ok", detail: "0 missed this semester (more than 2 means a downgrade). The first one is due by 2026-12-01.",
+    });
+    // November's HR report is due the 30th, so it counts.
+    const hr = monthlyDeadline("hr_report", [], "2026-11-09", "2026-11-09");
+    expect(hr.months.map((x) => x.month)).toEqual(["2026-11-01"]);
+    expect(hr.missed).toBe(0);
+    // An LC from September: only September onwards.
+    expect(monthlyDeadline("sona", [], "2026-11-09", "2026-08-20").missed).toBe(3);
+  });
 });

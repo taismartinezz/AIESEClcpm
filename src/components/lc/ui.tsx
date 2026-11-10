@@ -117,18 +117,19 @@ export function Stat({ label, value, note }: { label: string; value: string; not
   );
 }
 
+/** In-page tabs: underlined, like the section tabs (SectionTabs) and Settings. */
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { id: T; label: string }[] }) {
   return (
-    <div role="tablist" data-tour="page-tabs" style={{ display: "flex", gap: 4, marginTop: 8, overflowX: "auto" }}>
+    <div role="tablist" data-tour="page-tabs" style={{ display: "flex", gap: 4, marginTop: 8, overflowX: "auto", borderBottom: "1px solid var(--color-border)" }}>
       {tabs.map((t) => {
         const active = t.id === value;
         return (
           <button
             key={t.id} type="button" role="tab" aria-selected={active} data-tab={t.id} onClick={() => onChange(t.id)}
             style={{
-              height: 32, padding: "0 12px", borderRadius: 7, fontSize: 13, fontWeight: active ? 700 : 500,
-              border: "none", cursor: "pointer", whiteSpace: "nowrap",
-              backgroundColor: active ? "var(--color-navy-dim)" : "transparent",
+              padding: "8px 12px", fontSize: 13, fontWeight: active ? 700 : 500, fontFamily: "inherit",
+              border: "none", borderBottom: `2px solid ${active ? "var(--color-navy)" : "transparent"}`, marginBottom: -1,
+              background: "none", cursor: "pointer", whiteSpace: "nowrap",
               color: active ? "var(--color-navy)" : "var(--color-secondary)",
             }}
           >

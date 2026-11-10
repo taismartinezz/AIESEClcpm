@@ -66,8 +66,10 @@ async function loadItems(role: UserRole, projectId: string, userId: string, ledD
 const dismissKey = (projectId: string) => `aiesec_getting_started_dismissed:${projectId}`;
 
 /** Dashboard checklist; disappears when everything is done or it's dismissed. */
-export default function GettingStartedCard({ role, projectId, userId, ledDepartmentIds }: {
+export default function GettingStartedCard({ role, projectId, userId, ledDepartmentIds, onInviteShown }: {
   role: UserRole; projectId: string | null; userId: string | null; ledDepartmentIds: string[];
+  /** Whether "Invite your VPs" is on screen here (the dashboard doesn't ask twice). */
+  onInviteShown?: (shown: boolean) => void;
 }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [dismissed, setDismissed] = useState(() => {
@@ -94,7 +96,11 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
     return () => { cancelled = true; };
   }, [role, projectId, userId, ledKey, dismissed]);
 
-  if (dismissed || !items || items.every((i) => i.done) || !projectId) return null;
+  const hidden = dismissed || !items || items.every((i) => i.done) || !projectId;
+  const inviteShown = !hidden && Boolean(items?.some((i) => i.id === "vps" && !i.done));
+  // Before the early return: it has to run every render.
+  useEffect(() => { onInviteShown?.(inviteShown); }, [inviteShown, onInviteShown]);
+  if (hidden) return null;
   const n = items.filter((i) => i.done).length;
 
   function dismiss() {
