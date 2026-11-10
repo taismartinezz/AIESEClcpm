@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { APP_GUIDE, keywordAnswer, searchGuide } from "@/lib/appGuide";
-import { TOURS } from "@/lib/tours";
+import { CHAPTERS, CORE, MC_TOUR } from "@/lib/tours";
 
 vi.mock("@/lib/api-auth", () => ({ requireAuth: vi.fn(async () => "user-1") }));
 
@@ -45,17 +45,15 @@ describe("the helper's map of the app", () => {
 });
 
 describe("the tours", () => {
+  const all = [...CORE, ...MC_TOUR, ...CHAPTERS.flatMap((c) => c.steps)];
+
   it("open real pages only", () => {
-    for (const [role, steps] of Object.entries(TOURS)) {
-      for (const s of steps) if (s.route) expect(pageExists(s.route), `${role}: ${s.title} → ${s.route}`).toBe(true);
-    }
+    for (const s of all) if (s.route) expect(pageExists(s.route), `${s.id} → ${s.route}`).toBe(true);
   });
 
-  it("start with a welcome and end on a page", () => {
-    for (const steps of Object.values(TOURS)) {
-      expect(steps[0].targets).toBeUndefined();
-      expect(steps[steps.length - 1].route).toBeDefined();
-    }
+  it("start with a welcome", () => {
+    expect(CORE[0].targets).toBeUndefined();
+    expect(MC_TOUR[0].targets).toBeUndefined();
   });
 });
 

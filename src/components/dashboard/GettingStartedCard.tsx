@@ -103,7 +103,7 @@ export default function GettingStartedCard({ role, projectId, userId, ledDepartm
   }
 
   return (
-    <section aria-label="Getting started" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "12px 14px" }}>
+    <section aria-label="Getting started" data-tour="getting-started" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "12px 14px" }}>
       <header style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <h2 style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "var(--color-navy)", margin: 0 }}>Getting started · {n} of {items.length}</h2>
         <button type="button" onClick={dismiss} aria-label="Hide getting started" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4 }}>

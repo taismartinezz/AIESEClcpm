@@ -64,7 +64,7 @@ export default function ThisWeekCard({ projectId, role, departments, ledDepartme
     .sort((a, b) => b.n - a.n);
 
   return (
-    <section aria-label="This week" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+    <section aria-label="This week" data-tour="this-week" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
       <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px 10px", borderBottom: "1px solid var(--color-border)" }}>
         <CalendarCheck size={15} color="var(--color-navy)" aria-hidden="true" />
         <h2 style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "var(--color-navy)", margin: 0 }}>This week{scope ? " in your departments" : ""}</h2>

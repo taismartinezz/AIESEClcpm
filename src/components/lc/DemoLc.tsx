@@ -43,7 +43,7 @@ export function DemoLcButton({ onDone, variant = "menu" }: { onDone?: () => void
   return (
     <>
       {variant === "button" ? (
-        <Button variant="secondary" onClick={create} disabled={busy}><Sparkles size={14} aria-hidden="true" /> {busy ? "Creating…" : existing ? "Open your demo LC" : "Explore a demo LC"}</Button>
+        <Button variant="secondary" onClick={create} disabled={busy} data-tour="demo-lc"><Sparkles size={14} aria-hidden="true" /> {busy ? "Creating…" : existing ? "Open your demo LC" : "Explore a demo LC"}</Button>
       ) : (
         <button type="button" onClick={create} disabled={busy}
           className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-[var(--color-navy-dim)]"

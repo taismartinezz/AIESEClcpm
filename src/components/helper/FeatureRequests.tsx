@@ -14,7 +14,8 @@ const STATUS_LABEL: Record<Status, string> = { new: "Reported", planned: "Planne
  * What the helper couldn't find. Everyone sees their own requests and where
  * they stand; app moderators see everyone's and set the status.
  */
-export default function FeatureRequests() {
+/** `showEmpty`: show "Your requests" even before you've asked anything (Help does, so people know where to look). */
+export default function FeatureRequests({ showEmpty = false }: { showEmpty?: boolean } = {}) {
   const [rows, setRows] = useState<Request[] | null>(null);
   const [moderator, setModerator] = useState(false);
   const [me, setMe] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export default function FeatureRequests() {
     if (err) setError(`Couldn't change the status: ${err.message}`); else setVersion((v) => v + 1);
   }
 
-  if (!rows || (rows.length === 0 && !moderator)) return null;
+  if (!rows || (rows.length === 0 && !moderator && !showEmpty)) return null;
   const mine = rows.filter((r) => r.created_by === me);
   const shown = moderator ? rows.filter((r) => filter === "all" || r.status === filter) : mine;
   const counts = Object.fromEntries((["new", "planned", "done", "declined"] as Status[]).map((s) => [s, rows.filter((r) => r.status === s).length])) as Record<Status, number>;
@@ -73,7 +74,7 @@ export default function FeatureRequests() {
       </p>
       <ErrorText>{error}</ErrorText>
       {shown.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--color-secondary)", padding: 14, margin: 0 }}>Nothing here.</p>
+        <p style={{ fontSize: 13, color: "var(--color-secondary)", padding: 14, margin: 0 }}>{moderator ? "Nothing here." : "Nothing yet. When Ask can't find something, your question shows up here."}</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

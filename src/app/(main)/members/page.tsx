@@ -34,7 +34,7 @@ export default function MembersPage() {
         ) : !isSupabaseConfigured || !projectId || !userId ? (
           <NeedsDatabase what="Members">Recruitment, onboarding and activity signals for Talent Management.</NeedsDatabase>
         ) : !exec ? (
-          <div style={{ maxWidth: 520 }}>
+          <div style={{ maxWidth: 520 }} data-tour="my-onboarding">
             <MyOnboardingCard projectId={projectId} userId={userId} departmentId={departmentId} />
             <p style={{ fontSize: 13, color: "var(--color-secondary)" }}>When your onboarding is complete this page stays quiet. Recruitment and activity are for the exec board.</p>
           </div>

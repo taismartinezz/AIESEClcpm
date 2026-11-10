@@ -82,26 +82,23 @@ test.describe('Ask the helper', () => {
 const tourButton = (page: Page, name: string | RegExp) => page.getByRole('dialog').getByRole('button', { name })
 
 test.describe('The tour', () => {
-  test('the president tour opens each page and points at it', async ({ page }) => {
+  test('Setting up your LC opens Settings on LC & departments and points at Departments', async ({ page }) => {
     await setupAuthMocks(page, 'president')
     await page.goto('/')
     await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible({ timeout: 10000 })
-    await page.evaluate(() => window.dispatchEvent(new Event('app:show-onboarding')))
-    const tour = page.getByRole('dialog', { name: /Welcome to/ })
-    await expect(tour).toBeVisible()
-    await expect(page.getByRole('progressbar', { name: 'Tour progress' })).toBeVisible()
-    await page.keyboard.press('ArrowRight')
-    await expect(page.getByRole('dialog', { name: 'Your dashboard' })).toBeVisible()
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('app:show-onboarding', { detail: { chapter: 'setup' } })))
+    const step = page.getByRole('dialog', { name: 'Departments' })
+    await expect(step).toHaveAttribute('aria-busy', 'false', { timeout: 10000 })
+    await expect(page).toHaveURL(/\/settings/)
+    await expect(page.getByRole('tab', { name: 'LC & departments' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.locator('[data-tour-active]')).toHaveAttribute('data-tour', 'settings-departments')
+    await expect(page.getByRole('progressbar', { name: 'Tour progress' })).toHaveAttribute('aria-valuenow', '1')
     await tourButton(page, 'Next').click()
-    await expect(page).toHaveURL(/\/settings$/)
-    await expect(page.getByRole('dialog', { name: 'Settings: your LC' })).toContainText('linking your LC to your MC')
-    await tourButton(page, 'Next').click()
-    await expect(page).toHaveURL(/\/pipeline$/)
-    await expect(page.getByRole('dialog', { name: 'Pipeline' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Invites' })).toHaveAttribute('aria-busy', 'false', { timeout: 10000 })
     await tourButton(page, 'Back').click()
-    await expect(page).toHaveURL(/\/settings$/)
+    await expect(page.getByRole('dialog', { name: 'Departments' })).toBeVisible()
     await tourButton(page, 'Skip tour').click()
-    await expect(page.getByRole('dialog', { name: 'Settings: your LC' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Departments' })).toHaveCount(0)
   })
 
   test('the MC tour runs on the national view and skips what this person does not have', async ({ page }) => {

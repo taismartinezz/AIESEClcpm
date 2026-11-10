@@ -1,313 +1,413 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { X, ArrowRight, ArrowLeft } from "lucide-react";
-import { TOURS, type TourRole, type TourStep } from "@/lib/tours";
+import { X, ArrowRight, ArrowLeft, Check, Play } from "lucide-react";
+import {
+  CORE, chapterSteps, chaptersFor, markDone, pageSteps, readProgress, stepsFor,
+  type TourContext, type TourRole, type TourStep,
+} from "@/lib/tours";
 
-// v4: the tour now opens each page. Everyone sees it once more.
-const LS_PREFIX = "aiesec_tour_v4:";
+// v5: a short core tour with chapters. Everyone sees it once more.
+const LS_PREFIX = "aiesec_tour_v5:";
 const lsKey = (role: TourRole) => LS_PREFIX + role;
 
 export type { TourRole, TourStep };
-export { TOURS };
 
-const PAD = 8;    // spotlight padding around the target element
-const W   = 300;  // tooltip card width
+const PAD = 8;        // spotlight padding around the target element
+const GAP = 14;       // between the spotlight and the card
+const W = 320;        // card width
+const NARROW = 640;   // below this, the card is a bottom sheet
+const SETTLE_MS = 1500;
+const isDev = process.env.NODE_ENV !== "production";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function tooltipPos(
-  rect: DOMRect,
-  side: "right" | "left" | "bottom" | "top",
-  tooltipH: number,
-): { left: number; top: number } {
-  const GAP = 16;
-  switch (side) {
-    case "right":
-      return {
-        left: clamp(rect.right + PAD + GAP, 8, window.innerWidth - W - 8),
-        top:  clamp(rect.top + rect.height / 2 - tooltipH / 2, 8, window.innerHeight - tooltipH - 8),
-      };
-    case "left":
-      return {
-        left: clamp(rect.left - PAD - GAP - W, 8, window.innerWidth - W - 8),
-        top:  clamp(rect.top + rect.height / 2 - tooltipH / 2, 8, window.innerHeight - tooltipH - 8),
-      };
-    case "bottom":
-      return {
-        left: clamp(rect.left + rect.width / 2 - W / 2, 8, window.innerWidth - W - 8),
-        top:  clamp(rect.bottom + PAD + GAP, 8, window.innerHeight - tooltipH - 8),
-      };
-    case "top":
-      return {
-        left: clamp(rect.left + rect.width / 2 - W / 2, 8, window.innerWidth - W - 8),
-        top:  clamp(rect.top - PAD - GAP - tooltipH, 8, window.innerHeight - tooltipH - 8),
-      };
-  }
-}
-
-// ── Caret pointing toward the spotlight ────────────────────────────────────────
-
-function Caret({ side }: { side: "right" | "left" | "bottom" | "top" }) {
-  const SIZE = 8;
-  const base: React.CSSProperties = {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    border: `${SIZE}px solid transparent`,
-  };
-  if (side === "right") {
-    return <div style={{ ...base, left: -SIZE * 2, top: "50%", transform: "translateY(-50%)", borderRightColor: "var(--color-surface)", borderLeft: "none" }} />;
-  }
-  if (side === "left") {
-    return <div style={{ ...base, right: -SIZE * 2, top: "50%", transform: "translateY(-50%)", borderLeftColor: "var(--color-surface)", borderRight: "none" }} />;
-  }
-  if (side === "bottom") {
-    return <div style={{ ...base, top: -SIZE * 2, left: "50%", transform: "translateX(-50%)", borderBottomColor: "var(--color-surface)", borderTop: "none" }} />;
-  }
-  return <div style={{ ...base, bottom: -SIZE * 2, left: "50%", transform: "translateX(-50%)", borderTopColor: "var(--color-surface)", borderBottom: "none" }} />;
-}
+type Side = "right" | "left" | "bottom" | "top";
 
 // ── Finding a step's target ───────────────────────────────────────────────────
 
-/** The first visible element among the selectors, in the order given. */
+/** On screen horizontally and not collapsed (an off-canvas menu doesn't count). */
+function isShown(el: Element): boolean {
+  const r = el.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0 || r.right <= 0 || r.left >= window.innerWidth) return false;
+  return getComputedStyle(el).visibility !== "hidden";
+}
+
+/** The first shown element among the selectors, in the order given. */
 export function findTarget(selectors: string[] | undefined): Element | null {
   for (const sel of selectors ?? []) {
     let all: Element[] = [];
     try { all = Array.from(document.querySelectorAll(sel)); } catch { continue; }
-    const visible = all.find((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
-    if (visible) return visible;
+    const hit = all.find(isShown);
+    if (hit) return hit;
   }
   return null;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /** Wait up to `ms` for a target to render (pages load their data first). */
-function waitForTarget(selectors: string[] | undefined, ms: number, cancelled: () => boolean): Promise<Element | null> {
-  return new Promise((resolve) => {
-    if (!selectors?.length) { resolve(null); return; }
-    const started = Date.now();
-    const tick = () => {
-      if (cancelled()) { resolve(null); return; }
-      const el = findTarget(selectors);
-      if (el || Date.now() - started > ms) resolve(el);
-      else setTimeout(tick, 100);
-    };
-    tick();
-  });
+async function waitForTarget(selectors: string[] | undefined, ms: number, cancelled: () => boolean): Promise<Element | null> {
+  if (!selectors?.length) return null;
+  const started = Date.now();
+  for (;;) {
+    if (cancelled()) return null;
+    const el = findTarget(selectors);
+    if (el || Date.now() - started > ms) return el;
+    await sleep(100);
+  }
+}
+
+/** A loading skeleton still showing on the page (outside the tour). */
+function skeletonShowing(): boolean {
+  return Array.from(document.querySelectorAll(".animate-pulse")).some((el) => !el.closest("[data-tour-ui]") && isShown(el));
+}
+
+/** Wait until the page's skeletons are gone, or `ms` since we arrived. */
+async function waitSettled(until: number, cancelled: () => boolean) {
+  while (!cancelled() && skeletonShowing() && Date.now() < until) await sleep(100);
 }
 
 const routeOf = (path: string) => path.split("?")[0];
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Placing the card next to its anchor, never on it ─────────────────────────
 
-export default function OnboardingModal({ role, onClose, steps, remember = true }: {
-  role: TourRole; onClose: () => void;
-  /** Steps other than the role's tour (the helper's "Take me there"). */
+interface Placement { left: number; top: number; side: Side | null; caret: number }
+
+function clamp(v: number, min: number, max: number) { return Math.min(Math.max(v, min), Math.max(min, max)); }
+
+export function placeCard(rect: DOMRect, preferred: Side, w: number, h: number, vw: number, vh: number): Placement {
+  const g = PAD + GAP;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const order = [preferred, "bottom", "right", "left", "top"].filter((s, i, a) => a.indexOf(s) === i) as Side[];
+  for (const side of order) {
+    let left: number; let top: number; let fits: boolean;
+    if (side === "bottom" || side === "top") {
+      left = clamp(cx - w / 2, 8, vw - w - 8);
+      top = side === "bottom" ? rect.bottom + g : rect.top - g - h;
+      fits = top >= 8 && top + h <= vh - 8;
+    } else {
+      top = clamp(cy - h / 2, 8, vh - h - 8);
+      left = side === "right" ? rect.right + g : rect.left - g - w;
+      fits = left >= 8 && left + w <= vw - 8;
+    }
+    if (fits) {
+      const caret = side === "bottom" || side === "top" ? clamp(cx - left, 18, w - 18) : clamp(cy - top, 18, h - 18);
+      return { left, top, side, caret };
+    }
+  }
+  // A big anchor with no room beside it: the corner that covers the least of it.
+  const corners = [[8, 8], [vw - w - 8, 8], [8, vh - h - 8], [vw - w - 8, vh - h - 8]];
+  const overlap = ([l, t]: number[]) =>
+    Math.max(0, Math.min(l + w, rect.right + PAD) - Math.max(l, rect.left - PAD)) *
+    Math.max(0, Math.min(t + h, rect.bottom + PAD) - Math.max(t, rect.top - PAD));
+  const [left, top] = corners.reduce((best, c) => (overlap(c) < overlap(best) ? c : best));
+  return { left, top, side: null, caret: 0 };
+}
+
+// The card's side facing the anchor gets the arrow, coloured on that edge only.
+const CARET_COLORS: Record<Side, string> = {
+  right: "transparent var(--color-surface) transparent transparent",
+  left: "transparent transparent transparent var(--color-surface)",
+  bottom: "transparent transparent var(--color-surface) transparent",
+  top: "var(--color-surface) transparent transparent transparent",
+};
+
+function Caret({ side, at }: { side: Side; at: number }) {
+  const S = 8;
+  const base: React.CSSProperties = { position: "absolute", width: 0, height: 0, borderWidth: S, borderStyle: "solid", borderColor: CARET_COLORS[side] };
+  if (side === "right") return <div style={{ ...base, left: -S * 2, top: at - S }} />;
+  if (side === "left") return <div style={{ ...base, right: -S * 2, top: at - S }} />;
+  if (side === "bottom") return <div style={{ ...base, top: -S * 2, left: at - S }} />;
+  return <div style={{ ...base, bottom: -S * 2, left: at - S }} />;
+}
+
+function Spinner() {
+  return (
+    <span role="status" aria-label="Loading the page" style={{ display: "inline-block", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--color-border)", borderTopColor: "var(--color-navy)", animation: "tour-spin 0.8s linear infinite" }} />
+  );
+}
+
+/** Only one element carries the highlight. */
+function setActive(el: Element | null) {
+  document.querySelectorAll("[data-tour-active]").forEach((x) => { if (x !== el) x.removeAttribute("data-tour-active"); });
+  el?.setAttribute("data-tour-active", "");
+}
+
+// ── The tour card ─────────────────────────────────────────────────────────────
+
+export interface ChapterChoice { id: string; title: string; summary: string; done: boolean }
+
+export default function OnboardingModal({ role, onClose, steps, remember = true, chapters, onPickChapter, onReachEnd }: {
+  role: TourRole;
+  onClose: () => void;
+  /** Steps to run. Default: the core tour for this role. */
   steps?: TourStep[];
-  /** Whether finishing counts as having done the tour. */
+  /** Whether closing counts as having seen the first-run tour. */
   remember?: boolean;
+  /** For the "Pick what to learn next" card. */
+  chapters?: ChapterChoice[];
+  onPickChapter?: (id: string) => void;
+  /** The last step was reached (counts the chapter as done). */
+  onReachEnd?: () => void;
 }) {
-  const STEPS = steps ?? TOURS[role];
   const router = useRouter();
   const pathname = usePathname();
-  const [step, setStep]         = useState(0);
+  // Phone-only differences are settled once; steps not there for this person drop out as we go.
+  const [all] = useState<TourStep[]>(() => {
+    const given = steps ?? stepsFor(CORE, { role });
+    return typeof window !== "undefined" && window.innerWidth < NARROW ? given.filter((s) => !s.wideOnly) : given;
+  });
+  const [skipped, setSkipped] = useState<Set<TourStep>>(() => new Set());
+  const list = useMemo(() => all.filter((s) => !skipped.has(s)), [all, skipped]);
+  const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [paused, setPaused] = useState(false);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
-  // Which step/page the spotlight is measured for: anything else is still opening.
   const [readyFor, setReadyFor] = useState<string | null>(null);
-  const ready = readyFor === `${step}@${pathname}`;
-  const [tooltipH, setTooltipH] = useState(220);
-  const current = STEPS[step];
-  const isFirst = step === 0;
-  const isLast  = step === STEPS.length - 1;
-  const side    = current.side ?? "right";
+  const [cardH, setCardH] = useState(200);
+  const [vw, setVw] = useState(() => (typeof window === "undefined" ? 1200 : window.innerWidth));
+  const [vh, setVh] = useState(() => (typeof window === "undefined" ? 800 : window.innerHeight));
+  const i = Math.min(index, Math.max(0, list.length - 1));
+  const current = list[i];
+  const key = `${i}:${current?.id ?? current?.title}@${pathname}`;
+  const ready = readyFor === key;
+  const isFirst = i === 0;
+  const isLast = i === list.length - 1;
+  const narrow = vw < NARROW;
   const titleId = "tour-step-title";
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const targetRef = useRef<Element | null>(null);
+  const arrived = useRef<{ path: string; at: number }>({ path: "", at: 0 });
+  const left = useRef<TourStep | null>(null);
+  const reachedEnd = useRef(false);
 
-  function dismiss() {
+  const dismiss = useCallback(() => {
     if (remember) {
       try { localStorage.setItem(lsKey(role), "1"); } catch { /* storage blocked: the tour shows again next time */ }
     }
     onClose();
-  }
+  }, [remember, role, onClose]);
+
   function goNext() {
     if (isLast) { dismiss(); return; }
     setDirection(1);
-    setStep((s) => s + 1);
+    setIndex(i + 1);
   }
   function goBack() {
     if (isFirst) return;
     setDirection(-1);
-    setStep((s) => s - 1);
+    setIndex(i - 1);
   }
 
-  // Open the step's page, click what it asks, wait for the target, scroll it into view.
-  const targetRef = useRef<Element | null>(null);
-  // When we arrived on this page: a page that's had time to load needs little waiting.
-  const arrived = useRef<{ path: string; at: number }>({ path: "", at: 0 });
+  // Focus goes back to the page when the tour ends; the highlight and the menu are cleared.
   useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    return () => {
+      setActive(null);
+      left.current?.leave?.();
+      window.dispatchEvent(new CustomEvent("app:mobile-nav", { detail: { open: false } }));
+      const main = document.querySelector("main") as HTMLElement | null;
+      if (before?.isConnected && before !== document.body) before.focus({ preventScroll: true });
+      else if (main) { if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1"); main.focus({ preventScroll: true }); }
+    };
+  }, []);
+
+  // Open the step's page, wait for its data, click what it asks, find and spotlight the anchor.
+  useEffect(() => {
+    if (!current) { onClose(); return; }
+    if (paused) return;
     let cancelled = false;
     const isCancelled = () => cancelled;
+    if (left.current && left.current !== current) { left.current.leave?.(); }
+    left.current = current;
     (async () => {
       if (current.route && routeOf(current.route) !== pathname) {
         router.push(current.route);
         return;                                   // runs again once the pathname changes
       }
       if (arrived.current.path !== pathname) arrived.current = { path: pathname, at: Date.now() };
-      const patience = Math.max(600, 3000 - (Date.now() - arrived.current.at));
-      let el: Element | null = null;
-      let missing = false;
-      if (current.click) {
-        const clickable = await waitForTarget([current.click], patience, isCancelled);
-        if (clickable instanceof HTMLElement && clickable.getAttribute("aria-selected") !== "true") clickable.click();
-        missing = !clickable;                      // no such tab for this person: nothing to show
+      if (isLast && !reachedEnd.current) { reachedEnd.current = true; onReachEnd?.(); }
+      // Phones keep the menu in a drawer: open it for a menu step, close it otherwise.
+      if (window.innerWidth < NARROW) {
+        window.dispatchEvent(new CustomEvent("app:mobile-nav", { detail: { open: Boolean(current.inMenu) } }));
+        if (current.inMenu) await sleep(300);
       }
-      if (!missing) el = await waitForTarget(current.targets, current.targets?.length ? patience : 0, isCancelled);
-      if (cancelled) return;
-      if (!el && current.optional) {
-        // Not there for this person (a role-only button, an empty panel): move on.
-        const next = step + direction;
-        if (next >= 0 && next < STEPS.length) { setStep(next); return; }
+      const settleBy = arrived.current.at + SETTLE_MS;
+      const patience = Math.max(800, 3000 - (Date.now() - arrived.current.at));
+      await waitSettled(settleBy, isCancelled);
+      let el: Element | null = null;
+      if (current.targets?.length) {
+        if (current.click && !findTarget(current.targets)) {
+          const clickable = await waitForTarget([current.click], patience, isCancelled);
+          if (clickable instanceof HTMLElement && clickable.getAttribute("aria-selected") !== "true") clickable.click();
+        }
+        el = await waitForTarget(current.targets, patience, isCancelled);
+        if (cancelled) return;
+        if (!el) {
+          if (isDev && !current.optional) console.warn(`[tour] No anchor for step "${current.id ?? current.title}": ${current.targets.join(", ")}`);
+          // Not there for this person: leave it out, and out of the count.
+          setSkipped((prev) => new Set(prev).add(current));
+          if (direction < 0) setIndex(Math.max(0, i - 1));
+          return;
+        }
+        // The anchor's own part of the page may still be loading.
+        await waitSettled(settleBy, isCancelled);
+        if (cancelled) return;
+        el.scrollIntoView({ block: window.innerWidth < NARROW ? "start" : "center", inline: "nearest", behavior: "instant" as ScrollBehavior });
       }
       targetRef.current = el;
-      if (el) el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" as ScrollBehavior });
+      setActive(el);
+      // Nothing else keeps a focus ring (a menu link from an earlier step, say).
+      const focused = document.activeElement as HTMLElement | null;
+      if (focused && !focused.closest("[data-tour-ui]")) focused.blur();
       setTargetRect(el?.getBoundingClientRect() ?? null);
-      setReadyFor(`${step}@${pathname}`);
+      setReadyFor(key);
+      // This page has had time to load: later optional steps on it whose anchor isn't
+      // here leave the count now, not when reached. (Cards that load without a skeleton need the wait.)
+      if (Date.now() >= settleBy && !skeletonShowing()) {
+        const absent = list.slice(i + 1).filter((s) => s.optional && !s.click && (!s.route || routeOf(s.route) === pathname) && !findTarget(s.targets));
+        if (absent.length) setSkipped((prev) => { const next = new Set(prev); absent.forEach((s) => next.add(s)); return next; });
+      }
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, pathname]);
+  }, [key, paused]);
+
+  useEffect(() => { if (ready && !paused) primaryRef.current?.focus({ preventScroll: true }); }, [ready, paused]);
 
   // Follow the target when the page scrolls or resizes.
   useEffect(() => {
-    if (!ready) return;
-    const measure = () => setTargetRect(targetRef.current?.isConnected ? targetRef.current.getBoundingClientRect() : null);
+    const measure = () => {
+      setVw(window.innerWidth); setVh(window.innerHeight);
+      setTargetRect(targetRef.current?.isConnected ? targetRef.current.getBoundingClientRect() : null);
+    };
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
-  }, [ready]);
+  }, []);
 
-  // Keyboard nav
+  // → and Enter: next. ←: back. Esc: skip.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape")     { dismiss(); return; }
-      if (e.key === "ArrowRight") { goNext(); }
-      if (e.key === "ArrowLeft")  { goBack(); }
+      if (paused) return;
+      if (e.key === "Escape") { e.preventDefault(); dismiss(); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); goNext(); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); goBack(); return; }
+      if (e.key === "Enter") {
+        const t = e.target as HTMLElement | null;
+        if (t?.closest("button, a, input, textarea, select")) return;   // that control handles it
+        e.preventDefault(); goNext();
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  });
+
+  if (!current) return null;
+
+  function tryIt() {
+    if (!current.tryIt) return;
+    setPaused(true);
+    setActive(null);
+    const el = findTarget([current.tryIt.click]);
+    if (el instanceof HTMLElement) el.click();
+  }
+
+  if (paused) {
+    return (
+      <div data-tour-ui style={{ position: "fixed", left: 16, bottom: 16, zIndex: 1202, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", boxShadow: "0 8px 28px rgba(0,0,0,0.2)", fontFamily: "var(--font-roboto)" }}>
+        <span style={{ fontSize: 12, color: "var(--color-secondary)" }}>Tour paused</span>
+        <button type="button" autoFocus onClick={() => { setReadyFor(null); setPaused(false); }}
+          style={{ fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "var(--color-navy)", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>
+          Back to the tour
+        </button>
+      </div>
+    );
+  }
 
   const spot = ready ? targetRect : null;
-  const tooltipStyle: React.CSSProperties = spot
-    ? { position: "fixed", ...tooltipPos(spot, side, tooltipH), width: W, zIndex: 1202 }
-    : { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: Math.min(W + 40, window.innerWidth - 32), zIndex: 1202 };
+  const sheetAtTop = Boolean(spot && narrow && spot.bottom > vh - cardH - 16);
+  const place = spot && !narrow ? placeCard(spot, current.side ?? "right", W, cardH, vw, vh) : null;
+  const cardStyle: React.CSSProperties = narrow
+    ? { position: "fixed", left: 0, right: 0, ...(sheetAtTop ? { top: 0, borderRadius: "0 0 14px 14px" } : { bottom: 0, borderRadius: "14px 14px 0 0" }), width: "100%", zIndex: 1202 }
+    : place
+      ? { position: "fixed", left: place.left, top: place.top, width: W, zIndex: 1202, borderRadius: 14 }
+      : { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: Math.min(W + 60, vw - 32), zIndex: 1202, borderRadius: 14 };
+  const isChapters = current.kind === "chapters";
+  const btn: React.CSSProperties = { display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, background: "none", border: "none", padding: "4px 0", fontFamily: "var(--font-roboto)" };
 
   return (
     // A long tour: clicking outside doesn't end it (Skip tour and Escape do).
-    <div style={{ position: "fixed", inset: 0, zIndex: 1200 }}>
-      {/* Backdrop (shown only when no spotlight is active) */}
-      {!spot && (
-        <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.55)" }} />
-      )}
-
-      {/* Spotlight ring: creates dark overlay via box-shadow */}
+    <div data-tour-ui style={{ position: "fixed", inset: 0, zIndex: 1200 }}>
+      <style>{"@keyframes tour-spin { to { transform: rotate(360deg) } }"}</style>
+      {!spot && <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.55)" }} />}
       {spot && (
-        <div
-          style={{
-            position: "fixed",
-            left:   spot.left - PAD,
-            top:    spot.top  - PAD,
-            width:  spot.width  + PAD * 2,
-            height: spot.height + PAD * 2,
-            borderRadius: 10,
-            boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
-            pointerEvents: "none",
-            zIndex: 1201,
-          }}
-        />
+        <div data-tour-spotlight style={{
+          position: "fixed", left: spot.left - PAD, top: spot.top - PAD, width: spot.width + PAD * 2, height: spot.height + PAD * 2,
+          borderRadius: 10, boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)", pointerEvents: "none", zIndex: 1201,
+        }} />
       )}
 
-      {/* Tooltip card */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-busy={!ready}
-        ref={(el) => { if (el) setTooltipH(el.offsetHeight); }}
-        style={{
-          ...tooltipStyle,
-          backgroundColor: "var(--color-surface)",
-          borderRadius: 14,
-          boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
-          fontFamily: "var(--font-roboto)",
-          overflow: "hidden",
-          opacity: ready ? 1 : 0.85,
-        }}
+        role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={!ready}
+        ref={(el) => { if (el && el.offsetHeight !== cardH) setCardH(el.offsetHeight); }}
+        style={{ ...cardStyle, backgroundColor: "var(--color-surface)", boxShadow: "0 16px 48px rgba(0,0,0,0.28)", fontFamily: "var(--font-roboto)", maxHeight: narrow ? "60dvh" : undefined, overflowY: narrow ? "auto" : undefined }}
       >
-        {/* Caret (only when spotlighting a target) */}
-        {spot && <Caret side={side} />}
+        {place?.side && <Caret side={place.side} at={place.caret} />}
 
-        {/* Header row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 0" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            {step + 1} of {STEPS.length}
+          <span data-tour-counter style={{ fontSize: 11, fontWeight: 700, color: "var(--color-secondary)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            {i + 1} of {list.length}
           </span>
-          <button
-            onClick={dismiss}
-            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "var(--font-roboto)" }}
-          >
+          <button onClick={dismiss} style={{ ...btn, fontWeight: 400, fontSize: 11, color: "var(--color-secondary)", cursor: "pointer" }}>
             <X size={13} aria-hidden="true" /> Skip tour
           </button>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: "14px 20px 20px" }} aria-live="polite">
+        <div style={{ padding: "12px 20px 18px" }} aria-live="polite">
           <h2 id={titleId} style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 17, color: "var(--color-navy)", margin: "0 0 8px", lineHeight: 1.3 }}>
-            {ready ? current.title : "Opening…"}
+            {current.title}
           </h2>
-          <p style={{ fontSize: 13, color: "var(--color-body)", lineHeight: 1.6, margin: 0 }}>
-            {ready ? current.body : ""}
-          </p>
+          {!ready ? <Spinner /> : (
+            <>
+              <p style={{ fontSize: 13, color: "var(--color-body)", lineHeight: 1.6, margin: 0 }}>{current.body}</p>
+              {current.tryIt && (
+                <button type="button" onClick={tryIt}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--color-navy)", backgroundColor: "var(--color-navy-dim)", border: "none", borderRadius: 7, padding: "6px 10px", cursor: "pointer" }}>
+                  <Play size={12} aria-hidden="true" /> Try it: {current.tryIt.label}
+                </button>
+              )}
+              {isChapters && chapters && (
+                <ul aria-label="Chapters" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {chapters.map((c) => (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => onPickChapter?.(c.id)}
+                        style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}>
+                        <span aria-hidden="true" style={{ width: 16, flexShrink: 0, paddingTop: 1 }}>{c.done && <Check size={14} color="var(--color-success)" />}</span>
+                        <span>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>{c.title}{c.done && <span className="sr-only"> (done)</span>}</span>
+                          <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.4 }}>{c.summary}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Footer */}
         <div style={{ borderTop: "1px solid var(--color-border)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <button
-            onClick={goBack}
-            disabled={isFirst}
-            style={{
-              display: "flex", alignItems: "center", gap: 4,
-              fontSize: 12, fontWeight: 600,
-              color: isFirst ? "transparent" : "var(--color-secondary)",
-              background: "none", border: "none", cursor: isFirst ? "default" : "pointer",
-              padding: "4px 0", fontFamily: "var(--font-roboto)",
-            }}
-          >
+          <button onClick={goBack} disabled={isFirst} style={{ ...btn, color: isFirst ? "transparent" : "var(--color-secondary)", cursor: isFirst ? "default" : "pointer" }}>
             <ArrowLeft size={13} aria-hidden="true" /> Back
           </button>
-
-          {/* Progress: a bar, since the tours are long now */}
-          <div role="progressbar" aria-label="Tour progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}
+          <div role="progressbar" aria-label="Tour progress" aria-valuemin={1} aria-valuemax={list.length} aria-valuenow={i + 1}
             style={{ flex: 1, maxWidth: 120, height: 4, borderRadius: 2, backgroundColor: "var(--color-border)", overflow: "hidden" }}>
-            <div style={{ width: `${((step + 1) / STEPS.length) * 100}%`, height: "100%", backgroundColor: "var(--color-navy)", transition: "width 180ms ease" }} />
+            <div style={{ width: `${((i + 1) / list.length) * 100}%`, height: "100%", backgroundColor: "var(--color-navy)", transition: "width 180ms ease" }} />
           </div>
-
-          <button
-            onClick={goNext}
-            autoFocus
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 13, fontWeight: 600, color: "#fff",
-              backgroundColor: "var(--color-navy)", border: "none", borderRadius: 8,
-              padding: "8px 14px", cursor: "pointer", fontFamily: "var(--font-roboto)",
-            }}
-          >
+          <button ref={primaryRef} onClick={goNext}
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "var(--color-navy)", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontFamily: "var(--font-roboto)" }}>
             {isLast ? "Done" : "Next"} {!isLast && <ArrowRight size={13} aria-hidden="true" />}
           </button>
         </div>
@@ -316,6 +416,68 @@ export default function OnboardingModal({ role, onClose, steps, remember = true 
   );
 }
 
+// ── Which tour runs: first run, Replay, a chapter, or one page ───────────────
+
+type Running = { id: string; steps: TourStep[]; remember: boolean; started: number };
+
+/**
+ * The LC shell's tours. Listens for "app:show-onboarding" (detail.chapter
+ * picks a chapter; none replays the core tour) and "app:show-page-tour".
+ */
+export function TourHost({ ctx, userId, onRunning }: { ctx: TourContext | null; userId: string | null; onRunning?: (on: boolean) => void }) {
+  const [running, setRunning] = useState<Running | null>(null);
+  useEffect(() => { onRunning?.(Boolean(running)); }, [running, onRunning]);
+  const [done, setDone] = useState<string[]>([]);
+  const role = ctx?.role ?? null;
+  const onMc = Boolean(ctx?.onMc);
+
+  useEffect(() => {
+    const sync = () => setDone(readProgress(userId));
+    sync();
+    window.addEventListener("app:tour-progress", sync);
+    return () => window.removeEventListener("app:tour-progress", sync);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!role) return;
+    const c: TourContext = { role, onMc };
+    let seen = true;
+    try { seen = Boolean(localStorage.getItem(lsKey(role))); } catch { /* storage blocked */ }
+    // Showing the core tour once per role is the point of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!seen) setRunning({ id: "core", steps: stepsFor(CORE, c), remember: true, started: Date.now() });
+
+    function onShow(e: Event) {
+      const chapter = (e as CustomEvent<{ chapter?: string } | undefined>).detail?.chapter;
+      setRunning(chapter
+        ? { id: chapter, steps: chapterSteps(chapter, c), remember: false, started: Date.now() }
+        : { id: "core", steps: stepsFor(CORE, c), remember: true, started: Date.now() });
+    }
+    function onPage(e: Event) {
+      const path = (e as CustomEvent<{ path?: string } | undefined>).detail?.path ?? window.location.pathname;
+      const steps = pageSteps(path, c);
+      if (steps.length) setRunning({ id: `page:${path}`, steps, remember: false, started: Date.now() });
+    }
+    window.addEventListener("app:show-onboarding", onShow);
+    window.addEventListener("app:show-page-tour", onPage);
+    return () => { window.removeEventListener("app:show-onboarding", onShow); window.removeEventListener("app:show-page-tour", onPage); };
+  }, [role, onMc]);
+
+  if (!running || !ctx) return null;
+  const chapters = chaptersFor(ctx).map((c) => ({ id: c.id, title: c.title, summary: c.summary, done: done.includes(c.id) }));
+  return (
+    <OnboardingModal
+      key={`${running.id}:${running.started}`}
+      role={ctx.role} steps={running.steps} remember={running.remember}
+      chapters={chapters}
+      onPickChapter={(id) => setRunning({ id, steps: chapterSteps(id, ctx), remember: false, started: Date.now() })}
+      onReachEnd={() => { if (!running.id.startsWith("page:")) markDone(userId, running.id); }}
+      onClose={() => setRunning(null)}
+    />
+  );
+}
+
+/** The MC shell's first-run tour (the national view has one tour). */
 export function useOnboarding(role: TourRole | null) {
   const [show, setShow] = useState(false);
 
@@ -327,12 +489,10 @@ export function useOnboarding(role: TourRole | null) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!seen) setShow(true);
 
-    function handleRetrigger() {
-      try { localStorage.removeItem(lsKey(role!)); } catch { /* ignore */ }
-      setShow(true);
-    }
-    window.addEventListener("app:show-onboarding", handleRetrigger);
-    return () => window.removeEventListener("app:show-onboarding", handleRetrigger);
+    const open = () => setShow(true);
+    window.addEventListener("app:show-onboarding", open);
+    window.addEventListener("app:show-page-tour", open);
+    return () => { window.removeEventListener("app:show-onboarding", open); window.removeEventListener("app:show-page-tour", open); };
   }, [role]);
 
   return { show, open: () => setShow(true), close: () => setShow(false) };

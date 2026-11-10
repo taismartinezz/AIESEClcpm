@@ -72,7 +72,7 @@ export default function RecruitmentTab({ projectId, userId, departments, onImpor
             );
           })}
         </div>
-        <Button variant="secondary" onClick={onImport}><Upload size={14} aria-hidden="true" /> Import applications</Button>
+        <Button variant="secondary" onClick={onImport} data-tour="import-recruits"><Upload size={14} aria-hidden="true" /> Import applications</Button>
         <Button onClick={() => setAdding(true)}><Plus size={14} aria-hidden="true" /> Add applicant</Button>
       </div>
       <ErrorText>{error}</ErrorText>

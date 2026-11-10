@@ -119,7 +119,7 @@ export function Stat({ label, value, note }: { label: string; value: string; not
 
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { id: T; label: string }[] }) {
   return (
-    <div role="tablist" style={{ display: "flex", gap: 4, marginTop: 8, overflowX: "auto" }}>
+    <div role="tablist" data-tour="page-tabs" style={{ display: "flex", gap: 4, marginTop: 8, overflowX: "auto" }}>
       {tabs.map((t) => {
         const active = t.id === value;
         return (

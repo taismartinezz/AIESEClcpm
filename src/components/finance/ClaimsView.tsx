@@ -99,7 +99,7 @@ export default function ClaimsView({ claims, userId, departments, memberNames, i
           <option value="all">All</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
         </select>
         {!mine && <Button variant="secondary" onClick={exportCsv} disabled={visible.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>}
-        <Button onClick={onNewClaim}><Plus size={14} aria-hidden="true" /> New claim</Button>
+        <Button onClick={onNewClaim} data-tour="new-claim"><Plus size={14} aria-hidden="true" /> New claim</Button>
       </div>}
     >
       <ErrorText>{error}</ErrorText>

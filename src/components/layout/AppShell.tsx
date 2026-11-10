@@ -2,7 +2,7 @@
 
 import type { UserProfileRecord, ProjectRecord } from "@/types/database-records";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -12,7 +12,7 @@ import {
   LifeBuoy, HeartPulse, Plane, Handshake, CalendarClock,
 } from "lucide-react";
 import { computeInitials } from "@/lib/utils";
-import type { User, SubProject, UserRole } from "@/types";
+import type { User, SubProject } from "@/types";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import { useMcs } from "@/hooks/useMcs";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -26,7 +26,8 @@ import CountryPrompt from "@/components/ui/CountryPrompt";
 import SectionTabs, { sectionFor } from "@/components/layout/SectionTabs";
 import Avatar from "@/components/ui/Avatar";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
-import OnboardingModal, { useOnboarding, type TourRole } from "@/components/ui/OnboardingModal";
+import { TourHost, type TourRole } from "@/components/ui/OnboardingModal";
+import { NAV_ITEMS, NOT_IN_MORE, PRIMARY } from "@/lib/nav";
 import Tooltip from "@/components/ui/Tooltip";
 import GlobalSearch from "@/components/ui/GlobalSearch";
 import Helper from "@/components/helper/Helper";
@@ -49,30 +50,13 @@ function contrastTextColor(hex: string): "#000000" | "#ffffff" {
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
 type NavGroup = { id: string; label: string | null; items: NavItem[]; foldedByDefault?: boolean };
 
-const NAV: Record<string, NavItem> = Object.fromEntries(([
-  ["/",           "Dashboard",  LayoutDashboard],
-  ["/tasks",      "Tasks",      CheckSquare    ],
-  ["/chat",       "Chat",       MessageSquare  ],
-  ["/reminders",  "Reminders",  CircleCheck    ],
-  // Calendar = Scheduling + Events + Tabling, People = Team + Members, Pipeline = Pipeline +
-  // Outreach + Goals, Drive = Files + Handover: one menu item each, tabs inside (SectionTabs).
-  ["/scheduling", "Calendar",   CalendarDays   ],
-  ["/pipeline",   "Pipeline",   Plane          ],
-  ["/partners",   "Partners",   Handshake      ],
-  ["/team",       "People",     Users          ],
-  ["/finance",    "Finance",    Wallet         ],
-  ["/drive",      "Drive",      FolderOpen     ],
-  ["/checkin",    "Check-in",   HeartPulse     ],
-  // Planning = Our LC + Routines + Membership criteria (from the LC planning template).
-  ["/plan",       "Planning",   CalendarClock  ],
-  ["/mc",         "National (MC)", Globe2      ],
-] as const).map(([href, label, icon]) => [href, { href, label, icon }]));
+const ICONS: Record<string, typeof LayoutDashboard> = {
+  "/": LayoutDashboard, "/tasks": CheckSquare, "/chat": MessageSquare, "/reminders": CircleCheck,
+  "/scheduling": CalendarDays, "/pipeline": Plane, "/partners": Handshake, "/team": Users, "/finance": Wallet,
+  "/drive": FolderOpen, "/checkin": HeartPulse, "/plan": CalendarClock, "/mc": Globe2,
+};
+const NAV: Record<string, NavItem> = Object.fromEntries(NAV_ITEMS.map(({ href, label }) => [href, { href, label, icon: ICONS[href] }]));
 
-/**
- * What each role sees first; everything else sits under "More" (folded until
- * opened, or while you're on one of its pages). A member gets their own day to
- * day, a VP adds the department's tools, the president the LC-wide ones.
- */
 // Tab titles ("Tasks · LC Manager") for pages that aren't in the menu themselves.
 const TITLE_FOR: Record<string, string> = {
   "/settings": "Settings", "/profile": "Profile", "/help": "Help", "/members": "People",
@@ -86,16 +70,6 @@ function pageTitle(pathname: string): string {
   if (hit) return NAV[hit].label;
   return Object.entries(TITLE_FOR).find(([prefix]) => match(prefix))?.[1] ?? "";
 }
-
-const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/reminders", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
-};
-
-// Never under "More": National is in the main list for MC members only, and
-// Chat opens from the top bar (with its unread count).
-const NOT_IN_MORE = ["/mc", "/chat"];
 
 function useNavGroups(): NavGroup[] {
   const { mcs } = useMcs();
@@ -355,6 +329,7 @@ function SidebarBody({
                 <Link
                   href={href}
                   onClick={onLinkClick}
+                  data-tour={`nav:${href}`}
                   aria-label={showBadge ? `${label} - ${badgeLabel}` : label}
                   style={{
                     ...ICON_BTN,
@@ -397,6 +372,7 @@ function SidebarBody({
             style={{ ...ICON_BTN, background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)" }}
             className="hover:bg-[var(--color-navy-dim)]"
             aria-label="Get help"
+            data-tour="get-help"
           >
             <LifeBuoy size={16} />
           </button>
@@ -545,6 +521,7 @@ function SidebarBody({
               key={href}
               href={href}
               onClick={onLinkClick}
+              data-tour={`nav:${href}`}
               className="flex items-center gap-2.5 rounded-lg transition-colors"
               style={{
                 backgroundColor: active ? "var(--color-navy-dim)" : undefined,
@@ -582,6 +559,7 @@ function SidebarBody({
           className="flex items-center gap-2.5 w-full rounded-lg transition-colors hover:bg-[var(--color-navy-dim)]"
           style={{ padding: "6px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-roboto)", color: "var(--color-secondary)", fontSize: 13, minHeight: 36, textAlign: "left" }}
           aria-label="Get help"
+          data-tour="get-help"
         >
           <LifeBuoy size={14} />
           <span>Get help</span>
@@ -752,12 +730,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   });
   const navWidthRef                       = useRef(210);
   const [showCreate, setShowCreate]       = useState(false);
-  const { show: showOnboarding, close: closeOnboarding } = useOnboarding(tourRole);
+  const onMc = myMcs.length > 0;
+  const tourCtx = useMemo(() => (tourRole ? { role: tourRole, onMc } : null), [tourRole, onMc]);
+  const [tourRunning, setTourRunning] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpKey, setHelpKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // The tour opens the phone menu for steps that point at it.
+  useEffect(() => {
+    const onNav = (e: Event) => setMobileNavOpen(Boolean((e as CustomEvent<{ open?: boolean }>).detail?.open));
+    window.addEventListener("app:mobile-nav", onNav);
+    return () => window.removeEventListener("app:mobile-nav", onNav);
+  }, []);
   const [authed, setAuthed] = useState(false);
 
   // Someone in no LC has nothing to see here: the national view if they're on
@@ -1283,6 +1269,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 className="hidden sm:flex items-center gap-2 px-3 transition-colors hover:bg-[var(--color-navy-dim)]"
                 style={{ height: 34, borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", cursor: "pointer" }}
                 aria-label="Open search"
+                data-tour="search"
               >
                 <Search size={15} />
                 <span>Search</span>
@@ -1291,7 +1278,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Tooltip>
 
             {/* Search on phones (the wide search box is hidden there). */}
-            <button type="button" aria-label="Search"
+            <button type="button" aria-label="Search" data-tour="search"
               onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
               className="sm:hidden relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] w-[38px] sm:w-11"
               style={{ height: 44, background: "none", border: "none", cursor: "pointer" }}>
@@ -1300,7 +1287,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Chat: on phones (and on the Chat page) it opens Chat; elsewhere it drops down quick messaging. */}
             <Tooltip label="Messages" placement="bottom">
-              <button type="button" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}
+              <button type="button" aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"} data-tour="chat"
                 onClick={() => {
                   if (window.innerWidth < 640 || pathname.startsWith("/chat")) router.push("/chat");
                   else window.dispatchEvent(new Event("chatdock:toggle"));
@@ -1323,6 +1310,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   className="relative flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-navy-dim)] w-[38px] sm:w-11"
                   style={{ height: 44 }}
                   aria-label={isDnd ? "Notifications (quiet hours active)" : `Notifications, ${unreadCount} unread`}
+                  data-tour="notifications"
                 >
                   <Bell size={18} color="var(--color-body)" />
                   <NotifDot count={isDnd ? 0 : unreadCount} />
@@ -1372,6 +1360,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   className="flex items-center gap-1.5 rounded-lg px-1 transition-colors hover:bg-[var(--color-navy-dim)]"
                   style={{ minHeight: 44 }}
                   aria-label="Profile menu"
+                  data-tour="account"
                 >
                 <Avatar
                   user={{
@@ -1414,13 +1403,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )}
     {projectId && <GlobalSearch projectId={projectId} />}
     {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} />}
-    {showOnboarding && authed && tourRole && <OnboardingModal role={tourRole} onClose={closeOnboarding} />}
+    {authed && <TourHost ctx={tourCtx} userId={profile?.id ?? null} onRunning={setTourRunning} />}
     {/* People who joined before onboarding asked for a country: ask once. */}
     {authed && isSupabaseConfigured && !isPreview && profile?.id && !profile.country_code && !pathname.startsWith("/onboarding") && (
       <CountryPrompt userId={profile.id} projectId={projectId} isPresident={lcRole === "president"}
         onSaved={(code) => setProfile((p) => (p ? { ...p, country_code: code } : p))} />
     )}
-    {authed && !showOnboarding && <WhatsNew />}
+    {authed && !tourRunning && <WhatsNew />}
     <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     {authed && <ChatDock />}
 </>

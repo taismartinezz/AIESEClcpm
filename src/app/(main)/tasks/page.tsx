@@ -702,7 +702,7 @@ export default function TasksPage() {
         {isLabHome && (
           <div className="md:hidden flex items-center gap-2 overflow-x-auto py-2" style={{ scrollbarWidth: "none" }}>
             {sidebarSections.map((s) => (
-              <button key={s.id} onClick={s.onClick}
+              <button key={s.id} onClick={s.onClick} data-tour={`scope:${s.id}`}
                 style={{ flexShrink: 0, fontSize: 12, fontWeight: s.isActive ? 700 : 500, padding: "5px 12px", borderRadius: 20, border: `1px solid ${s.isActive ? s.color : "var(--color-border)"}`, backgroundColor: s.isActive ? `${s.color}18` : "transparent", color: s.isActive ? s.color : "var(--color-secondary)", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font-roboto)" }}>
                 {s.label}
               </button>

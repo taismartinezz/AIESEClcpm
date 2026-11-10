@@ -5,7 +5,7 @@ import { RELEASES } from '../../src/lib/help'
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((releaseId) => {
     for (const role of ['president', 'vp', 'member', 'mc']) {
-      localStorage.setItem(`aiesec_tour_v4:${role}`, '1')
+      localStorage.setItem(`aiesec_tour_v5:${role}`, '1')
     }
     localStorage.setItem('aiesec_seen_release', releaseId)
   }, RELEASES[0].id)

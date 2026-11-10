@@ -48,7 +48,7 @@ export default function SectionTabs({ pathname }: { pathname: string }) {
       {section.tabs.map((t) => {
         const active = matches(pathname, t.href);
         return (
-          <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined}
+          <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} data-tour={`tab:${t.href}`}
             style={{
               padding: "8px 14px", fontSize: 13, fontWeight: active ? 700 : 500, whiteSpace: "nowrap", textDecoration: "none",
               color: active ? "var(--color-navy)" : "var(--color-secondary)",

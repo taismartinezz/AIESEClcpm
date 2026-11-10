@@ -1,5 +1,9 @@
 "use client";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { HelpCircle } from "lucide-react";
+import { useProject } from "@/context/ProjectContext";
+import { pageSteps } from "@/lib/tours";
 
 interface Props {
   title: string;
@@ -12,6 +16,10 @@ interface Props {
 
 export default function PageHeader({ title, eyebrow, badge, subtitle, action, children }: Props) {
   const hasSub = !!(subtitle || children);
+  const pathname = usePathname();
+  const { role } = useProject();
+  // The national view has its own "Take the tour" button in its top bar.
+  const hasTour = !pathname.startsWith("/mc") && pageSteps(pathname, { role: role ?? "member" }).length > 0;
   return (
     <div
       data-tour="page-header"
@@ -43,6 +51,14 @@ export default function PageHeader({ title, eyebrow, badge, subtitle, action, ch
               {title}
             </h1>
             {badge}
+            {hasTour && (
+              <button type="button" data-tour="page-tour" title="Show me this page" aria-label="Show me this page"
+                onClick={() => window.dispatchEvent(new CustomEvent("app:show-page-tour", { detail: { path: pathname } }))}
+                className="hover:bg-[var(--color-navy-dim)]"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 7, border: "none", background: "none", color: "var(--color-secondary)", cursor: "pointer" }}>
+                <HelpCircle size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
         {action && (

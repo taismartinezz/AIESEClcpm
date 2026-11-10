@@ -453,7 +453,7 @@ export default function DashboardPage() {
       {/* Greeting + action row */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-          <div>
+          <div data-tour="dashboard-title">
             <h1 style={{ fontFamily: "var(--font-lora)", fontWeight: 700, fontSize: 22, margin: 0, lineHeight: 1.2, color: "var(--color-navy)" }}>
               {isLabHome || isPersonal ? (
                 <>
@@ -472,6 +472,7 @@ export default function DashboardPage() {
           <div style={{ position: "relative", flexShrink: 0, marginTop: 2 }}>
             <button
               onClick={() => setNewMenuOpen((o) => !o)}
+              data-tour="new-button" aria-expanded={newMenuOpen}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 height: 36, padding: "0 14px",

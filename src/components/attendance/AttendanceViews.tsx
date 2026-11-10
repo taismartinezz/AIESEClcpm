@@ -128,7 +128,7 @@ export function EventsView({ events, records, rsvps, userId, roster, departments
             <option value="all">All types</option>
             {EVENT_TYPES.map((t) => <option key={t} value={t}>{EVENT_TYPE_LABELS[t]}</option>)}
           </select>
-          {canManage && <Button onClick={onNew}><Plus size={14} aria-hidden="true" /> Event</Button>}
+          {canManage && <Button onClick={onNew} data-tour="new-event"><Plus size={14} aria-hidden="true" /> Event</Button>}
         </div>}
       >
         {shown.length === 0 ? (

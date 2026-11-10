@@ -95,6 +95,15 @@ export interface Release { id: string; date: string; title: string; items: strin
 /** Newest first. Bump the first id to show "What's new" again. */
 export const RELEASES: Release[] = [
   {
+    id: "2026-11-tour-chapters", date: "2026-11-10", title: "A shorter tour, in chapters",
+    items: [
+      "The tour is now about eight steps. At the end you pick what to learn next: Getting around, Setting up your LC, Exchanges, People & events, Running the LC, or Wellbeing & privacy.",
+      "Help lists the same chapters, with a ✓ for each one you've finished.",
+      "The ? next to a page's title shows you just that page.",
+      "→ or Enter for the next step, ← to go back, Esc to stop. On a phone the tour sits at the bottom of the screen.",
+    ],
+  },
+  {
     id: "2026-11-tour-helper", date: "2026-11-08", title: "A full tour, and a helper that finds things",
     items: [
       "The tour now opens each page you use and points at what's on it, for members, VPs, presidents and the MC. Replay it from Help any time.",
