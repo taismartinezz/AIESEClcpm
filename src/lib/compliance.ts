@@ -35,26 +35,34 @@ export function semesterMonths(today: string): { y: number; m: number }[] {
 /**
  * A monthly deadline over this semester. SONA is due by the 1st of the month;
  * the HR report by the month's last day. Late counts as missed; more than 2
- * missed in a semester and the LC is downgraded.
+ * missed in a semester and the LC is downgraded. Deadlines from before the LC
+ * was created (`since`, a date) don't count: a new LC can't have missed them.
  */
-export function monthlyDeadline(kind: CheckKind, checks: ComplianceData["checks"], today: string) {
+export function monthlyDeadline(kind: CheckKind, checks: ComplianceData["checks"], today: string, since?: string | null) {
   const months = semesterMonths(today).map(({ y, m }) => {
     const month = firstOf(y, m);
     const due = kind === "sona" ? month : lastOf(y, m);
     const done = checks.find((c) => c.kind === kind && c.month === month)?.done_on ?? null;
     return { month, due, done, missed: due < today && (!done || done > due) };
-  });
+  }).filter((x) => !since || x.due >= since.slice(0, 10));
   const missed = months.filter((x) => x.missed).length;
-  const current = months.at(-1)!;
+  const current = months.at(-1) ?? null;
   return { months, missed, current };
 }
 
-export function evaluate(d: ComplianceData, today: string): Criterion[] {
+/** The first of next month: when a brand-new LC's first SONA is due. */
+function nextFirst(today: string) {
+  const [y, m] = today.split("-").map(Number);
+  return m === 12 ? firstOf(y + 1, 1) : firstOf(y, m + 1);
+}
+
+export function evaluate(d: ComplianceData, today: string, since?: string | null): Criterion[] {
   const money = (n: number) => `${n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${d.currency ? ` ${d.currency}` : ""}`;
   const monthly = (kind: CheckKind, title: string, owner: string): Criterion => {
-    const { missed, current } = monthlyDeadline(kind, d.checks, today);
-    const [, m] = current.month.split("-").map(Number);
-    const now = current.done ? `${MONTH[m - 1]}'s is done.` : current.due < today ? `${MONTH[m - 1]}'s wasn't sent on time.` : `${MONTH[m - 1]}'s is due ${current.due === today ? "today" : `by ${current.due}`}.`;
+    const { missed, current } = monthlyDeadline(kind, d.checks, today, since);
+    const [, m] = (current?.month ?? today).split("-").map(Number);
+    const now = !current ? `The first one is due by ${nextFirst(today)}.`
+      : current.done ? `${MONTH[m - 1]}'s is done.` : current.due < today ? `${MONTH[m - 1]}'s wasn't sent on time.` : `${MONTH[m - 1]}'s is due ${current.due === today ? "today" : `by ${current.due}`}.`;
     return {
       key: kind, title, owner,
       status: missed > 2 ? "fail" : missed > 0 ? "warn" : "ok",

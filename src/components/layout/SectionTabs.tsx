@@ -23,7 +23,7 @@ export const SECTIONS: { id: string; label: string; tabs: { href: string; label:
     { href: "/members", label: "Recruitment & onboarding" },
   ] },
   { id: "planning", label: "Planning", tabs: [
-    { href: "/plan",     label: "Our LC" },
+    { href: "/plan",     label: "Planning" },
     { href: "/routines", label: "Routines" },
     { href: "/compliance", label: "Membership criteria" },
   ] },

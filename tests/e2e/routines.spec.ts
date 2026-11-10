@@ -25,6 +25,11 @@ test.describe('Routines', () => {
     await recordWrites(page)
     await page.goto('/routines')
     await expect(page.getByRole('heading', { level: 1, name: 'Routines' })).toBeVisible({ timeout: 10000 })
+    // Each area is folded, with the department it goes to.
+    await expect(page.getByText(/Finance & Legality · 0 of \d+ added · goes to Finance/)).toBeVisible()
+    await expect(page.getByText(/no matching department yet, so their routines go to the LCP/)).toHaveCount(1)
+    await expect(page.getByRole('link', { name: 'Create departments' })).toHaveAttribute('href', '/settings#departments')
+    await page.getByText(/Finance & Legality ·/).click()
     await page.getByRole('button', { name: 'Add Semester audit' }).click()
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/routines'))?.body ?? '').toContain('"template_key":"fin-audit"')
     const body = (await writes(page)).find((w) => w.url.includes('/rest/v1/routines'))!.body
@@ -109,7 +114,7 @@ test.describe('Membership criteria', () => {
   })
 })
 
-test.describe('Our LC', () => {
+test.describe('Planning', () => {
   test('the EB writes its identity, a SWOT tagged by area, and a battle for this month', async ({ page }) => {
     await setupAuthMocks(page, 'president', { tables: { lc_identity: [], lc_swot: [], lc_battles: [] } })
     await recordWrites(page)
@@ -122,12 +127,20 @@ test.describe('Our LC', () => {
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_identity'))?.body ?? '').toContain('"values":["Ownership","Care"]')
     expect((await writes(page)).find((w) => w.url.includes('lc_identity'))?.body).toContain('"tool_links":[{"label":"Podio","url":"https://podio.com/x"}]')
 
+    // Not started yet: one setup card, the sections open from it.
+    await expect(page.getByRole('region', { name: 'Set up your LC plan' })).toBeVisible()
+    await expect(page.getByLabel('Add to Weaknesses')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Start the SWOT' }).click()
     await page.getByLabel('Add to Weaknesses').fill('Few iGTa partners')
     await page.getByRole('region', { name: 'Weaknesses' }).getByRole('button', { name: 'iGX' }).click()
     await page.getByRole('region', { name: 'Weaknesses' }).getByRole('button', { name: 'Add' }).click()
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_swot'))?.body ?? '').toContain('"areas":["iGX"]')
 
     const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    await page.getByRole('button', { name: "Set this month's" }).click()
+    // This month and the next two show; the rest fold away.
+    await expect(page.locator('[data-tour="plan-battles"]').getByRole('region')).toHaveCount(3)
+    await expect(page.locator('[data-tour="plan-battles"]').getByRole('region').first()).toHaveAttribute('aria-label', month)
     await page.getByLabel(`Battle for ${month}`).fill('Recruitment week')
     await page.getByRole('region', { name: month }).getByRole('button', { name: 'Add' }).click()
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_battles'))?.body ?? '').toContain('"title":"Recruitment week"')

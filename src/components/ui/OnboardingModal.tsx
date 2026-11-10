@@ -19,6 +19,7 @@ const GAP = 14;       // between the spotlight and the card
 const W = 320;        // card width
 const NARROW = 640;   // below this, the card is a bottom sheet
 const SETTLE_MS = 1500;
+const GIVE_UP_MS = 8000;  // a step that still isn't showing by then is left out
 const isDev = process.env.NODE_ENV !== "production";
 
 type Side = "right" | "left" | "bottom" | "top";
@@ -96,8 +97,9 @@ export function placeCard(rect: DOMRect, preferred: Side, w: number, h: number, 
       return { left, top, side, caret };
     }
   }
-  // A big anchor with no room beside it: the corner that covers the least of it.
-  const corners = [[8, 8], [vw - w - 8, 8], [8, vh - h - 8], [vw - w - 8, vh - h - 8]];
+  // A big anchor with no room beside it: the corner that covers the least of it,
+  // bottom right first (top left is the logo and the menu).
+  const corners = [[vw - w - 8, vh - h - 8], [vw - w - 8, 8], [8, vh - h - 8], [8, 8]];
   const overlap = ([l, t]: number[]) =>
     Math.max(0, Math.min(l + w, rect.right + PAD) - Math.max(l, rect.left - PAD)) *
     Math.max(0, Math.min(t + h, rect.bottom + PAD) - Math.max(t, rect.top - PAD));
@@ -219,6 +221,14 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
     if (paused) return;
     let cancelled = false;
     const isCancelled = () => cancelled;
+    // Not there for this person (or never showed up): leave it out, and out of the count.
+    const skip = (why: string) => {
+      if (isDev && !current.optional) console.warn(`[tour] No anchor for step "${current.id ?? current.title}": ${why}`);
+      setSkipped((prev) => new Set(prev).add(current));
+      if (direction < 0) setIndex(Math.max(0, i - 1));
+    };
+    // Whatever goes wrong (a page that never loads, a redirect), a step never spins forever.
+    const giveUp = setTimeout(() => { if (!cancelled) { cancelled = true; skip(`not showing after ${GIVE_UP_MS / 1000} s`); } }, GIVE_UP_MS);
     if (left.current && left.current !== current) { left.current.leave?.(); }
     left.current = current;
     (async () => {
@@ -244,23 +254,22 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
         }
         el = await waitForTarget(current.targets, patience, isCancelled);
         if (cancelled) return;
-        if (!el) {
-          if (isDev && !current.optional) console.warn(`[tour] No anchor for step "${current.id ?? current.title}": ${current.targets.join(", ")}`);
-          // Not there for this person: leave it out, and out of the count.
-          setSkipped((prev) => new Set(prev).add(current));
-          if (direction < 0) setIndex(Math.max(0, i - 1));
-          return;
-        }
+        if (!el) { clearTimeout(giveUp); skip(current.targets.join(", ")); return; }
         // The anchor's own part of the page may still be loading.
         await waitSettled(settleBy, isCancelled);
         if (cancelled) return;
-        el.scrollIntoView({ block: window.innerWidth < NARROW ? "start" : "center", inline: "nearest", behavior: "instant" as ScrollBehavior });
+        const scroll = (block: ScrollLogicalPosition) => el!.scrollIntoView({ block, inline: "nearest", behavior: "instant" as ScrollBehavior });
+        scroll(window.innerWidth < NARROW ? "start" : "center");
+        // A tall anchor centred leaves no room for the card: at the top of the page, it goes underneath.
+        const fits = () => placeCard(el!.getBoundingClientRect(), current.side ?? "right", W, cardH, window.innerWidth, window.innerHeight).side !== null;
+        if (window.innerWidth >= NARROW && !fits()) { scroll("start"); if (!fits()) scroll("center"); }
       }
       targetRef.current = el;
       setActive(el);
       // Nothing else keeps a focus ring (a menu link from an earlier step, say).
       const focused = document.activeElement as HTMLElement | null;
       if (focused && !focused.closest("[data-tour-ui]")) focused.blur();
+      clearTimeout(giveUp);
       setTargetRect(el?.getBoundingClientRect() ?? null);
       setReadyFor(key);
       // This page has had time to load: later optional steps on it whose anchor isn't
@@ -270,9 +279,26 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
         if (absent.length) setSkipped((prev) => { const next = new Set(prev); absent.forEach((s) => next.add(s)); return next; });
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(giveUp); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, paused]);
+
+  // Pages redraw after loading (a tab bar, say): follow the anchor if it's replaced or moves.
+  useEffect(() => {
+    if (!ready || paused || !current?.targets?.length) return;
+    const t = setInterval(() => {
+      let el = targetRef.current;
+      if (!el?.isConnected || !isShown(el)) {
+        el = findTarget(current.targets);
+        if (!el) return;
+        targetRef.current = el;
+        setActive(el);
+      }
+      const r = el.getBoundingClientRect();
+      setTargetRect((prev) => (prev && prev.left === r.left && prev.top === r.top && prev.width === r.width && prev.height === r.height ? prev : r));
+    }, 300);
+    return () => clearInterval(t);
+  }, [ready, paused, current]);
 
   useEffect(() => { if (ready && !paused) primaryRef.current?.focus({ preventScroll: true }); }, [ready, paused]);
 
@@ -280,7 +306,7 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
   useEffect(() => {
     const measure = () => {
       setVw(window.innerWidth); setVh(window.innerHeight);
-      setTargetRect(targetRef.current?.isConnected ? targetRef.current.getBoundingClientRect() : null);
+      if (targetRef.current?.isConnected) setTargetRect(targetRef.current.getBoundingClientRect());
     };
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
@@ -327,13 +353,14 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
   }
 
   const spot = ready ? targetRect : null;
+  const isChaptersCard = current.kind === "chapters";
   const sheetAtTop = Boolean(spot && narrow && spot.bottom > vh - cardH - 16);
   const place = spot && !narrow ? placeCard(spot, current.side ?? "right", W, cardH, vw, vh) : null;
   const cardStyle: React.CSSProperties = narrow
     ? { position: "fixed", left: 0, right: 0, ...(sheetAtTop ? { top: 0, borderRadius: "0 0 14px 14px" } : { bottom: 0, borderRadius: "14px 14px 0 0" }), width: "100%", zIndex: 1202 }
     : place
       ? { position: "fixed", left: place.left, top: place.top, width: W, zIndex: 1202, borderRadius: 14 }
-      : { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: Math.min(W + 60, vw - 32), zIndex: 1202, borderRadius: 14 };
+      : { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: Math.min(isChaptersCard ? 460 : W + 60, vw - 32), zIndex: 1202, borderRadius: 14 };
   const isChapters = current.kind === "chapters";
   const btn: React.CSSProperties = { display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, background: "none", border: "none", padding: "4px 0", fontFamily: "var(--font-roboto)" };
 
@@ -379,16 +406,13 @@ export default function OnboardingModal({ role, onClose, steps, remember = true,
                 </button>
               )}
               {isChapters && chapters && (
-                <ul aria-label="Chapters" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                <ul aria-label="Chapters" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 6 }}>
                   {chapters.map((c) => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => onPickChapter?.(c.id)}
-                        style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer", fontFamily: "var(--font-roboto)" }}>
-                        <span aria-hidden="true" style={{ width: 16, flexShrink: 0, paddingTop: 1 }}>{c.done && <Check size={14} color="var(--color-success)" />}</span>
-                        <span>
-                          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>{c.title}{c.done && <span className="sr-only"> (done)</span>}</span>
-                          <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.4 }}>{c.summary}</span>
-                        </span>
+                      <button type="button" onClick={() => onPickChapter?.(c.id)} title={c.summary}
+                        style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", height: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer", fontFamily: "var(--font-roboto)", fontSize: 13, fontWeight: 600, color: "var(--color-navy)" }}>
+                        {c.title}
+                        {c.done && <><Check size={14} color="var(--color-success)" aria-hidden="true" style={{ flexShrink: 0 }} /><span className="sr-only"> (done)</span></>}
                       </button>
                     </li>
                   ))}
@@ -464,7 +488,11 @@ export function TourHost({ ctx, userId, onRunning }: { ctx: TourContext | null; 
   }, [role, onMc]);
 
   if (!running || !ctx) return null;
-  const chapters = chaptersFor(ctx).map((c) => ({ id: c.id, title: c.title, summary: c.summary, done: done.includes(c.id) }));
+  // Not the chapter you just finished; after the core tour, Getting around (mostly what you just saw) goes last.
+  const chapters = chaptersFor(ctx)
+    .filter((c) => c.id !== running.id)
+    .sort((a, b) => Number(running.id === "core" && a.id === "getting-around") - Number(running.id === "core" && b.id === "getting-around"))
+    .map((c) => ({ id: c.id, title: c.title, summary: c.summary, done: done.includes(c.id) }));
   return (
     <OnboardingModal
       key={`${running.id}:${running.started}`}

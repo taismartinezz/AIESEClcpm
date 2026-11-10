@@ -11,6 +11,9 @@ const VIEWPORTS = [
   { width: 390, height: 844 },
 ]
 
+/** Welcome and Finish cards: the only ones with nothing to point at. */
+const CARDS_WITHOUT_ANCHOR = ['Welcome to', 'Pick what to learn next', 'The national view', "You're set"]
+
 const card = (page: Page) => page.getByRole('dialog').filter({ has: page.locator('[data-tour-counter]') })
 
 /** Missing anchors are reported as console warnings in development: any one fails the test. */
@@ -40,7 +43,8 @@ async function walk(page: Page, label: string): Promise<Seen & { picker: boolean
 
     const active = page.locator('[data-tour-active]')
     const highlighted = await active.count()
-    expect(highlighted, `${label}: "${title}" highlights ${highlighted} elements`).toBeLessThanOrEqual(1)
+    const isCardOnly = CARDS_WITHOUT_ANCHOR.some((t) => title.startsWith(t))
+    expect(highlighted, `${label}: "${title}" highlights ${highlighted} elements`).toBe(isCardOnly ? 0 : 1)
     expect(await page.locator('[data-tour-spotlight]').count()).toBe(highlighted)
     if (highlighted === 1) {
       const box = await active.boundingBox()
@@ -50,6 +54,11 @@ async function walk(page: Page, label: string): Promise<Seen & { picker: boolean
       expect(box!.x, `${label}: "${title}" anchor off screen`).toBeLessThan(vp.width)
       expect(box!.y + box!.height, `${label}: "${title}" anchor off screen`).toBeGreaterThan(0)
       expect(box!.y, `${label}: "${title}" anchor off screen`).toBeLessThan(vp.height)
+      if (vp.width >= 640) {
+        const c = (await dialog.boundingBox())!
+        const overlap = c.x < box!.x + box!.width && c.x + c.width > box!.x && c.y < box!.y + box!.height && c.y + c.height > box!.y
+        expect(overlap, `${label}: "${title}" card covers its anchor`).toBe(false)
+      }
     }
     const skeletons = page.locator('.animate-pulse:visible')
     expect(await skeletons.count(), `${label}: "${title}" shows a loading skeleton`).toBe(0)
@@ -90,19 +99,22 @@ for (const viewport of VIEWPORTS) {
         expect(core.titles.length).toBeLessThanOrEqual(10)
         expect(core.titles.length).toBe(core.total)
 
-        const chapters = await card(page).getByRole('list', { name: 'Chapters' }).getByRole('button').allTextContents()
-        expect(chapters.length).toBeGreaterThan(0)
-        if (role === 'member') expect(chapters.join(' ')).not.toContain('Setting up your LC')
-        for (let c = 0; c < chapters.length; c++) {
-          const picker = card(page).getByRole('list', { name: 'Chapters' }).getByRole('button').nth(c)
-          const name = ((await picker.locator('span span').first().textContent()) ?? '').trim()
-          await picker.click()
+        const names = (await card(page).getByRole('list', { name: 'Chapters' }).getByRole('button').allTextContents()).map((t) => t.replace('(done)', '').trim())
+        expect(names.length).toBe(role === 'member' ? 5 : 6)
+        if (role === 'member') expect(names).not.toContain('Setting up your LC')
+        expect(names[names.length - 1]).toBe('Getting around')       // what the core tour just showed goes last
+        for (const name of names) {
+          const list = card(page).getByRole('list', { name: 'Chapters' })
+          await list.getByRole('button', { name: new RegExp(`^${name.replace(/[&]/g, '\\$&')}`) }).click()
           const seen = await walk(page, `${role} / ${name}`)
           expect(seen.picker, `${role} / ${name} ends on the chapter picker`).toBe(true)
           expect(seen.titles.length).toBe(seen.total)
           if (role === 'member') expect(seen.titles).not.toContain('Departments')
-          // The chapter now has its ✓.
-          await expect(card(page).getByRole('list', { name: 'Chapters' }).getByRole('button').nth(c)).toContainText('(done)')
+          // The picker leaves out the chapter just finished, and ticks the others you've done.
+          const now = card(page).getByRole('list', { name: 'Chapters' })
+          await expect(now.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(0)
+          const box = await card(page).boundingBox()
+          expect(box!.height, 'the chapter picker fits the screen').toBeLessThanOrEqual(page.viewportSize()!.height)
         }
         await card(page).getByRole('button', { name: 'Done', exact: true }).click()
         await expect(card(page)).toHaveCount(0)
@@ -130,6 +142,18 @@ for (const viewport of VIEWPORTS) {
 }
 
 test.describe('Tour controls', () => {
+  test('in a brand-new LC (just the LCP), the Pulse step is left out instead of spinning', async ({ page }) => {
+    const missing = watchAnchors(page)
+    await setupAuthMocks(page, 'president', { tables: { team_members: [{ id: 'tm1', user_id: 'mock-user-id', project_id: 'project-abc', role: 'president', department_id: null }] } })
+    await page.goto('/')
+    await expect(page.locator('[data-tour="helper"]')).toBeVisible({ timeout: 15000 })
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('app:show-onboarding', { detail: { chapter: 'wellbeing' } })))
+    const seen = await walk(page, 'solo LC / wellbeing')
+    expect(seen.titles).not.toContain('Pulse')
+    expect(seen.picker).toBe(true)
+    expect(missing).toEqual([])
+  })
+
   test('keys: → and Enter go on, ← goes back, Esc ends it and focus goes back to the page', async ({ page }) => {
     await startTour(page, 'member')
     await expect(card(page)).toHaveAttribute('aria-busy', 'false', { timeout: 10000 })

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Repeat, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Plus, Repeat, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
@@ -106,7 +107,7 @@ export default function RoutinesPage() {
     <div className="flex flex-col h-full">
       <PageHeader title="Routines" subtitle="What repeats in your LC, who does it and why. Each one becomes a task a few days before it's due."
         action={exec && enabled ? <Button onClick={() => setCreating((v) => !v)}><Plus size={14} aria-hidden="true" /> New routine</Button> : undefined} />
-      <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
+      <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Routines">The weekly EB meeting, SONA to the MC by the 1st, the semester audit: routines that turn into tasks for the right person, on time.</NeedsDatabase>
         ) : (
@@ -155,7 +156,7 @@ export default function RoutinesPage() {
                 </ul>
               </Panel>
             ))}
-            {exec && <Templates added={added} departments={departments} onAdd={(ts) => add(ts.map(fromTemplate), ts.length === 1 ? `"${ts[0].title}" added.` : `${ts.length} routines added.`)} />}
+            {exec && <Templates added={added} departments={departments} canMakeDepartments={role === "president"} onAdd={(ts) => add(ts.map(fromTemplate), ts.length === 1 ? `"${ts[0].title}" added.` : `${ts.length} routines added.`)} />}
           </>
         )}
       </div>
@@ -163,28 +164,38 @@ export default function RoutinesPage() {
   );
 }
 
-/** The AIESEC routines from the LC planning template, by area. */
-function Templates({ added, departments, onAdd }: {
-  added: Set<string | null>; departments: { id: string; name: string; products: string[] }[]; onAdd: (t: RoutineTemplate[]) => void;
+/** The AIESEC routines from the LC planning template, by area, each area folded. */
+function Templates({ added, departments, canMakeDepartments, onAdd }: {
+  added: Set<string | null>; departments: { id: string; name: string; products: string[] }[]; canMakeDepartments: boolean; onAdd: (t: RoutineTemplate[]) => void;
 }) {
   const areas = [...new Set(ROUTINE_TEMPLATES.map((t) => t.area))] as Area[];
+  const unmatched = areas.filter((a) => a !== "lcp" && !departmentForArea(a, departments));
   return (
     <Panel title="AIESEC routines">
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0, padding: "10px 14px 0" }}>
-        From the LC planning template. Each goes to the matching department&apos;s VP (or the LCP); you can turn any off or delete it later.
+        From the LC planning template. Each goes to the matching department&apos;s VP; you can turn any off or delete it later.
       </p>
+      {unmatched.length > 0 && (
+        <p style={{ fontSize: 12, color: "var(--color-body)", margin: "8px 14px 0", padding: "8px 10px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)" }}>
+          {unmatched.map((a) => AREA_LABEL[a]).join(", ")} {unmatched.length === 1 ? "has" : "have"} no matching department yet, so {unmatched.length === 1 ? "its" : "their"} routines go to the LCP.{" "}
+          {canMakeDepartments && <Link href="/settings#departments" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Create departments</Link>}
+        </p>
+      )}
       {areas.map((area) => {
         const list = ROUTINE_TEMPLATES.filter((t) => t.area === area);
         const missing = list.filter((t) => !added.has(t.key));
         const dept = departmentForArea(area, departments);
+        const owner = area === "lcp" || !dept ? "the LCP" : departments.find((d) => d.id === dept)?.name;
         return (
-          <div key={area} style={{ padding: "10px 14px", borderTop: "1px solid var(--color-border)", marginTop: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <details key={area} className="group" style={{ borderTop: "1px solid var(--color-border)", marginTop: 10 }}>
+            <summary style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", cursor: "pointer", listStyle: "none" }}>
+              <ChevronRight size={14} aria-hidden="true" className="transition-transform group-open:rotate-90" style={{ flexShrink: 0, color: "var(--color-secondary)" }} />
               <strong style={{ flex: 1, fontSize: 13 }}>{AREA_LABEL[area]}
-                {area !== "lcp" && <span style={{ fontWeight: 400, fontSize: 12, color: "var(--color-secondary)" }}> · {dept ? departments.find((d) => d.id === dept)?.name : "no matching department: goes to the LCP"}</span>}
+                <span style={{ fontWeight: 400, fontSize: 12, color: "var(--color-secondary)" }}> · {list.length - missing.length} of {list.length} added · goes to {owner}</span>
               </strong>
-              {missing.length > 1 && <Button variant="secondary" onClick={() => onAdd(missing)}>Add all {missing.length}</Button>}
-            </div>
+            </summary>
+            <div style={{ padding: "0 14px 10px 36px" }}>
+            {missing.length > 1 && <div style={{ marginBottom: 8 }}><Button variant="secondary" onClick={() => onAdd(missing)}>Add all {missing.length}</Button></div>}
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
               {list.map((t) => (
                 <li key={t.key} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -199,7 +210,8 @@ function Templates({ added, departments, onAdd }: {
                 </li>
               ))}
             </ul>
-          </div>
+            </div>
+          </details>
         );
       })}
     </Panel>

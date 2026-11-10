@@ -171,7 +171,8 @@ export const CHAPTERS: TourChapter[] = [
         body: "Invite links for your VPs and members. Copy a link and send it to your EB.",
       },
       {
-        id: "import", title: "Import", route: "/pipeline", targets: [T("import"), ACTIONS], side: "bottom", roles: EXEC,
+        // Only departments that run an exchange product have a pipeline to import into.
+        id: "import", title: "Import", route: "/pipeline", targets: [T("import")], side: "bottom", roles: EXEC, optional: true,
         body: "Bring in your EXPA export or a Google Sheet; importing again updates instead of duplicating. Press Import exchanges to start.",
         tryIt: { label: "Open Import", click: T("import") },
       },
@@ -195,7 +196,7 @@ export const CHAPTERS: TourChapter[] = [
         body: "Every exchange per product, from Sign-up to Completed. Pick a product to see its board.",
       },
       {
-        id: "import-exchanges", title: "Import", route: "/pipeline", targets: [T("import"), ACTIONS], side: "bottom", roles: EXEC,
+        id: "import-exchanges", title: "Import", route: "/pipeline", targets: [T("import")], side: "bottom", roles: EXEC, optional: true,
         body: "Your EXPA export or a Google Sheet in one go; importing again updates instead of duplicating. Press Import exchanges to start.",
         tryIt: { label: "Open Import", click: T("import") },
       },
@@ -268,8 +269,8 @@ export const CHAPTERS: TourChapter[] = [
         body: "Private to-dos with a date, separate from the shared Tasks board; Mine adds any assigned to you. Add one for something only you need to do.",
       },
       {
-        id: "planning", title: "Planning", route: "/plan", targets: [T("tab:/plan")], side: "bottom",
-        body: "Who your EB is, where the LC stands and each month's priorities: the plan behind Goals' numbers and the Calendar's dates. Read this month's priorities.",
+        id: "planning", title: "Planning", route: "/plan", targets: [T("plan-setup"), T("plan-battles"), T("tab:/plan")], side: "bottom",
+        body: "Your EB's identity, SWOT and each month's battles: the plan behind Goals' numbers and the Calendar's dates. Check this month's battles.",
       },
       {
         id: "routines", title: "Routines", route: "/routines", targets: [T("tab:/routines")], side: "bottom",
@@ -302,8 +303,8 @@ export const CHAPTERS: TourChapter[] = [
     summary: "The check-in, the Pulse and getting help.",
     steps: [
       {
-        id: "checkin", title: "Check-in", route: "/checkin", targets: [T("checkin-grid")], side: "top",
-        body: "Six quick questions every two weeks; leaders only ever see averages, never your answers. Answer them now, it takes a minute.",
+        id: "checkin", title: "Check-in", route: "/checkin", targets: [T("checkin-grid")], side: "bottom",
+        body: "Six quick questions every two weeks, each on this 1 to 5 scale; leaders only see averages. Answer them now, it takes a minute.",
       },
       {
         id: "pulse", title: "Pulse", route: "/", targets: [T("pulse")], side: "top", roles: EXEC, optional: true,
@@ -323,7 +324,7 @@ export const CHAPTERS: TourChapter[] = [
 
 export const MC_TOUR: TourStep[] = [
   { id: "mc-welcome", title: "The national view", route: "/mc", body: "Every LC in your country, side by side. What you see depends on your role on the MC." },
-  { id: "mc-codes", title: "Codes and linking", route: "/mc", targets: [T("mc-codes")], side: "bottom", optional: true, body: "Send the LC code to each LCP so they link their LC; the member code is for your national team. Copy the LC code to start." },
+  { id: "mc-codes", title: "Codes and linking", route: "/mc", targets: [T("mc-lc-code"), T("mc-codes")], side: "bottom", optional: true, body: "Send the LC code to each LCP so they link their LC; the member code is for your national team. Copy the LC code to start." },
   { id: "mc-by-lc", title: "Goals and pace", route: "/mc", targets: [T("mc-by-lc")], side: "top", optional: true, body: "Each LC's approvals and realizations per product, against the MCP's targets. Export CSV from here." },
   { id: "mc-attention", title: "Needs attention", route: "/mc", targets: [T("mc-attention")], side: "bottom", optional: true, body: "LCs that need a call: no approvals lately, far behind pace, or data that's out of date. Call the first one this week." },
   { id: "mc-funnel", title: "Where LCs lose people", route: "/mc", targets: [T("mc-funnel")], side: "top", optional: true, body: "Applied → Accepted → Approved → Realized → Completed per LC. Coach each LC on its weakest step." },

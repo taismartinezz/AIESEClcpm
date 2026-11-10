@@ -177,6 +177,8 @@ export default function DashboardPage() {
   const [overdueReminders, setOverdueReminders] = useState<OverdueReminder[]>([]);
   const [loading, setLoading]         = useState(isSupabaseConfigured);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  // The checklist already says "Invite your VPs": the Next step card doesn't repeat it.
+  const [checklistAsksInvite, setChecklistAsksInvite] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [remindersVersion, setRemindersVersion] = useState(0);
 
@@ -550,7 +552,7 @@ export default function DashboardPage() {
 
         {isSupabaseConfigured && <DemoBanner />}
         {role && isSupabaseConfigured && (
-          <GettingStartedCard role={role} projectId={activeProjectId} userId={ctxUserId} ledDepartmentIds={ledDepartmentIds} />
+          <GettingStartedCard role={role} projectId={activeProjectId} userId={ctxUserId} ledDepartmentIds={ledDepartmentIds} onInviteShown={setChecklistAsksInvite} />
         )}
         {(role === "president" || role === "vp") && isSupabaseConfigured && (
           <ThisWeekCard projectId={activeProjectId} role={role} departments={departments} ledDepartmentIds={ledDepartmentIds} />
@@ -572,7 +574,7 @@ export default function DashboardPage() {
 
         {/* A brand-new LC (just you): pulse, wins and opportunities can only be empty,
             so show the one thing that fills them instead. */}
-        {soloLc && (role === "president" || role === "vp") && (
+        {soloLc && (role === "vp" || (role === "president" && !checklistAsksInvite)) && (
           <section aria-label="Next step" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderLeft: "3px solid var(--color-navy)", borderRadius: 10, padding: "16px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 220 }}>
               <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-secondary)", margin: "0 0 4px" }}>Next step</p>

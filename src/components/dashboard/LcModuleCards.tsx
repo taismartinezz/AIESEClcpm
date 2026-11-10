@@ -103,9 +103,10 @@ async function loadUpcoming(projectId: string) {
   return {
     events: (events.data ?? []).map(mapEvent) as LcEvent[],
     openSlots: ((slots.data ?? []).map(mapSlot) as TablingSlot[]).filter((s) => s.taken < s.capacity).slice(0, 4),
+    anySlots: (slots.data ?? []).length > 0,
   };
 }
-const EMPTY_UPCOMING = { events: [] as LcEvent[], openSlots: [] as TablingSlot[] };
+const EMPTY_UPCOMING = { events: [] as LcEvent[], openSlots: [] as TablingSlot[], anySlots: false };
 
 export function UpcomingNeedsCard({ projectId }: { projectId: string | null }) {
   const { data, error, loaded } = useLoad(projectId, loadUpcoming, EMPTY_UPCOMING);
@@ -126,7 +127,7 @@ export function UpcomingNeedsCard({ projectId }: { projectId: string | null }) {
             </ul>
           )}
           <h3 style={{ ...muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: 10 }}>Tabling slots that need people</h3>
-          {data.openSlots.length === 0 ? <p style={{ ...muted, marginTop: 4 }}>Every upcoming slot is full.</p> : (
+          {data.openSlots.length === 0 ? <p style={{ ...muted, marginTop: 4 }}>{data.anySlots ? "Every upcoming slot is full." : "No tabling slots coming up."}</p> : (
             <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 0 }}>
               {data.openSlots.map((s) => (
                 <li key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "3px 0" }}>

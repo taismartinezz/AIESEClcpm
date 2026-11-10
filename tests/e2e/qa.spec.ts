@@ -253,11 +253,15 @@ test('a stuck exchange offers one-click actions that reach a person', async ({ p
   await expect(page.getByRole('status').filter({ hasText: /Nudged/ }).first()).toBeVisible()
 })
 
-test('a brand-new LC shows one next step instead of empty pulse and wins cards', async ({ page }) => {
+test('a brand-new LC asks to invite the VPs once: in the checklist, or in the next step card once that is hidden', async ({ page }) => {
   await setupAuthMocks(page, 'president')
   await page.goto('/')
+  await expect(page.getByRole('region', { name: 'Getting started' })).toContainText('Invite your VPs', { timeout: 10000 })
+  await expect(page.getByRole('region', { name: 'Next step' })).toHaveCount(0)
+  await expect(page.getByText(/Invite your VPs/)).toHaveCount(1)
+  await page.getByRole('button', { name: 'Hide getting started' }).click()
   const next = page.getByRole('region', { name: 'Next step' })
-  await expect(next).toContainText('Invite your VPs', { timeout: 10000 })
+  await expect(next).toContainText('Invite your VPs')
   await expect(next.getByRole('link', { name: 'Invite people' })).toHaveAttribute('href', '/settings#invite')
 })
 

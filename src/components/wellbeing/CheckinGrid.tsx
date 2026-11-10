@@ -17,8 +17,8 @@ export default function CheckinGrid({ questions, answers, onScore }: {
 }) {
   const cols = "grid grid-cols-5 md:grid-cols-[1fr_repeat(5,64px)] items-center";
   return (
-    <div data-tour="checkin-grid" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
-      <div className={cols} aria-hidden="true" style={{ padding: "10px 12px 8px", borderBottom: "1px solid var(--color-border)" }}>
+    <div style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
+      <div className={cols} aria-hidden="true" data-tour="checkin-grid" style={{ padding: "10px 12px 8px", borderBottom: "1px solid var(--color-border)" }}>
         <span className="hidden md:block" />
         {SCORES.map((s) => (
           <span key={s} style={{ textAlign: "center", fontSize: 10, lineHeight: 1.25, color: "var(--color-secondary)" }}>

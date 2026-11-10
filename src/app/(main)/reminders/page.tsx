@@ -1092,8 +1092,9 @@ function EmptyState({ panelColor, onAdd }: { panelColor: string; onAdd: () => vo
           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-body)", margin: "0 0 4px" }}>No reminders here</p>
           <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>Set one to stay on top of what matters.</p>
         </div>
-        <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, height: 34, paddingInline: 16, backgroundColor: panelColor, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          <Plus size={13} /> New Reminder
+        {/* The app's main button colour, not the list's (some lists are grey). */}
+        <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, height: 34, paddingInline: 16, backgroundColor: "var(--color-btn-primary)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          <Plus size={13} /> New reminder
         </button>
       </div>
     </div>

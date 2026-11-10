@@ -31,12 +31,19 @@ export default function CompliancePage() {
   const [boa, setBoa] = useState("");
   const [plan, setPlan] = useState("");
   const [now] = useState(today);
+  const [since, setSince] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !projectId || isLoading || !exec) return;
     let cancelled = false;
-    supabase.rpc("lc_compliance", { p_project_id: projectId }).then(({ data: rows, error: err }) => {
+    Promise.all([
+      supabase.rpc("lc_compliance", { p_project_id: projectId }),
+      supabase.from("projects").select("created_at").eq("id", projectId).maybeSingle(),
+    ]).then(([{ data: rows, error: err }, lc]) => {
       if (cancelled) return;
+      // Months before the LC existed don't count as missed.
+      const created = (lc.data as { created_at?: string } | null)?.created_at;
+      setSince(typeof created === "string" ? created.slice(0, 10) : null);
       const row = Array.isArray(rows) ? (rows[0] as ComplianceData | undefined) : undefined;
       if (err) setError(`Couldn't load the criteria: ${err.message}`);
       else if (row) { setData({ ...row, balance: Number(row.balance) }); setBoa(String(row.boa_members)); setPlan(row.debt_plan ?? ""); setError(null); }
@@ -57,14 +64,14 @@ export default function CompliancePage() {
     if (err) setError(`Couldn't save: ${err.message}`); else setVersion((v) => v + 1);
   }
 
-  const criteria = data ? evaluate(data, now) : [];
+  const criteria = data ? evaluate(data, now, since) : [];
   const counts = { ok: 0, warn: 0, fail: 0 } as Record<Status, number>;
   for (const c of criteria) counts[c.status]++;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Membership criteria" subtitle="What your LC needs to keep full-member status, and how it stands today." />
-      <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
+      <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Membership criteria">A non-negative balance, 3 BoA members, 5 oGX approvals and 8 iGTa meetings a year, SONA by the 1st: each criterion green, yellow or red.</NeedsDatabase>
         ) : !exec ? (
@@ -84,7 +91,7 @@ export default function CompliancePage() {
                     {criteria.map((c, i) => {
                       const st = STATUS_STYLE[c.status];
                       const Icon = st.icon;
-                      const monthly = c.key === "sona" || c.key === "hr_report" ? monthlyDeadline(c.key, data.checks, now) : null;
+                      const monthly = c.key === "sona" || c.key === "hr_report" ? monthlyDeadline(c.key, data.checks, now, since) : null;
                       return (
                         <li key={c.key} style={{ display: "flex", gap: 12, padding: "12px 14px", borderTop: i ? "1px solid var(--color-border)" : "none", alignItems: "flex-start" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, backgroundColor: st.bg, color: st.color, flexShrink: 0, minWidth: 74 }}>

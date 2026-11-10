@@ -17,7 +17,7 @@ export const NAV_ITEMS: { href: string; label: string }[] = [
   { href: "/finance",    label: "Finance" },
   { href: "/drive",      label: "Drive" },
   { href: "/checkin",    label: "Check-in" },
-  // Planning = Our LC + Routines + Membership criteria (from the LC planning template).
+  // Planning = the LC plan + Routines + Membership criteria (from the LC planning template).
   { href: "/plan",       label: "Planning" },
   { href: "/mc",         label: "National (MC)" },
 ];
