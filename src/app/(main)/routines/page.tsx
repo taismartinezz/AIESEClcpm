@@ -106,7 +106,7 @@ export default function RoutinesPage() {
     <div className="flex flex-col h-full">
       <PageHeader title="Routines" subtitle="What repeats in your LC, who does it and why. Each one becomes a task a few days before it's due."
         action={exec && enabled ? <Button onClick={() => setCreating((v) => !v)}><Plus size={14} aria-hidden="true" /> New routine</Button> : undefined} />
-      <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
+      <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Routines">The weekly EB meeting, SONA to the MC by the 1st, the semester audit: routines that turn into tasks for the right person, on time.</NeedsDatabase>
         ) : (

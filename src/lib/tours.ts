@@ -302,8 +302,8 @@ export const CHAPTERS: TourChapter[] = [
     summary: "The check-in, the Pulse and getting help.",
     steps: [
       {
-        id: "checkin", title: "Check-in", route: "/checkin", targets: [T("checkin-grid")], side: "top",
-        body: "Six quick questions every two weeks; leaders only ever see averages, never your answers. Answer them now, it takes a minute.",
+        id: "checkin", title: "Check-in", route: "/checkin", targets: [T("checkin-grid")], side: "bottom",
+        body: "Six quick questions every two weeks, each on this 1 to 5 scale; leaders only see averages. Answer them now, it takes a minute.",
       },
       {
         id: "pulse", title: "Pulse", route: "/", targets: [T("pulse")], side: "top", roles: EXEC, optional: true,
@@ -323,7 +323,7 @@ export const CHAPTERS: TourChapter[] = [
 
 export const MC_TOUR: TourStep[] = [
   { id: "mc-welcome", title: "The national view", route: "/mc", body: "Every LC in your country, side by side. What you see depends on your role on the MC." },
-  { id: "mc-codes", title: "Codes and linking", route: "/mc", targets: [T("mc-codes")], side: "bottom", optional: true, body: "Send the LC code to each LCP so they link their LC; the member code is for your national team. Copy the LC code to start." },
+  { id: "mc-codes", title: "Codes and linking", route: "/mc", targets: [T("mc-lc-code"), T("mc-codes")], side: "bottom", optional: true, body: "Send the LC code to each LCP so they link their LC; the member code is for your national team. Copy the LC code to start." },
   { id: "mc-by-lc", title: "Goals and pace", route: "/mc", targets: [T("mc-by-lc")], side: "top", optional: true, body: "Each LC's approvals and realizations per product, against the MCP's targets. Export CSV from here." },
   { id: "mc-attention", title: "Needs attention", route: "/mc", targets: [T("mc-attention")], side: "bottom", optional: true, body: "LCs that need a call: no approvals lately, far behind pace, or data that's out of date. Call the first one this week." },
   { id: "mc-funnel", title: "Where LCs lose people", route: "/mc", targets: [T("mc-funnel")], side: "top", optional: true, body: "Applied → Accepted → Approved → Realized → Completed per LC. Coach each LC on its weakest step." },

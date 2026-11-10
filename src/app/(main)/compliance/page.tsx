@@ -64,7 +64,7 @@ export default function CompliancePage() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Membership criteria" subtitle="What your LC needs to keep full-member status, and how it stands today." />
-      <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
+      <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Membership criteria">A non-negative balance, 3 BoA members, 5 oGX approvals and 8 iGTa meetings a year, SONA by the 1st: each criterion green, yellow or red.</NeedsDatabase>
         ) : !exec ? (

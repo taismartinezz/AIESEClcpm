@@ -535,7 +535,7 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
   return (
     <Panel tour="mc-codes" title={prominent ? "Next: get your LCs linked" : "Codes"}>
       <div style={{ padding: 14, display: "grid", gap: 16 }}>
-        <div>
+        <div data-tour="mc-lc-code">
           <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>LC code, for LC presidents</p>
           <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Send this to each LCP so they can link their LC (Settings → LC &amp; departments → National (MC)).</p>
           <div style={row}><span style={codeStyle}>{mc.lcCode}</span><CopyButton text={mc.lcCode} label="Copy code" /><CopyButton text={lcMessage} label="Copy invite message" /></div>

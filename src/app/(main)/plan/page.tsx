@@ -81,7 +81,7 @@ export default function PlanPage() {
     <div className="flex flex-col h-full">
       <PageHeader title="Our LC" subtitle="Who your EB is as a team, where the LC stands, and each month's priorities."
         action={exec && isSupabaseConfigured ? <Button variant="secondary" onClick={() => setEditing((v) => !v)}><Pencil size={14} aria-hidden="true" /> {editing ? "Done" : "Edit identity"}</Button> : undefined} />
-      <div className="flex-1 overflow-auto" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
+      <div className="flex-1 overflow-auto [&>*]:shrink-0" style={{ padding: "16px clamp(16px, 3vw, 28px)", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1100 }}>
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Our LC">Your EB&apos;s identity, a SWOT tagged by area, and the battles for each month of the term.</NeedsDatabase>
         ) : (

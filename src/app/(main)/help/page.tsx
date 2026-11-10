@@ -38,9 +38,11 @@ export default function HelpPage() {
               const finished = done.includes(c.id);
               return (
                 <li key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
-                  <span aria-hidden="true" style={{ width: 16, flexShrink: 0, paddingTop: 2 }}>{finished && <Check size={15} color="var(--color-success)" />}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>{c.title}{finished && <span className="sr-only"> (done)</span>}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--color-body)" }}>
+                      {c.title}
+                      {finished && <><Check size={15} color="var(--color-success)" aria-hidden="true" /><span className="sr-only"> (done)</span></>}
+                    </span>
                     <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", lineHeight: 1.45 }}>{c.summary}</span>
                   </span>
                   <Button variant="secondary" aria-label={`${finished ? "Replay" : "Start"} ${c.title}`}
