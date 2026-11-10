@@ -57,12 +57,12 @@ test('sends a chat message through the preview backend', async ({ page }) => {
 
 test('submits and edits the current check-in', async ({ page }) => {
   await page.goto('/checkin')
-  const scores = page.getByRole('button', { name: '4: Agree', exact: true })
+  const scores = page.getByRole('radio', { name: '4: Agree', exact: true })
   await expect(scores).toHaveCount(6)
-  for (const score of await scores.all()) await score.click()
-  await page.getByRole('button', { name: 'Submit check-in', exact: true }).click()
+  for (const score of await scores.all()) await score.check()
+  await page.getByRole('button', { name: 'Submit', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Thanks, your check-in is in.' })).toBeVisible()
-  await page.getByRole('button', { name: '5: Strongly agree', exact: true }).first().click()
+  await page.getByRole('radio', { name: '5: Strongly agree', exact: true }).first().check()
   await page.getByRole('button', { name: 'Update my answers', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Your answers were updated.' })).toBeVisible()
 })
@@ -92,7 +92,10 @@ test('the chosen chat channel survives navigating away and back', async ({ page 
   await page.getByRole('button', { name: 'Kwame Mensah', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Kwame Mensah', exact: true })).toBeVisible()
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
-  await page.getByRole('link', { name: 'Chat', exact: true }).click()
+  await expect(page).not.toHaveURL(/\/chat/)
+  // Chat opens from the top bar: its dock links to the full page.
+  await page.getByRole('banner').getByRole('button', { name: /^Chat/ }).click()
+  await page.getByRole('link', { name: 'Open Chat', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Kwame Mensah', exact: true })).toBeVisible()
 })
 
@@ -115,7 +118,7 @@ test('availability autosaves keyboard edits and survives tab changes', async ({ 
 test('the president has one menu (no "More"), and collapsing the sidebar is remembered on its own', async ({ page }) => {
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const item of ['Dashboard', 'Tasks', 'Reminders', 'Chat', 'Calendar', 'Pipeline', 'Partners', 'People', 'Finance', 'Drive', 'Check-in']) {
+  for (const item of ['Dashboard', 'Tasks', 'Reminders', 'Calendar', 'Pipeline', 'Partners', 'People', 'Finance', 'Drive', 'Check-in']) {
     await expect(nav.getByRole('link', { name: item, exact: true })).toBeVisible()
   }
   await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveCount(0)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, Hash, Send } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
@@ -356,13 +357,21 @@ export default function ChatDock() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-navy)", fontFamily: "var(--font-lora)" }}>Messaging</span>
               )}
             </div>
-            <button onClick={() => setDockOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)", display: "flex", padding: 4, borderRadius: 6 }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = "var(--color-navy-dim)")}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-              title="Close"
-            >
-              <X size={15} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {/* The full page, with every channel: Chat isn't in the side menu. */}
+              <Link href="/chat" onClick={() => setDockOpen(false)}
+                style={{ fontSize: 12, fontWeight: 600, color: "var(--color-navy)", textDecoration: "none", padding: "4px 6px", borderRadius: 6 }}
+                className="hover:bg-[var(--color-navy-dim)]">
+                Open Chat
+              </Link>
+              <button onClick={() => setDockOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-secondary)", display: "flex", padding: 4, borderRadius: 6 }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "var(--color-navy-dim)")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                title="Close"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Content */}

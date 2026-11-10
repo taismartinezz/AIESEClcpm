@@ -4,15 +4,16 @@ import type { CheckinQuestion, UserRole } from "@/types";
 // 1–5 agreement scale. IDs are stored with every answer and used by the SQL
 // pulse functions, so never reuse an ID for a different question.
 
-// "Lately", not "this week": check-ins are every two weeks by default.
+// No time words in the questions: the check-in page leads with "Over the last
+// two weeks…" (or week) once, from the LC's cadence.
 export const CHECKIN_QUESTIONS: (CheckinQuestion & { short: string; vpText?: string; presidentText?: string })[] = [
-  { id: "energy",    short: "Energy",     text: "I've had enough energy for my AIESEC responsibilities lately." },
-  { id: "workload",  short: "Workload",   text: "My AIESEC workload has felt manageable lately." },
-  { id: "purpose",   short: "Purpose",    text: "What I do in AIESEC has felt meaningful to me lately." },
-  { id: "support",   short: "Support",    text: "I've felt supported by my VP lately.",
-    vpText: "I've felt supported by my LCP lately.",
-    presidentText: "I've felt supported by my executive board lately." },
-  { id: "belonging", short: "Belonging",  text: "I've felt part of my team and my LC lately." },
+  { id: "energy",    short: "Energy",     text: "I've had enough energy for my AIESEC responsibilities." },
+  { id: "workload",  short: "Workload",   text: "My AIESEC workload has felt manageable." },
+  { id: "purpose",   short: "Purpose",    text: "What I do in AIESEC has felt meaningful to me." },
+  { id: "support",   short: "Support",    text: "I've felt supported by my VP.",
+    vpText: "I've felt supported by my LCP.",
+    presidentText: "I've felt supported by my executive board." },
+  { id: "belonging", short: "Belonging",  text: "I've felt part of my team and my LC." },
   { id: "balance",   short: "Balance",    text: "I've been able to balance AIESEC with my studies, work and personal life." },
 ];
 
@@ -41,7 +42,7 @@ export function audienceCopy(role: UserRole | null): string {
     return "Your LCP sees the average for the executive board, never your individual answers.";
   }
   if (role === "president") {
-    return "As LCP your answers are just for you. They're never included in any average.";
+    return "Only you see your answers. As LCP, they're never included in any average.";
   }
   return "Your VP and LCP see the average for your department, never your individual answers.";
 }
@@ -147,8 +148,9 @@ export function thisPeriod(weeks: CheckinCadence): string {
   return weeks === 2 ? "this fortnight" : "this week";
 }
 
-export function cadenceLabel(weeks: CheckinCadence): string {
-  return weeks === 2 ? "every two weeks" : "every week";
+/** Said once above the questions, so they needn't each end in "lately". */
+export function checkinLeadIn(weeks: CheckinCadence): string {
+  return weeks === 2 ? "Over the last two weeks…" : "Over the last week…";
 }
 
 export function privacyMessage(weeks: CheckinCadence): string {

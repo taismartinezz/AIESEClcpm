@@ -32,6 +32,10 @@ export function Button({ children, variant = "primary", ...props }: React.Button
     danger:    { backgroundColor: "var(--color-surface)", color: "var(--color-error)", border: "1px solid var(--color-error)" },
     ghost:     { backgroundColor: "transparent", color: "var(--color-secondary)", border: "none" },
   }[variant];
+  // A disabled primary goes grey, so it doesn't read as a faded but live button.
+  const off = props.disabled && variant === "primary"
+    ? { backgroundColor: "var(--color-dimmed-bg)", color: "var(--color-secondary)", border: "1px solid var(--color-border)" }
+    : null;
   return (
     <button
       type="button"
@@ -40,7 +44,7 @@ export function Button({ children, variant = "primary", ...props }: React.Button
         display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
         height: 36, padding: "0 14px", borderRadius: 7, fontSize: 13, fontWeight: 600,
         fontFamily: "var(--font-roboto)", cursor: props.disabled ? "default" : "pointer",
-        opacity: props.disabled ? 0.6 : 1, whiteSpace: "nowrap", ...palette, ...props.style,
+        opacity: props.disabled && !off ? 0.6 : 1, whiteSpace: "nowrap", ...palette, ...off, ...props.style,
       }}
     >
       {children}
