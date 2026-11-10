@@ -59,8 +59,10 @@ export default function ChatDock() {
   // button any more: it covered page content and could vanish under a click.
   useEffect(() => {
     const toggle = () => setDockOpen((v) => !v);
+    const close = () => setDockOpen(false);   // the tour, leaving its chat window step
     window.addEventListener("chatdock:toggle", toggle);
-    return () => window.removeEventListener("chatdock:toggle", toggle);
+    window.addEventListener("chatdock:close", close);
+    return () => { window.removeEventListener("chatdock:toggle", toggle); window.removeEventListener("chatdock:close", close); };
   }, []);
 
   // Escape closes the panel (an open @mention list closes first).
@@ -359,7 +361,7 @@ export default function ChatDock() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {/* The full page, with every channel: Chat isn't in the side menu. */}
-              <Link href="/chat" onClick={() => setDockOpen(false)}
+              <Link href="/chat" onClick={() => setDockOpen(false)} data-tour="chat-open-page"
                 style={{ fontSize: 12, fontWeight: 600, color: "var(--color-navy)", textDecoration: "none", padding: "4px 6px", borderRadius: 6 }}
                 className="hover:bg-[var(--color-navy-dim)]">
                 Open Chat

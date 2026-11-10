@@ -53,12 +53,13 @@ function useNarrowScreen(): boolean {
   );
 }
 
-function NavRow({ color, label, count, selected, onClick }: {
-  color: string; label: string; count?: number; selected: boolean; onClick: () => void;
+function NavRow({ id, color, label, count, selected, onClick }: {
+  id?: string; color: string; label: string; count?: number; selected: boolean; onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
+      data-tour={id ? `scope:${id}` : undefined}
       style={{
         width: "100%", display: "flex", alignItems: "center", gap: 8,
         padding: "6px 10px 6px 11px", borderRadius: 7,
@@ -267,7 +268,7 @@ export default function ScopeSidebar({
         <div style={{ padding: "4px 8px 20px", overflowY: "auto", flex: 1 }}>
           {sections.map((s, i) => (
             <Fragment key={s.id}>
-              <NavRow color={s.color} label={s.label} count={s.count} selected={s.isActive} onClick={s.onClick} />
+              <NavRow id={s.id} color={s.color} label={s.label} count={s.count} selected={s.isActive} onClick={s.onClick} />
               {i === 0 && sections.length > 1 && <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "5px 2px" }} />}
             </Fragment>
           ))}

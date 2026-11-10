@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, LogOut, Map as MapIcon } from "lucide-react";
 import OnboardingModal, { useOnboarding } from "@/components/ui/OnboardingModal";
+import { MC_TOUR } from "@/lib/tours";
 import { useMcs } from "@/hooks/useMcs";
 import Helper from "@/components/helper/Helper";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -73,7 +74,7 @@ export default function McShell({ children }: { children: React.ReactNode }) {
         <button type="button" onClick={signOut} style={link}><LogOut size={14} aria-hidden="true" /> Sign out</button>
       </header>
       <main className="flex-1 overflow-auto">{ready ? children : null}</main>
-      {showTour && onAnMc && <OnboardingModal role="mc" onClose={closeTour} />}
+      {showTour && onAnMc && <OnboardingModal role="mc" steps={MC_TOUR} onClose={closeTour} />}
     </div>
   );
 }

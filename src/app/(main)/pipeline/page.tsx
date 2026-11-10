@@ -117,11 +117,11 @@ export default function PipelinePage() {
         action={<>
           {myProducts.length > 0 && projectId && !isPreview && <ExpaSync projectId={projectId} onSynced={reload} />}
           <Button variant="secondary" onClick={exportCsv} disabled={inProduct.length === 0}><Download size={14} aria-hidden="true" /> CSV</Button>
-          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
+          {myProducts.length > 0 && <Button variant="secondary" onClick={() => setImporting(true)} data-tour="import"><Upload size={14} aria-hidden="true" /> Import exchanges</Button>}
           {myProducts.length > 0 && <Button onClick={() => setEditing("new")}><Plus size={14} aria-hidden="true" /> Add exchange</Button>}
         </>}
       >
-        <div role="tablist" aria-label="Product" style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
+        <div role="tablist" aria-label="Product" data-tour="pipeline-products" style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
           {PRODUCTS.filter((p) => myProducts.includes(p.code)).map((p) => {
             const active = p.code === product;
             const count = exchanges.filter((e) => e.product === p.code).length;
