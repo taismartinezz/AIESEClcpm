@@ -28,14 +28,13 @@ export const NAV_ITEMS: { href: string; label: string }[] = [
  * day, a VP adds the department's tools, the president the LC-wide ones.
  */
 export const PRIMARY: Record<UserRole, string[]> = {
-  member:    ["/", "/tasks", "/reminders", "/scheduling", "/team", "/drive", "/checkin"],
-  vp:        ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
-  president: ["/", "/tasks", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  member:    ["/", "/tasks", "/chat", "/reminders", "/scheduling", "/team", "/drive", "/checkin"],
+  vp:        ["/", "/tasks", "/chat", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
+  president: ["/", "/tasks", "/chat", "/reminders", "/scheduling", "/pipeline", "/partners", "/team", "/finance", "/plan", "/drive", "/checkin"],
 };
 
-// Never under "More": National is in the main list for MC members only, and
-// Chat opens from the top bar (with its unread count).
-export const NOT_IN_MORE = ["/mc", "/chat"];
+// National is in the main list for MC members only. Chat is primary for every role.
+export const NOT_IN_MORE = ["/mc"];
 
 /** The top bar's and the menu's own controls, by their data-tour anchor. */
 export const SHELL_CONTROLS = ["helper", "search", "chat", "notifications", "account", "get-help"];

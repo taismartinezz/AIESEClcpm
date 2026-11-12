@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { CHAPTERS, CORE, MC_TOUR, chapterSteps, chaptersFor, pageSteps, stepsFor, type TourRole, type TourStep } from "@/lib/tours";
-import { NAV_ITEMS, SHELL_CONTROLS } from "@/lib/nav";
+import { NAV_ITEMS, PRIMARY, SHELL_CONTROLS } from "@/lib/nav";
 import { SECTIONS } from "@/components/layout/SectionTabs";
 import { placeCard } from "@/components/ui/OnboardingModal";
 
@@ -108,4 +108,12 @@ describe("placing the card", () => {
       expect(p.top + 220).toBeLessThanOrEqual(892);
     }
   });
+});
+
+describe("chat access", () => {
+  for (const role of ["member", "vp", "president"] as const) {
+    it(`keeps Chat in the primary menu for ${role}`, () => {
+      expect(PRIMARY[role]).toContain("/chat");
+    });
+  }
 });
