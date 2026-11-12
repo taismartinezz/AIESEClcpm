@@ -164,14 +164,14 @@ test('a member sees a short sidebar, with the rest under More', async ({ page })
   await setupAuthMocks(page, 'member')
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const label of ['Dashboard', 'Tasks', 'Reminders', 'Calendar', 'People', 'Drive', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
+  for (const label of ['Dashboard', 'Tasks', 'Chat', 'Reminders', 'Calendar', 'People', 'Drive', 'Check-in']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible({ timeout: 10000 })
   await expect(nav.getByRole('link', { name: 'Finance' })).toHaveCount(0)
   await nav.getByRole('button', { name: 'More' }).click()
   await expect(nav.getByRole('link', { name: 'Finance' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Check-in' })).toBeVisible()
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('aiesec_nav_sections') ?? '[]'))).toContain('more')
-  // Chat opens from the top bar, not from the menu as well.
-  await expect(nav.getByRole('link', { name: 'Chat' })).toHaveCount(0)
+  // Chat stays directly available even when More is expanded.
+  await expect(nav.getByRole('link', { name: 'Chat', exact: true })).toBeVisible()
 })
 
 test('the top bar: a long LC name stops before the buttons, and no second LC badge', async ({ page }) => {

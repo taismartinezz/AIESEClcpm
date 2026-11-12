@@ -118,7 +118,7 @@ test('availability autosaves keyboard edits and survives tab changes', async ({ 
 test('the president has one menu (no "More"), and collapsing the sidebar is remembered on its own', async ({ page }) => {
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const item of ['Dashboard', 'Tasks', 'Reminders', 'Calendar', 'Pipeline', 'Partners', 'People', 'Finance', 'Drive', 'Check-in']) {
+  for (const item of ['Dashboard', 'Tasks', 'Chat', 'Reminders', 'Calendar', 'Pipeline', 'Partners', 'People', 'Finance', 'Drive', 'Check-in']) {
     await expect(nav.getByRole('link', { name: item, exact: true })).toBeVisible()
   }
   await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveCount(0)
