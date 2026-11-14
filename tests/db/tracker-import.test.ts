@@ -24,8 +24,8 @@ beforeAll(async () => {
 describe("tracker import", () => {
   it("partners: inserts, adds the contact once, and updates on re-import", async () => {
     const row = { name: "Demo Bank", stage: "meeting", department_id: lc.departments["Business Development"], contact_name: "Rita", contact_email: "rita@bank.example" };
-    expect(await run("bob", "import_partners", [row, { name: "" }])).toMatchObject({ inserted: 1, updated: 0, failed: 1 });
-    expect(await run("bob", "import_partners", [{ ...row, name: "demo bank", stage: "proposal" }])).toMatchObject({ inserted: 0, updated: 1 });
+    expect(await run("bea", "import_partners", [row, { name: "" }])).toMatchObject({ inserted: 1, updated: 0, failed: 1 });
+    expect(await run("bea", "import_partners", [{ ...row, name: "demo bank", stage: "proposal" }])).toMatchObject({ inserted: 0, updated: 1 });
     const { rows } = await db.query("select p.stage, count(c.*)::int as contacts from partners p left join partner_contacts c on c.partner_id = p.id group by p.stage");
     expect(rows).toEqual([{ stage: "proposal", contacts: 1 }]);
   });

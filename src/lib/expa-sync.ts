@@ -65,7 +65,7 @@ export interface SyncPlan {
  * Sort applications into products: outgoing when the EP's home LC is ours,
  * incoming when the opportunity is hosted by ours.
  */
-export function planSync(apps: ExpaApplication[], lcId: string): SyncPlan {
+export function planSync(apps: ExpaApplication[], lcId: string, allowedProducts?: readonly ProductCode[]): SyncPlan {
   const byProduct: SyncPlan["byProduct"] = {};
   let skipped = 0, ignored = 0;
   for (const a of apps) {
@@ -73,11 +73,13 @@ export function planSync(apps: ExpaApplication[], lcId: string): SyncPlan {
     const outgoing = String(a.person?.home_lc?.id ?? "") === lcId;
     const incoming = String(a.opportunity?.host_lc?.id ?? "") === lcId;
     if (!prog || (!outgoing && !incoming)) { ignored++; continue; }
+    const product = `${outgoing ? "o" : "i"}${prog}` as ProductCode;
+    // Excluded products never enter rows, error messages, or skipped counts.
+    if (allowedProducts && !allowedProducts.includes(product)) continue;
     const fromStatus = statusToStage(a.status ?? "");
     if (fromStatus === null) { skipped++; continue; }
     // Every application has been applied for; "open" means applied, not just signed up.
     const stage = !fromStatus || fromStatus === "signed_up" ? "applied" : fromStatus;
-    const product = `${outgoing ? "o" : "i"}${prog}` as ProductCode;
     const finished = stage === "finished" || stage === "completed";
     const row: ImportRow = {
       stage,

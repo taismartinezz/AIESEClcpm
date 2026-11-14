@@ -1,0 +1,1019 @@
+{
+  "tables": [
+    "activity_feed",
+    "announcements",
+    "app_moderators",
+    "bookmarks",
+    "chat_messages",
+    "chat_read_state",
+    "checkins",
+    "demo_people",
+    "departments",
+    "drive_folders",
+    "eb_profiles",
+    "email_log",
+    "event_attendance",
+    "event_invitees",
+    "event_rsvps",
+    "events",
+    "exchange_history",
+    "exchanges",
+    "expa_connections",
+    "expa_oauth_states",
+    "expense_claims",
+    "feature_requests",
+    "finance_categories",
+    "finance_entries",
+    "finance_entry_changes",
+    "goals",
+    "google_connections",
+    "google_event_links",
+    "handover_notes",
+    "invite_codes",
+    "journal_entries",
+    "lab_roles",
+    "lab_wins",
+    "lc_battles",
+    "lc_compliance_checks",
+    "lc_compliance_info",
+    "lc_events",
+    "lc_identity",
+    "lc_swot",
+    "lit_annotations",
+    "literature_items",
+    "mc_lc_targets",
+    "mc_members",
+    "mc_messages",
+    "mcs",
+    "meeting_proposals",
+    "member_onboarding",
+    "message_reactions",
+    "notifications",
+    "onboarding_steps",
+    "opportunities",
+    "outreach_enrollments",
+    "outreach_messages",
+    "outreach_sequences",
+    "outreach_steps",
+    "outreach_templates",
+    "partner_activities",
+    "partner_contacts",
+    "partners",
+    "projects",
+    "recruits",
+    "reminders",
+    "routine_occurrences",
+    "routines",
+    "schedule_events",
+    "sub_project_invite_codes",
+    "sub_project_members",
+    "sub_projects",
+    "support_resources",
+    "tabling_signups",
+    "tabling_slots",
+    "task_assignees",
+    "tasks",
+    "team_members",
+    "user_availability",
+    "user_profiles",
+    "user_settings"
+  ],
+  "functions": [
+    {
+      "name": "_bookmarks_folder_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_categorise_demo_finance",
+      "args": "p_lc uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "_checkin_recorded",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_checkins_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_create_demo_lc_base",
+      "args": "",
+      "result": "uuid",
+      "kind": "internal"
+    },
+    {
+      "name": "_departments_vp_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_event_attendance_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_event_child_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_exchange_outreach_stop",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_exchanges_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_exchanges_log_history",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_expa_department",
+      "args": "p_project_id uuid, p_key text",
+      "result": "uuid",
+      "kind": "internal"
+    },
+    {
+      "name": "_expa_entity_ids",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_expa_id_free",
+      "args": "p_kind text, p_id text",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "_expa_office_of",
+      "args": "p_user uuid, p_kind text, p_role text",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "_expense_claim_status_changed",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_expense_claim_status_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_finance_entries_log",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_finance_row_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_goals_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_handover_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_lc_battles_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_lc_events_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_meeting_proposal_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_member_onboarding_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_next_checkin_due",
+      "args": "p_project_id uuid, p_from timestamp with time zone",
+      "result": "timestamp with time zone",
+      "kind": "internal"
+    },
+    {
+      "name": "_outreach_sequence_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_outreach_step_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_outreach_template_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_partners_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_projects_currency_from_country",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_projects_unique_lc_name",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_pulse_scores",
+      "args": "p_project_id uuid, p_role text, p_periods integer",
+      "result": "TABLE(user_id uuid, department_id uuid, period_start date, question_id text, score numeric)",
+      "kind": "internal"
+    },
+    {
+      "name": "_recruits_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_roll_checkin_reminder",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_seed_demo_people",
+      "args": "p_lc uuid, p_owner uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "_seed_lc_drive_folders",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_seed_lc_finance_categories",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_seed_lc_onboarding",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_seed_lc_system_roles",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_support_resources_set_updated_at",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_sync_checkin_reminder",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_tabling_signups_changed",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_tabling_slot_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_tasks_cascade_layer",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_tasks_inherit_layer",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_team_members_role_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_try_uuid",
+      "args": "p text",
+      "result": "uuid",
+      "kind": "utility"
+    },
+    {
+      "name": "accept_mcp_handover",
+      "args": "p_mc_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "adjust_goal_value",
+      "args": "p_goal_id uuid, p_delta numeric",
+      "result": "numeric",
+      "kind": "mutation"
+    },
+    {
+      "name": "auth_is_project_member",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "auth_uid_is_sub_project_member",
+      "args": "p_sub_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "auth_uid_shares_sub_project",
+      "args": "profile_user_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "auth_user_id_by_email",
+      "args": "p_email text",
+      "result": "uuid",
+      "kind": "internal"
+    },
+    {
+      "name": "can_approve_template",
+      "args": "p_project_id uuid, p_department_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_manage_member",
+      "args": "p_project_id uuid, p_user_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_manage_sub_project",
+      "args": "p_sub_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_manage_tabling_slot",
+      "args": "p_slot_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_read_finance",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_review_claim",
+      "args": "p_project_id uuid, p_department_id uuid, p_submitter uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_see_layer",
+      "args": "p_project_id uuid, p_scope text, p_sub_project_id uuid, p_owner uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_use_outreach",
+      "args": "p_project_id uuid, p_department_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_work_on_exchange",
+      "args": "p_project_id uuid, p_department_id uuid, p_owner_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_work_on_partner",
+      "args": "p_partner_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_write_finance",
+      "args": "p_project_id uuid, p_account text",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "cancel_mcp_handover",
+      "args": "p_mc_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "checkin_period_start",
+      "args": "p_project_id uuid, p_at timestamp with time zone",
+      "result": "date",
+      "kind": "read"
+    },
+    {
+      "name": "claim_invite_code_lookup",
+      "args": "p_code text",
+      "result": "TABLE(project_id uuid, invited_email text, used_by uuid, used_at timestamp with time zone, lab_role_id uuid)",
+      "kind": "read"
+    },
+    {
+      "name": "claim_sub_project_invite_lookup",
+      "args": "p_token text",
+      "result": "TABLE(sub_project_id uuid, invited_email text, status text, used_by uuid)",
+      "kind": "read"
+    },
+    {
+      "name": "create_demo_lc",
+      "args": "",
+      "result": "uuid",
+      "kind": "mutation"
+    },
+    {
+      "name": "create_mc",
+      "args": "p_name text, p_country text",
+      "result": "uuid",
+      "kind": "mutation"
+    },
+    {
+      "name": "create_tabling_slots",
+      "args": "p_project_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_location text, p_purpose text, p_capacity integer, p_department_id uuid, p_repeat_until date",
+      "result": "integer",
+      "kind": "mutation"
+    },
+    {
+      "name": "currency_for_country",
+      "args": "p_country text",
+      "result": "text",
+      "kind": "utility"
+    },
+    {
+      "name": "delete_demo_lc",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "department_area",
+      "args": "p_department_id uuid",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "disconnect_expa",
+      "args": "",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "disconnect_google_calendar",
+      "args": "",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "enroll_in_sequence",
+      "args": "p_sequence_id uuid, p_exchange_ids uuid[]",
+      "result": "TABLE(enrolled integer, skipped integer, reasons text[])",
+      "kind": "mutation"
+    },
+    {
+      "name": "event_audience",
+      "args": "p_event_id uuid",
+      "result": "SETOF uuid",
+      "kind": "read"
+    },
+    {
+      "name": "expa_profile",
+      "args": "",
+      "result": "jsonb",
+      "kind": "read"
+    },
+    {
+      "name": "expa_status",
+      "args": "",
+      "result": "TABLE(connected_at timestamp with time zone, expa_name text, home_lc_name text, last_synced_at timestamp with time zone)",
+      "kind": "read"
+    },
+    {
+      "name": "find_team_member_id_by_email",
+      "args": "p_project_id uuid, p_email text",
+      "result": "uuid",
+      "kind": "read"
+    },
+    {
+      "name": "get_area_pulse",
+      "args": "p_project_id uuid",
+      "result": "TABLE(area text, period_start date, question_id text, avg_score numeric, respondent_count integer, suppressed boolean)",
+      "kind": "read"
+    },
+    {
+      "name": "get_exec_pulse",
+      "args": "p_project_id uuid",
+      "result": "TABLE(period_start date, question_id text, avg_score numeric, respondent_count integer, suppressed boolean)",
+      "kind": "read"
+    },
+    {
+      "name": "get_member_pulse",
+      "args": "p_project_id uuid, p_department_id uuid",
+      "result": "TABLE(department_id uuid, period_start date, question_id text, avg_score numeric, respondent_count integer, suppressed boolean)",
+      "kind": "read"
+    },
+    {
+      "name": "get_overdue_signal",
+      "args": "p_project_id uuid",
+      "result": "TABLE(overdue_count bigint, total_members bigint)",
+      "kind": "internal"
+    },
+    {
+      "name": "get_wellbeing_rollup",
+      "args": "p_project_id uuid",
+      "result": "TABLE(week_start date, question_id text, avg_score numeric, respondent_count bigint)",
+      "kind": "internal"
+    },
+    {
+      "name": "goal_progress",
+      "args": "p_project_id uuid",
+      "result": "TABLE(goal_id uuid, current numeric)",
+      "kind": "read"
+    },
+    {
+      "name": "google_calendar_status",
+      "args": "",
+      "result": "TABLE(connected_at timestamp with time zone, google_email text, can_add_events boolean, add_events boolean)",
+      "kind": "read"
+    },
+    {
+      "name": "has_pending_project_invite",
+      "args": "p_sub_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "import_exchanges",
+      "args": "p_project_id uuid, p_product text, p_rows jsonb",
+      "result": "TABLE(inserted integer, updated integer, failed integer, errors text[])",
+      "kind": "mutation"
+    },
+    {
+      "name": "import_finance_entries",
+      "args": "p_project_id uuid, p_rows jsonb",
+      "result": "TABLE(inserted integer, updated integer)",
+      "kind": "mutation"
+    },
+    {
+      "name": "import_partners",
+      "args": "p_project_id uuid, p_rows jsonb",
+      "result": "TABLE(inserted integer, updated integer, failed integer, errors text[])",
+      "kind": "mutation"
+    },
+    {
+      "name": "import_recruits",
+      "args": "p_project_id uuid, p_rows jsonb",
+      "result": "TABLE(inserted integer, updated integer, failed integer, errors text[])",
+      "kind": "mutation"
+    },
+    {
+      "name": "import_tasks",
+      "args": "p_project_id uuid, p_rows jsonb",
+      "result": "TABLE(inserted integer, updated integer, failed integer, errors text[])",
+      "kind": "mutation"
+    },
+    {
+      "name": "in_lc_of_mc",
+      "args": "p_mc_id uuid, p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "in_led_department",
+      "args": "p_project_id uuid, p_user_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_app_moderator",
+      "args": "",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_finance_lead",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_lc_exec",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_lc_president",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_mc_mcp_of_lc",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_mc_member",
+      "args": "p_mc_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_mc_vp_finance",
+      "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "is_mcp",
+      "args": "p_mc_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "join_from_expa",
+      "args": "p_timezone text",
+      "result": "jsonb",
+      "kind": "mutation"
+    },
+    {
+      "name": "join_lc_with_code",
+      "args": "p_code text",
+      "result": "uuid",
+      "kind": "mutation"
+    },
+    {
+      "name": "join_mc",
+      "args": "p_code text",
+      "result": "uuid",
+      "kind": "mutation"
+    },
+    {
+      "name": "lc_compliance",
+      "args": "p_project_id uuid",
+      "result": "TABLE(balance numeric, currency text, approvals_12m integer, meetings_12m integer, boa_members integer, university_affiliated boolean, debt_plan text, checks jsonb)",
+      "kind": "read"
+    },
+    {
+      "name": "lc_finance_keeper",
+      "args": "p_project_id uuid",
+      "result": "TABLE(has_keeper boolean, reviewed_on date)",
+      "kind": "read"
+    },
+    {
+      "name": "lc_in_mc",
+      "args": "p_project_id uuid, p_mc_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "lc_mc_name",
+      "args": "p_project_id uuid",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "lc_name_key",
+      "args": "p_name text",
+      "result": "text",
+      "kind": "utility"
+    },
+    {
+      "name": "lc_national",
+      "args": "p_project_id uuid",
+      "result": "TABLE(mc_id uuid, mc_name text, term_start date)",
+      "kind": "read"
+    },
+    {
+      "name": "lc_role",
+      "args": "p_project_id uuid",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "lc_term_start",
+      "args": "p_project_id uuid",
+      "result": "date",
+      "kind": "read"
+    },
+    {
+      "name": "lcs_in_country",
+      "args": "p_country text",
+      "result": "TABLE(id uuid, name text)",
+      "kind": "read"
+    },
+    {
+      "name": "led_department_ids",
+      "args": "p_project_id uuid",
+      "result": "SETOF uuid",
+      "kind": "read"
+    },
+    {
+      "name": "link_lc_to_mc",
+      "args": "p_project_id uuid, p_lc_code text",
+      "result": "text",
+      "kind": "mutation"
+    },
+    {
+      "name": "mark_finance_reviewed",
+      "args": "p_project_id uuid, p_on date",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "mc_dashboard",
+      "args": "p_mc_id uuid, p_from date, p_to date",
+      "result": "TABLE(project_id uuid, lc_name text, members integer, product text, applied integer, approved integer, realized integer, completed integer)",
+      "kind": "read"
+    },
+    {
+      "name": "mc_finance_lcs",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date, has_university_account boolean)",
+      "kind": "internal"
+    },
+    {
+      "name": "mc_finance_lcs",
+      "args": "",
+      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date)",
+      "kind": "internal"
+    },
+    {
+      "name": "mc_in_country",
+      "args": "p_country text",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "mc_lc_health",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(project_id uuid, last_approved date, approved_30d integer, stuck_approved integer, last_activity timestamp with time zone, from_expa integer, total integer, last_expa_sync timestamp with time zone)",
+      "kind": "internal"
+    },
+    {
+      "name": "mc_lc_insights",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(project_id uuid, weekly integer[], last_term_to_date integer, applied integer, accepted integer, approved integer, realized integer, completed integer, members integer, joined_term integer, term_ended integer, active_14d integer, handover_due integer, handover_written integer, recruits_term integer, recruits_joined integer)",
+      "kind": "internal"
+    },
+    {
+      "name": "mc_linked_lcs",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(id uuid, name text)",
+      "kind": "read"
+    },
+    {
+      "name": "mc_members_keep_an_mcp",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "mc_team",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(user_id uuid, name text, role text, joined_at timestamp with time zone, is_me boolean, handover_pending boolean)",
+      "kind": "read"
+    },
+    {
+      "name": "mc_term_start",
+      "args": "p_mc_id uuid",
+      "result": "date",
+      "kind": "read"
+    },
+    {
+      "name": "member_activity",
+      "args": "p_project_id uuid, p_days integer",
+      "result": "TABLE(user_id uuid, department_id uuid, role text, term_start date, term_end date, last_seen_at timestamp with time zone, events_held integer, events_attended integer, tabling_no_shows integer, overdue_tasks integer, onboarding_done integer, onboarding_total integer)",
+      "kind": "read"
+    },
+    {
+      "name": "my_auth_email",
+      "args": "",
+      "result": "text",
+      "kind": "read"
+    },
+    {
+      "name": "my_department_id",
+      "args": "p_project_id uuid",
+      "result": "uuid",
+      "kind": "read"
+    },
+    {
+      "name": "new_mc_member_code",
+      "args": "p_mc_id uuid",
+      "result": "text",
+      "kind": "mutation"
+    },
+    {
+      "name": "offer_mcp_handover",
+      "args": "p_mc_id uuid, p_to uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "outreach_stats",
+      "args": "p_project_id uuid",
+      "result": "TABLE(sequence_id uuid, name text, product text, enrolled integer, active integer, replied integer, unsubscribed integer, moved_on integer, applied integer, emails_sent integer)",
+      "kind": "read"
+    },
+    {
+      "name": "partner_visible",
+      "args": "p_project_id uuid, p_department_id uuid, p_owner_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "review_expense_claim",
+      "args": "p_claim_id uuid, p_status text, p_reason text",
+      "result": "expense_claims",
+      "kind": "mutation"
+    },
+    {
+      "name": "routine_due_on",
+      "args": "r routines, d date",
+      "result": "boolean",
+      "kind": "utility"
+    },
+    {
+      "name": "run_routines",
+      "args": "p_project_id uuid, p_today date",
+      "result": "integer",
+      "kind": "mutation"
+    },
+    {
+      "name": "seed_default_departments",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "seed_default_drive_folders",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "seed_default_finance_categories",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "seed_default_onboarding_steps",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "internal"
+    },
+    {
+      "name": "set_feature_request_status",
+      "args": "p_id uuid, p_status text",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "set_mc_member_role",
+      "args": "p_mc_id uuid, p_user_id uuid, p_role text",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "set_member_term",
+      "args": "p_project_id uuid, p_user_id uuid, p_start date, p_end date",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "set_university_account",
+      "args": "p_project_id uuid, p_on boolean",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "tabling_add_walk_in",
+      "args": "p_slot_id uuid, p_user_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "tabling_mark",
+      "args": "p_slot_id uuid, p_user_id uuid, p_status text",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "tabling_report",
+      "args": "p_project_id uuid, p_from date, p_to date",
+      "result": "TABLE(user_id uuid, hours numeric, attended integer, no_shows integer, upcoming integer)",
+      "kind": "read"
+    },
+    {
+      "name": "tabling_sign_up",
+      "args": "p_slot_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "tabling_sign_up_as",
+      "args": "p_slot_id uuid, p_user_id uuid",
+      "result": "text",
+      "kind": "internal"
+    },
+    {
+      "name": "tabling_withdraw",
+      "args": "p_slot_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "touch_last_seen",
+      "args": "",
+      "result": "void",
+      "kind": "mutation"
+    },
+    {
+      "name": "unlink_lc_from_mc",
+      "args": "p_project_id uuid",
+      "result": "void",
+      "kind": "mutation"
+    }
+  ]
+}

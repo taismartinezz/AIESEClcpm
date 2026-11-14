@@ -24,28 +24,28 @@ beforeAll(async () => {
     { expa_id: "B", person_name: "Ben", email: "ben@x.example", stage: "signed_up" },
     { expa_id: "C", person_name: "Cai", stage: "signed_up", email_consent: true },
   ];
-  await asUserCommit(db, u.otto, () => db.query("select * from import_exchanges($1, 'ogv', $2)", [lc.id, JSON.stringify(rows)]));
+  await asUserCommit(db, u.olga, () => db.query("select * from import_exchanges($1, 'ogv', $2)", [lc.id, JSON.stringify(rows)]));
   for (const r of (await db.query<{ id: string; expa_id: string }>("select id, expa_id from exchanges")).rows) ex[r.expa_id] = r.id;
 }, 60_000);
 
 describe("templates", () => {
-  it("members write drafts; only approvers approve; editing an approved template sends it back", async () => {
-    tpl = await asUserCommit(db, u.otto, async () => (await db.query<{ id: string }>(
+  it("only the department VP can write and approve private outreach", async () => {
+    tpl = await asUserCommit(db, u.olga, async () => (await db.query<{ id: string }>(
       "insert into outreach_templates (project_id, department_id, name, subject, body, created_by, status) values ($1, $2, 'Welcome', 'Hi {first_name}', 'Saw you signed up', $3, 'pending') returning id",
-      [lc.id, lc.departments[OGV], u.otto])).rows[0].id);
-    await expect(asUser(db, u.otto, (tx) => tx.query("update outreach_templates set status = 'approved' where id = $1", [tpl]))).rejects.toThrow(/Only the president/);
+      [lc.id, lc.departments[OGV], u.olga])).rows[0].id);
+    expect((await asUser(db, u.mark, (tx) => tx.query("update outreach_templates set status = 'approved' where id = $1 returning id", [tpl]))).rows).toEqual([]);
     await expect(asUser(db, u.mark, async (tx) => (await tx.query("select 1 from outreach_templates")).rows.length)).resolves.toBe(0);
     await asUserCommit(db, u.olga, () => db.query("update outreach_templates set status = 'approved' where id = $1", [tpl]));
-    const edited = await asUser(db, u.otto, async (tx) => (await tx.query<{ status: string }>("update outreach_templates set body = 'changed' where id = $1 returning status", [tpl])).rows[0].status);
-    expect(edited).toBe("draft");
+    const edited = await asUser(db, u.olga, async (tx) => (await tx.query<{ status: string }>("update outreach_templates set body = 'changed' where id = $1 returning status", [tpl])).rows[0].status);
+    expect(edited).toBe("approved");
   });
 
-  it("an MC member of the LC's MC can approve too", async () => {
+  it("MC members cannot read or approve LC templates", async () => {
     const mc = await asUserCommit(db, u.mcp, async () => (await db.query<{ create_mc: string }>("select create_mc('MC', 'XO')")).rows[0].create_mc);
     const { rows } = await db.query<{ lc_code: string }>("select lc_code from mcs where id = $1", [mc]);
     await asUserCommit(db, u.pres, () => db.query("select link_lc_to_mc($1, $2)", [lc.id, rows[0].lc_code]));
     const status = await asUser(db, u.mcp, async (tx) => (await tx.query<{ status: string }>("update outreach_templates set status = 'approved' where id = $1 returning status", [tpl])).rows[0]?.status);
-    expect(status).toBe("approved");
+    expect(status).toBeUndefined();
   });
 });
 
@@ -62,14 +62,14 @@ describe("sequences and enrollment", () => {
     await asUserCommit(db, u.olga, () => db.query("update outreach_templates set status = 'approved' where id = $1", [draft]));
     await asUserCommit(db, u.olga, () => db.query("update outreach_sequences set active = true where id = $1", [seq]));
 
-    const res = await asUserCommit(db, u.otto, async () => (await db.query<{ enrolled: number; skipped: number; reasons: string[] }>(
+    const res = await asUserCommit(db, u.olga, async () => (await db.query<{ enrolled: number; skipped: number; reasons: string[] }>(
       "select * from enroll_in_sequence($1, $2)", [seq, [ex.A, ex.B, ex.C]])).rows[0]);
     expect(res.enrolled).toBe(1);
     expect(res.reasons.join(" | ")).toMatch(/Ben: no consent.*Cai: no email/);
   });
 
   it("stops when the person applies or unsubscribes, and counts it in the results", async () => {
-    await asUserCommit(db, u.otto, () => db.query("update exchanges set stage = 'applied' where id = $1", [ex.A]));
+    await asUserCommit(db, u.olga, () => db.query("update exchanges set stage = 'applied' where id = $1", [ex.A]));
     const { rows } = await db.query<{ status: string; stop_reason: string }>("select status, stop_reason from outreach_enrollments where exchange_id = $1", [ex.A]);
     expect(rows[0]).toEqual({ status: "stopped", stop_reason: "stage_changed" });
     const stats = await asUser(db, u.olga, async (tx) => (await tx.query<{ enrolled: number; moved_on: number; applied: number }>("select enrolled, moved_on, applied from outreach_stats($1)", [lc.id])).rows[0]);
