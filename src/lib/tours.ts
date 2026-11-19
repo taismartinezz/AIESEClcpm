@@ -181,9 +181,9 @@ export const CHAPTERS: TourChapter[] = [
         body: "This term's targets per department; exchange goals count themselves from the pipeline. Press New goal to set one.",
       },
       {
-        id: "link-mc", title: "Link to your MC", route: "/settings", click: tab("lc"), roles: ["president"],
+        id: "link-mc", title: "Your MC", route: "/settings", click: tab("lc"), roles: ["president"],
         targets: [T("settings-national")], side: "right",
-        body: "Paste the LC code your MCP sends you, so the MC sees your LC's numbers. Paste it here once you have it.",
+        body: "Your LC joins your country's MC automatically, and the MC only ever sees counts. Check the MC named here is yours.",
       },
     ],
   },
@@ -324,7 +324,7 @@ export const CHAPTERS: TourChapter[] = [
 
 export const MC_TOUR: TourStep[] = [
   { id: "mc-welcome", title: "The national view", route: "/mc", body: "Every LC in your country, side by side. What you see depends on your role on the MC." },
-  { id: "mc-codes", title: "Codes and linking", route: "/mc", targets: [T("mc-lc-code"), T("mc-codes")], side: "bottom", optional: true, body: "Send the LC code to each LCP so they link their LC; the member code is for your national team. Copy the LC code to start." },
+  { id: "mc-codes", title: "Your LCs and your team", route: "/mc", targets: [T("mc-lc-code"), T("mc-codes")], side: "bottom", optional: true, body: "No codes: every LC in your country joins automatically, and your team joins with EXPA in their EXPA roles. Check your country is right." },
   { id: "mc-by-lc", title: "Goals and pace", route: "/mc", targets: [T("mc-by-lc")], side: "top", optional: true, body: "Each LC's approvals and realizations per product, against the MCP's targets. Export CSV from here." },
   { id: "mc-attention", title: "Needs attention", route: "/mc", targets: [T("mc-attention")], side: "bottom", optional: true, body: "LCs that need a call: no approvals lately, far behind pace, or data that's out of date. Call the first one this week." },
   { id: "mc-funnel", title: "Where LCs lose people", route: "/mc", targets: [T("mc-funnel")], side: "top", optional: true, body: "Applied → Accepted → Approved → Realized → Completed per LC. Coach each LC on its weakest step." },

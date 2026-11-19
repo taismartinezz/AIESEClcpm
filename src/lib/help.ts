@@ -83,8 +83,8 @@ export const HELP_TOPICS: HelpTopic[] = [
   {
     id: "national", title: "The national view (MC)", forRoles: ["mc", "president"], video: "",
     steps: [
-      "MCP: go to National, create the MC and share the LC code with LC presidents.",
-      "LCP: Settings → National (MC) → paste the LC code.",
+      "Sign in with EXPA: the MC is set up from EXPA the first time someone on it signs in, and everyone gets their EXPA role (MCP, VP Finance or MC member).",
+      "No codes: every LC in the MC's country joins it automatically.",
       "The MC sees counts per LC and product only, never names or wellbeing data.",
     ],
   },

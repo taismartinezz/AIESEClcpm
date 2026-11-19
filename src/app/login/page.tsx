@@ -7,6 +7,7 @@ import { Eye, EyeOff, Globe } from "lucide-react";
 import { supabase, isSupabaseConfigured, isPreview } from "@/lib/supabase";
 import BrandLogo from "@/components/ui/BrandLogo";
 import { isAppModerator } from "@/lib/postAuthRedirect";
+import { switchExpaAccount } from "@/lib/expa-switch";
 
 // ── Provider icons ────────────────────────────────────────────────────────────
 
@@ -264,6 +265,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [oAuthLoading, setOAuthLoading] = useState<string | null>(null);
   const [oAuthError, setOAuthError] = useState<string | null>(initialAuthError);
+  // An EXPA sign-in that went wrong: offer to try with another EXPA account.
+  const [isExpaError] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "expa");
   const hasFetched = useRef(false);
 
   const [googleButtonHovered, setGoogleButtonHovered] = useState(false);
@@ -578,6 +581,12 @@ export default function LoginPage() {
             }}
           >
             {oAuthError}
+            {EXPA_FIRST && isExpaError && (
+              <button type="button" onClick={switchExpaAccount}
+                style={{ display: "block", marginTop: 6, background: "none", border: "none", padding: 0, fontFamily: "var(--font-roboto)", fontSize: 13, fontWeight: 600, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>
+                Use a different EXPA account
+              </button>
+            )}
           </div>
         )}
 

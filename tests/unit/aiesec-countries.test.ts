@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AIESEC_COUNTRIES, countryByCode, searchCountries } from "@/lib/aiesecCountries";
+import { AIESEC_COUNTRIES, countryByCode, mcNameFor, searchCountries } from "@/lib/aiesecCountries";
 
 // The list as given in the product brief: the constant must match it exactly.
 const BRIEF = "Albania, Algeria, Argentina, Armenia, Australia, Austria, Azerbaijan, Bahrain, Bangladesh, Belgium, Benin, Bolivia, Bosnia and Herzegovina, Brazil, Bulgaria, Burkina Faso, Cambodia, Cameroon, Canada, Chile, China (Mainland), Colombia, Costa Rica, Côte d'Ivoire, Croatia, Czech Republic, Denmark, Dominican Republic, Ecuador, Egypt, El Salvador, Estonia, Ethiopia, Finland, France, Georgia, Germany, Ghana, Greece, Guatemala, Hong Kong, Hungary, Iceland, India, Indonesia, Italy, Japan, Jordan, Kazakhstan, Kenya, Kuwait, Kyrgyzstan, Latvia, Lebanon, Liberia, Lithuania, Malaysia, Mexico, Moldova, Mongolia, Montenegro, Morocco, Mozambique, Myanmar, Nepal, Netherlands, New Zealand, Nicaragua, Nigeria, North Macedonia, Norway, Pakistan, Panama, Paraguay, Peru, Philippines, Poland, Portugal, Romania, Russia, Rwanda, Senegal, Serbia, Singapore, Slovakia, South Africa, South Korea, Spain, Sri Lanka, Sweden, Switzerland, Taiwan, Tanzania, Thailand, Togo, Tunisia, Turkey, Uganda, Ukraine, United Arab Emirates, United Kingdom, United States, Venezuela, Vietnam"
@@ -22,5 +22,14 @@ describe("AIESEC countries", () => {
     expect(searchCountries("united").map((c) => c.name)).toEqual(["United Arab Emirates", "United Kingdom", "United States"]);
     expect(searchCountries("xyz")).toEqual([]);
     expect(searchCountries("")).toHaveLength(BRIEF.length);
+  });
+});
+
+describe("mcNameFor", () => {
+  it('uses "the" where the country takes it', () => {
+    expect(mcNameFor("NL")).toBe("AIESEC in the Netherlands");
+    expect(mcNameFor("US")).toBe("AIESEC in the United States");
+    expect(mcNameFor("PT")).toBe("AIESEC in Portugal");
+    expect(mcNameFor("XX")).toBe("");
   });
 });

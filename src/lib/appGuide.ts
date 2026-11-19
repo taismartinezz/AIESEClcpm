@@ -102,7 +102,7 @@ export const APP_GUIDE: GuideEntry[] = [
   { id: "lc-settings", title: "LC name, country, currency and term dates", route: "/settings", where: "Settings → LC & departments → LC settings", roles: ["president"], keywords: ["lc name", "rename lc", "country", "currency", "term dates", "term start", "university"],
     how: ["Settings → LC & departments, then LC settings: name, university, country, currency and term dates."], click: tab("lc") },
   { id: "link-mc", title: "Link your LC to your MC", route: "/settings", where: "Settings → LC & departments → National (MC)", roles: ["president"], keywords: ["link mc", "lc code", "national", "mc code", "connect to mc", "member committee"],
-    how: ["Paste the LC code your MCP sent you and press Link. Your MC then sees your numbers (never names)."], click: tab("lc") },
+    how: ["Nothing to do: your LC joins your country's MC automatically once the MC is on the app. Your MC sees your numbers (never names)."], click: tab("lc") },
   { id: "notifications", title: "Email and notification settings", route: "/settings", where: "Settings → Notifications", roles: ALL_LC, keywords: ["notifications", "emails", "too many emails", "unsubscribe", "digest", "monday email", "mute"],
     how: ["Settings → Notifications: everything, the Monday digest only, or only important emails."], click: tab("notifications") },
   { id: "profile", title: "Your profile, photo and theme", route: "/settings", where: "Settings → Profile", roles: ALL_LC, keywords: ["profile", "photo", "avatar", "name", "dark mode", "theme", "light mode", "pronouns", "password"],
@@ -112,9 +112,9 @@ export const APP_GUIDE: GuideEntry[] = [
 
   // ── National (MC) ──────────────────────────────────────────────────────────
   { id: "mc-join", title: "Join or set up your MC", route: "/mc", where: "National (MC)", roles: ["mc", "president"], keywords: ["mc", "national", "member committee", "join mc", "create mc", "member code", "mcp"],
-    how: ["Join with the member code from your MCP, or (MCP) set up your MC by picking your country."] },
+    how: ["Sign in with EXPA: you join your MC with your EXPA role, and the MC is set up the first time someone on it signs in."] },
   { id: "mc-codes", title: "MC codes and linking LCs", route: "/mc", where: "National → Codes / LCs", roles: ["mc"], keywords: ["lc code", "member code", "link lcs", "invite lcs", "not linked", "copy code", "new member code"],
-    how: ["Send the LC code to each LCP; the member code is for your national team. The LCs panel shows who hasn't linked, with a reminder to copy."], target: ['[data-tour="mc-codes"]'] },
+    how: ["No codes: every LC in your country joins automatically, and your team joins by signing in with EXPA. The LCs panel shows which LCs on the app are in."], target: ['[data-tour="mc-codes"]'] },
   { id: "mc-goals", title: "National targets and pace per LC", route: "/mc", where: "National → By LC", roles: ["mc"], keywords: ["national targets", "lc targets", "pace", "on track", "behind", "set goals for lcs", "csv"],
     how: ["The MCP sets each LC's targets per product; each LC shows whether it's on track. Export CSV from the same panel."], target: ['[data-tour="mc-by-lc"]'] },
   { id: "mc-attention", title: "LCs that need attention", route: "/mc", where: "National → Needs attention", roles: ["mc"], keywords: ["needs attention", "struggling lcs", "behind", "no approvals", "stale data", "alerts"],

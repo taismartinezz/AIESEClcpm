@@ -20,7 +20,9 @@ export async function GET(request: Request) {
   const { error } = await db.from("expa_oauth_states").insert({ state, purpose: "login" });
   if (error) return fail(error.message);
 
-  const res = NextResponse.redirect(authorizeUrl(creds.clientId, origin, state), 303);
+  // ?switch=1 (Use a different EXPA account): ask EXPA for its sign-in form.
+  const forceLogin = new URL(request.url).searchParams.get("switch") === "1";
+  const res = NextResponse.redirect(authorizeUrl(creds.clientId, origin, state, forceLogin), 303);
   res.cookies.set(EXPA_STATE_COOKIE, state, {
     httpOnly: true, secure: origin.startsWith("https://"), sameSite: "lax", path: EXPA_CALLBACK_PATH, maxAge: 600,
   });

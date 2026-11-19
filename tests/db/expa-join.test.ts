@@ -60,12 +60,29 @@ describe("joining from EXPA", () => {
       .not.toBe(vp2);
   });
 
-  it("joining again changes nothing: roles the president set later stay", async () => {
-    const m = await expaUser("sara", { ...cairo, role: "member" });
+  it("joining again brings role and department in line with EXPA", async () => {
+    const m = await expaUser("sara", { ...cairo, role: "member", department: "mkt" });
     await join(m);
-    await db.query("update team_members set role = 'vp' where project_id = $1 and user_id = $2", [lc.id, m]);
-    expect(await join(m)).toMatchObject({ status: "already", kind: "lc", id: lc.id });
-    expect((await membership(m)).role).toBe("vp");
+    expect(await membership(m)).toEqual({ role: "member", department: "Marketing" });
+    // EXPA now says she's VP of Talent Management.
+    await db.query("update expa_connections set profile = jsonb_set(profile, '{placement}', $2::jsonb) where user_id = $1",
+      [m, JSON.stringify({ ...cairo, role: "vp", department: "tm" })]);
+    expect(await join(m)).toMatchObject({ status: "already", kind: "lc", id: lc.id, role: "vp", updated: true });
+    expect(await membership(m)).toEqual({ role: "vp", department: "Talent Management" });
+    expect((await db.query("select vp_user_id from departments where id = $1", [lc.departments["Talent Management"]])).rows[0]).toEqual({ vp_user_id: m });
+    // And back to member: she stops leading it.
+    await db.query("update expa_connections set profile = jsonb_set(profile, '{placement}', $2::jsonb) where user_id = $1",
+      [m, JSON.stringify({ ...cairo, role: "member", department: "tm" })]);
+    expect(await join(m)).toMatchObject({ status: "already", role: "member", updated: true });
+    expect((await db.query("select vp_user_id from departments where id = $1", [lc.departments["Talent Management"]])).rows[0]).toEqual({ vp_user_id: null });
+    expect(await join(m)).toMatchObject({ status: "already", updated: false });
+  });
+
+  it("the LCP is never changed from EXPA", async () => {
+    await db.query("insert into expa_connections (user_id, expa_person_id, access_token, profile) values ($1, 'lcp-p', 'x', $2)",
+      [lc.president, JSON.stringify({ fullName: "The LCP", positions: [], placement: { ...cairo, role: "member", department: "mkt" } })]);
+    expect(await join(lc.president)).toMatchObject({ status: "already", role: "president" });
+    expect((await membership(lc.president)).role).toBe("president");
   });
 
   it("an LC not on the app yet: the LCP is sent to create it, anyone else is told to wait", async () => {
@@ -93,23 +110,38 @@ describe("joining from EXPA", () => {
     expect((await db.query("select expa_lc_id from projects where id = $1", [id])).rows[0]).toEqual({ expa_lc_id: null });
   });
 
-  it("MC: members join the country's MC; the MCP creates it when there's none", async () => {
-    const egypt = { kind: "mc", expaId: "1609", name: "Egypt", country: "EG", department: null };
+  it("MC: whoever signs in first sets it up from EXPA, in their own role; the LCs in its country join it", async () => {
+    const egypt = { kind: "mc", expaId: "1609", name: "AIESEC in Egypt", country: "EG", department: null };
+    const finance = await expaUser("mcfin", { ...egypt, role: "vp_finance", department: "fin" });
     const mcp = await expaUser("mcp", { ...egypt, role: "mcp" });
     const mcvp = await expaUser("mcvp", { ...egypt, role: "member" });
-    expect(await join(mcvp)).toEqual({ status: "mc_missing", kind: "mc", name: "Egypt" });
-    expect(await join(mcp)).toEqual({ status: "create_mc", kind: "mc", name: "Egypt" });
-
-    // Created by an MCP without EXPA first; the first EXPA sign-in finds it by country.
-    const someone = await createUser(db, "founder");
-    const mcId = await asUserCommit(db, someone, async () => (await db.query<{ id: string }>("select create_mc('AIESEC in Egypt', 'EG') as id")).rows[0].id);
-    expect(await join(mcvp)).toMatchObject({ status: "joined", kind: "mc", id: mcId, role: "member" });
-    expect(await join(mcp)).toMatchObject({ status: "joined", kind: "mc", id: mcId, role: "mcp" });
-    expect((await db.query("select user_id, role from mc_members where mc_id = $1 order by role", [mcId])).rows).toEqual(
-      expect.arrayContaining([{ user_id: mcp, role: "mcp" }, { user_id: mcvp, role: "member" }]));
-    expect((await db.query("select expa_mc_id from mcs where id = $1", [mcId])).rows[0]).toEqual({ expa_mc_id: "1609" });
+    // The VP Finance is first: the MC is set up, with them as VP Finance (not MCP), and the Egyptian LC joins it.
+    const j = await join(finance);
+    expect(j).toMatchObject({ status: "joined", kind: "mc", name: "AIESEC in Egypt", role: "vp_finance" });
+    const mcId = j.id as string;
+    expect((await db.query("select name, country_code, expa_mc_id from mcs where id = $1", [mcId])).rows[0])
+      .toEqual({ name: "AIESEC in Egypt", country_code: "EG", expa_mc_id: "1609" });
+    expect((await db.query("select mc_id from projects where id = $1", [lc.id])).rows[0]).toEqual({ mc_id: mcId });
+    expect(await join(mcvp)).toMatchObject({ status: "joined", id: mcId, role: "member" });
+    expect(await join(mcp)).toMatchObject({ status: "joined", id: mcId, role: "mcp" });
+    expect((await db.query("select user_id, role from mc_members where mc_id = $1", [mcId])).rows).toEqual(
+      expect.arrayContaining([{ user_id: finance, role: "vp_finance" }, { user_id: mcp, role: "mcp" }, { user_id: mcvp, role: "member" }]));
     // MC members are not added to any LC.
-    expect((await db.query("select 1 from team_members where user_id = any($1)", [[mcp, mcvp]])).rows).toHaveLength(0);
+    expect((await db.query("select 1 from team_members where user_id = any($1)", [[mcp, mcvp, finance]])).rows).toHaveLength(0);
+  });
+
+  it("MC: someone who set it up as MCP but is VP Finance in EXPA becomes VP Finance at their next sign-in", async () => {
+    const us = { kind: "mc", expaId: "1630", name: "AIESEC in the United States", country: "US", department: null };
+    const fin = await expaUser("usfin", { ...us, role: "vp_finance", department: "fin" });
+    const mcId = await asUserCommit(db, fin, async () => (await db.query<{ id: string }>("select create_mc('AIESEC in the United States', 'US') as id")).rows[0].id);
+    expect((await db.query("select role from mc_members where mc_id = $1 and user_id = $2", [mcId, fin])).rows[0]).toEqual({ role: "mcp" });
+    expect(await join(fin)).toMatchObject({ status: "already", kind: "mc", id: mcId, role: "vp_finance", updated: true });
+    expect((await db.query("select role from mc_members where mc_id = $1 and user_id = $2", [mcId, fin])).rows[0]).toEqual({ role: "vp_finance" });
+    // An LC in the US set up later joins it by country.
+    const usLcp = await createUser(db, "uslcp");
+    const usLc = await createLc(db, usLcp, "AIESEC in Northwestern");
+    await db.query("update projects set country_code = 'US' where id = $1", [usLc.id]);
+    expect((await db.query("select mc_id from projects where id = $1", [usLc.id])).rows[0]).toEqual({ mc_id: mcId });
   });
 
   it("without a placement (an EP, or no EXPA) nothing happens; the role can't be made up", async () => {

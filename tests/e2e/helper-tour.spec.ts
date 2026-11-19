@@ -111,7 +111,7 @@ test.describe('The tour', () => {
     await page.getByRole('button', { name: 'Take the tour' }).click({ timeout: 10000 })
     await expect(page.getByRole('dialog', { name: 'The national view' })).toBeVisible()
     await tourButton(page, 'Next').click()
-    await expect(page.getByRole('dialog', { name: 'Codes and linking' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Your LCs and your team' })).toBeVisible()
     // A plain member has no Finance tab: walk to the end and never see that step.
     const titles: string[] = []
     for (let i = 0; i < 12; i++) {

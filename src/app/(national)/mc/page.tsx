@@ -8,16 +8,17 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { PRODUCTS } from "@/lib/products";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
-import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
+import { Button, ErrorText, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
-import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
+import { countryByCode } from "@/lib/aiesecCountries";
 import { copyText } from "@/lib/clipboard";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { FUNNEL_STEPS, needsAttention, pace, PACE_LABEL, sourceLabel, stepRate, termProgress, weakestStep, type FunnelCounts, type LcHealth, type PaceStatus } from "@/lib/mcPace";
 import { formatDay } from "@/lib/dates";
 import { APP_NAME } from "@/lib/brand";
+import { switchExpaAccount } from "@/lib/expa-switch";
 
 type Metric = "approved" | "realized" | "applied" | "completed";
 interface Row { project_id: string; lc_name: string; members: number; product: string; applied: number; approved: number; realized: number; completed: number }
@@ -41,7 +42,7 @@ export default function McPage() {
         ) : !loaded ? (
           <div className="animate-pulse" style={{ height: 200, borderRadius: 10, backgroundColor: "var(--color-dimmed-bg)" }} />
         ) : !mc ? (
-          <JoinOrCreate onDone={() => setVersion((v) => v + 1)} />
+          <JoinOrCreate />
         ) : (
           <>
             {mcs.length > 1 && (
@@ -55,108 +56,26 @@ export default function McPage() {
   );
 }
 
-const NAME_MAX = 80;
-
-function JoinOrCreate({ onDone }: { onDone: () => void }) {
-  const [name, setName] = useState("");
-  const [mcCountry, setMcCountry] = useState("");
-  // The MC set up in the picked country already, if any (one MC per country).
-  const [taken, setTaken] = useState<string | null>(null);
-  const mcName = mcCountry ? mcNameFor(mcCountry) : "";
-
-  useEffect(() => {
-    if (!mcCountry) return;
-    let cancelled = false;
-    supabase.rpc("mc_in_country", { p_country: mcCountry }).then(({ data, error: err }) => {
-      // Before migration 20261108003 there's no such function: Create says so instead.
-      if (!cancelled) setTaken(!err && typeof data === "string" && data ? data : null);
-    });
-    return () => { cancelled = true; };
-  }, [mcCountry]);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  // Each box shows its own error, next to the button that caused it.
-  const [error, setError] = useState<{ action: "create" | "join"; text: string } | null>(null);
-  const [needsProfile, setNeedsProfile] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      const { data } = await supabase.from("user_profiles").select("id").eq("id", session.user.id).maybeSingle();
-      if (!cancelled) setNeedsProfile(!data);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Your name is needed (and only spaces don't count) before either action.
-  const nameMissing = needsProfile && !name.trim();
-
-  async function go(action: "create" | "join") {
-    setBusy(true);
-    setError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error("sign in first");
-      if (needsProfile) {
-        if (!name.trim()) throw new Error("add your name");
-        const { error: pErr } = await supabase.from("user_profiles").upsert({ id: session.user.id, name: name.trim().slice(0, NAME_MAX), role: "member" });
-        if (pErr) throw new Error(pErr.message);
-      }
-      const { error: err } = action === "create"
-        ? await supabase.rpc("create_mc", { p_name: mcName, p_country: mcCountry })
-        : await supabase.rpc("join_mc", { p_code: code.trim() });
-      if (err) throw new Error(err.message);
-      onDone();
-    } catch (e) {
-      setError({ action, text: `Couldn't ${action === "create" ? "create the MC" : "join"}: ${e instanceof Error ? e.message : String(e)}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const hint: React.CSSProperties = { fontSize: 12, color: "var(--color-secondary)", margin: "0 0 10px", lineHeight: 1.5 };
+/** Not on an MC yet: your MC and your role come from EXPA. No codes. */
+function JoinOrCreate() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24, alignItems: "start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 520 }}>
         <p style={{ fontSize: 13, color: "var(--color-body)", margin: 0, lineHeight: 1.6 }}>
-          This view is for the national team (MC). You see each LC&apos;s numbers once its president links it with your MC&apos;s LC code. You never see an LC&apos;s members, exchanges or wellbeing data.
+          This view is for the national team (MC). You see each LC&apos;s numbers per product, never an LC&apos;s members, exchanges or wellbeing data.
         </p>
-        {needsProfile && (
-          <Field label="Your name" htmlFor="mc-you">
-            <input id="mc-you" value={name} maxLength={NAME_MAX} autoComplete="name" onChange={(e) => setName(e.target.value)} style={inputStyle} />
-          </Field>
-        )}
-        <Panel title="Join your MC">
-          <div style={{ padding: 14 }}>
-            <p style={hint}>Ask your MCP for the <strong>member code</strong>. It lets you see the national view. (The LC code is for LC presidents.)</p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input aria-label="MC member code" placeholder="Member code, e.g. 3FA9C21B" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }} />
-              <Button onClick={() => go("join")} disabled={busy || nameMissing || !code.trim()}>Join</Button>
-            </div>
-            {error?.action === "join" && <ErrorText>{error.text}</ErrorText>}
-          </div>
-        </Panel>
-        <Panel title="Or set up your MC (MCP)">
+        <Panel title="Join your MC with EXPA">
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ ...hint, margin: 0 }}>One MC per country. You&apos;ll get two codes: a member code for your national team, and an LC code to send to each LCP.</p>
-            <div>
-              <label htmlFor="mc-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country</label>
-              <CountryCombobox id="mc-country" value={mcCountry} onChange={(c) => { setTaken(null); setMcCountry(c); }} />
-            </div>
-            {mcCountry && (taken ? (
-              <p role="status" style={{ fontSize: 13, margin: 0, padding: "10px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", color: "var(--color-body)", lineHeight: 1.5 }}>
-                <strong>{taken}</strong> is already on {APP_NAME}. Ask your MCP for the member code and join above.
-              </p>
-            ) : (
-              <p style={{ fontSize: 13, margin: 0 }}>It will be called <strong>{mcName}</strong>. You can rename it later.</p>
-            ))}
-            <div><Button onClick={() => go("create")} disabled={busy || nameMissing || !mcCountry || Boolean(taken)}>Create {mcName || "the MC"}</Button></div>
-            {error?.action === "create" && <ErrorText>{error.text}</ErrorText>}
+            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+              Your MC and your role (MCP, VP Finance or MC member) come from your EXPA position. If your MC isn&apos;t on {APP_NAME} yet, signing in sets it up, and every LC in its country joins it.
+            </p>
+            <div><Button onClick={() => window.location.assign(new URL("/api/expa/login", window.location.origin).href)}>Continue with EXPA</Button></div>
+            <button type="button" onClick={switchExpaAccount}
+              style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>
+              Use a different EXPA account
+            </button>
           </div>
         </Panel>
-        {nameMissing && (code.trim() || mcCountry) && <p style={{ ...hint, margin: 0 }}>Add your name first.</p>}
       </div>
       <SamplePreview />
     </div>
@@ -493,13 +412,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 /** The two codes, each with what it's for and a ready-to-send message. */
 function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onChanged: () => void }) {
-  const [country, setCountry] = useState(mc.countryCode ?? "");
+  const [chosenCountry, setCountry] = useState(mc.countryCode ?? "");
   const [editingCountry, setEditingCountry] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const lcMessage = `Hi! ${mc.name} now follows national numbers in ${APP_NAME}. To link your LC: open ${origin}/settings#national (LC presidents only) and enter the LC code ${mc.lcCode}. We only see counts (applied, approved, realized), never names.`;
-  const memberMessage = `Join ${mc.name}'s national view in ${APP_NAME}: sign in at ${origin}/mc and enter the member code ${mc.memberCode}.`;
-
   async function saveCountry(code: string) {
     setCountry(code);
     setError(null);
@@ -512,27 +427,25 @@ function McCodes({ mc, prominent, onChanged }: { mc: Mc; prominent: boolean; onC
     else onChanged();
   }
 
-  const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
-  const codeStyle: React.CSSProperties = { fontFamily: "monospace", fontSize: prominent ? 22 : 16, fontWeight: 700, letterSpacing: "0.08em", color: "var(--color-navy)" };
+  const country = mc.countryCode ? countryByCode(mc.countryCode)?.name ?? mc.countryCode : null;
   return (
-    <Panel tour="mc-codes" title={prominent ? "Next: get your LCs linked" : "Codes"}>
-      <div style={{ padding: 14, display: "grid", gap: 16 }}>
-        <div data-tour="mc-lc-code">
-          <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>LC code, for LC presidents</p>
-          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Send this to each LCP so they can link their LC (Settings → LC &amp; departments → National (MC)).</p>
-          <div style={row}><span style={codeStyle}>{mc.lcCode}</span><CopyButton text={mc.lcCode} label="Copy code" /><CopyButton text={lcMessage} label="Copy invite message" /></div>
-        </div>
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>Member code, for your national team</p>
-          <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 8px" }}>Only for people on the MC: it opens this national view.</p>
-          <div style={row}><span style={{ ...codeStyle, fontSize: 16 }}>{mc.memberCode}</span><CopyButton text={mc.memberCode} label="Copy code" /><CopyButton text={memberMessage} label="Copy invite message" /></div>
-        </div>
+    <Panel tour="mc-codes" title={prominent ? "Next: your LCs and your team" : "Your LCs and your team"}>
+      <div style={{ padding: 14, display: "grid", gap: 12 }}>
+        {/* No codes: EXPA says who's in which LC and MC, and where. */}
+        <p data-tour="mc-lc-code" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          {country
+            ? <>Every LC in <strong>{country}</strong> joins automatically as soon as its LCP signs in with EXPA or sets the LC&apos;s country. Its numbers then show here.</>
+            : <>Set your MC&apos;s country below: every LC in it then joins automatically.</>}
+        </p>
+        <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, color: "var(--color-secondary)" }}>
+          Your national team joins by signing in with EXPA, each with their EXPA role (MCP, VP Finance or MC member).
+        </p>
         {mc.isMcp && (!mc.countryCode || editingCountry) ? (
           <div style={{ maxWidth: 360 }} onKeyDown={(e) => { if (e.key === "Escape" && editingCountry) setEditingCountry(false); }}>
-            <label htmlFor="mc-set-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country, to see which LCs haven&apos;t linked yet</label>
+            <label htmlFor="mc-set-country" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-secondary)", marginBottom: 6 }}>Your MC&apos;s country: its LCs join automatically</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <div style={{ flex: 1 }}>
-                <CountryCombobox id="mc-set-country" value={country} autoFocus={editingCountry} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
+                <CountryCombobox id="mc-set-country" value={chosenCountry} autoFocus={editingCountry} onChange={(c) => { setEditingCountry(false); void saveCountry(c); }} />
               </div>
               {editingCountry && <Button variant="ghost" onClick={() => setEditingCountry(false)}>Cancel</Button>}
             </div>

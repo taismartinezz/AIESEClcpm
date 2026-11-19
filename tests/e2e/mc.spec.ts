@@ -35,32 +35,7 @@ test.describe('National (MC)', () => {
     await expect(page.getByRole('region', { name: 'Example of the national view' })).toContainText('Numbers only')
   })
 
-  test('Join needs a code; Create needs a country and names the MC after it; both buttons look the same', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: null } })
-    await page.goto('/mc')
-    const join = page.getByRole('button', { name: 'Join' })
-    const create = page.getByRole('button', { name: /^Create/ })
-    await expect(join).toBeDisabled({ timeout: 10000 })
-    await expect(create).toBeDisabled()
-    await page.getByLabel('MC member code').fill('   ')
-    await expect(join).toBeDisabled()                                        // spaces don't count
-    await page.locator('#mc-country').fill('portugal')
-    await page.getByRole('option', { name: /Portugal/ }).click()
-    await expect(page.getByText(/It will be called/)).toContainText('AIESEC in Portugal')
-    await expect(page.getByRole('button', { name: 'Create AIESEC in Portugal' })).toBeEnabled()
-    await expect(page.getByText(/Ask your MCP for the member code/).first()).toBeVisible()
-    await page.getByLabel('MC member code').fill('ABC123')
-    await expect(join).toBeEnabled()
-    expect(await join.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await create.evaluate((el) => getComputedStyle(el).backgroundColor))
-  })
 
-  test('MC names use "the" where the country takes it', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: null } })
-    await page.goto('/mc')
-    await page.locator('#mc-country').fill('netherlands', { timeout: 10000 })
-    await page.getByRole('option', { name: /Netherlands/ }).click()
-    await expect(page.getByRole('button', { name: 'Create AIESEC in the Netherlands' })).toBeVisible()
-  })
 
   test('the MCP can rename the MC', async ({ page }) => {
     await setupAuthMocks(page, 'member', {
@@ -75,32 +50,30 @@ test.describe('National (MC)', () => {
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rest/v1/mcs') && w.method === 'PATCH')?.body ?? '').toContain('"name":"AIESEC Portugal"')
   })
 
-  test('a country that already has an MC points to the member code instead of letting you create a second', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] }, rpc: { mc_in_country: 'AIESEC in Portugal' } })
+
+  test('not on an MC yet: you join with EXPA, no codes', async ({ page }) => {
+    await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
     await page.goto('/mc')
-    await page.locator('#mc-country').fill('portugal', { timeout: 10000 })
-    await page.getByRole('option', { name: /Portugal/ }).click()
-    await expect(page.getByRole('status').filter({ hasText: 'is already on' })).toContainText('AIESEC in Portugal is already on')
-    await expect(page.getByRole('button', { name: /^Create/ })).toBeDisabled()
+    const panel = page.locator('section', { has: page.getByRole('heading', { name: 'Join your MC with EXPA' }) })
+    await expect(panel).toContainText('Your MC and your role (MCP, VP Finance or MC member) come from your EXPA position', { timeout: 10000 })
+    await expect(panel.getByRole('button', { name: 'Continue with EXPA' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Use a different EXPA account' })).toBeVisible()
+    await expect(page.getByLabel('MC member code')).toHaveCount(0)
   })
 
-  test('after joining, the codes say what each is for, with copy buttons, and unlinked LCs are listed', async ({ page }) => {
+  test('on the MC: no codes; LCs in the country join on their own, and the linked and missing ones are listed', async ({ page }) => {
     await setupAuthMocks(page, 'member', {
       tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
       rpc: { mc_dashboard: [], mc_linked_lcs: [{ id: 'lc-1', name: 'AIESEC in Lisbon' }], lcs_in_country: [{ id: 'lc-1', name: 'AIESEC in Lisbon' }, { id: 'lc-2', name: 'AIESEC in Porto' }] },
     })
     await page.goto('/mc')
-    await expect(page.getByText('LC code, for LC presidents')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('7C2E19AD')).toBeVisible()
-    await expect(page.getByText('Send this to each LCP so they can link their LC')).toBeVisible()
-    await expect(page.getByText('Member code, for your national team')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Copy invite message' })).toHaveCount(2)
+    await expect(page.getByText(/Every LC in Portugal joins automatically/)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Your national team joins by signing in with EXPA/)).toBeVisible()
+    await expect(page.getByText('7C2E19AD')).toHaveCount(0)
+    await expect(page.getByText('3FA9C21B')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Copy code' })).toHaveCount(0)
     await expect(page.getByText('Linked (1)')).toBeVisible()
-    await expect(page.getByText(/not linked yet \(1\)/)).toBeVisible()
     await expect(page.getByText('AIESEC in Porto')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'LCs: 1 of 2 in Portugal linked' })).toBeVisible()
-    await expect(page.getByRole('progressbar', { name: 'LCs linked' })).toHaveAttribute('aria-valuenow', '1')
-    await expect(page.getByRole('button', { name: 'Copy reminder message' })).toBeVisible()
   })
 
   test('onboarding offers the MC as a third card, which leads to the national view', async ({ page }) => {
@@ -129,40 +102,10 @@ test.describe('National (MC)', () => {
     await expect(page).toHaveTitle(`Tasks · ${APP_NAME}`, { timeout: 10000 })
   })
 
-  test('the setup form sends the country; the country list is not cut off', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
-    await intercept(page)
-    await page.goto('/mc')
-    await page.locator('#mc-country').fill('portu', { timeout: 10000 })
-    const option = page.getByRole('option', { name: /Portugal/ })
-    await expect(option).toBeInViewport()
-    await option.click()
-    await expect(page.locator('#mc-country')).toHaveValue(/Portugal/)
-    await page.getByRole('button', { name: 'Create AIESEC in Portugal' }).click()
-    await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('/rpc/create_mc'))?.body ?? '').toContain('"p_country":"PT"')
-    expect((await writes(page)).find((w) => w.url.includes('/rpc/create_mc'))?.body).toContain('"p_name":"AIESEC in Portugal"')
-  })
 
-  test('typing a full country name and leaving the box picks it', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
-    await page.goto('/mc')
-    await page.locator('#mc-country').fill('Portugal', { timeout: 10000 })
-    await page.getByLabel('MC member code').click()
-    await expect(page.locator('#mc-country')).toHaveValue(/Portugal/)
-  })
 
-  test('a wrong code shows its error under Join, not at the bottom', async ({ page }) => {
-    await setupAuthMocks(page, 'member', { tables: { team_members: [] } })
-    await intercept(page, { join_mc: 'No MC has that member code. Check it with your MCP.' })
-    await page.goto('/mc')
-    await page.getByLabel('MC member code').fill('WRONG123', { timeout: 10000 })
-    await page.getByRole('button', { name: 'Join' }).click()
-    const joinBox = page.locator('section', { has: page.getByRole('heading', { name: 'Join your MC' }) })
-    await expect(joinBox).toContainText('No MC has that member code')
-  })
 
-  test('the dashboard is titled with the MC name, shows its country, and copy buttons confirm', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  test('the dashboard is titled with the MC name and shows its country', async ({ page }) => {
     await setupAuthMocks(page, 'member', {
       tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: 'mcp' }] },
       rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
@@ -172,11 +115,6 @@ test.describe('National (MC)', () => {
     await expect(page.getByText('Country:')).toContainText('Portugal')
     await expect(page.getByText(/No LCs in Portugal are on/)).toBeVisible()
     await expect(page.getByRole('link', { name: 'Join or create an LC' })).toBeVisible()
-    const copyCodes = page.getByRole('button', { name: 'Copy code' })
-    await expect(copyCodes).toHaveCount(2)                                  // LC code and member code
-    await copyCodes.nth(1).click()
-    await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('3FA9C21B')
   })
 
   test('an MCP without a country picks one on the dashboard, from a list that is not cut off', async ({ page }) => {
@@ -388,7 +326,7 @@ test.describe('National goals and pace', () => {
       })
       await intercept(page)
       await page.goto('/mc')
-      await expect(page.getByText('LC code, for LC presidents')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText(/joins automatically/)).toBeVisible({ timeout: 10000 })
       await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0)
       await expect(page.getByText('Northwestern reimbursement')).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Add transaction' })).toHaveCount(0)
@@ -402,7 +340,7 @@ test.describe('National goals and pace', () => {
       rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [] },
     })
     await page.goto('/mc')
-    await expect(page.getByText('LC code, for LC presidents')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/joins automatically/)).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0)
   })
 

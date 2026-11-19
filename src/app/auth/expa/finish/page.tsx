@@ -35,6 +35,10 @@ export default function ExpaFinishPage() {
         try { localStorage.setItem(ACTIVE_LC_STORAGE_KEY, j.id); } catch { /* storage blocked */ }
       }
       const destination = destinationAfterJoin(j) ?? await getPostAuthDestination(data.user.id);
+      // EXPA shows no LC or MC position for this account: often the wrong EXPA account.
+      if (!j || j.status === "none") {
+        try { sessionStorage.setItem("expa_none", data.user.email ?? ""); } catch { /* storage blocked */ }
+      }
       if (j?.status === "lc_missing" || j?.status === "mc_missing") {
         try { sessionStorage.setItem("expa_missing", JSON.stringify({ kind: j.kind, name: j.name ?? "" })); } catch { /* storage blocked */ }
       }

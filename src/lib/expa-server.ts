@@ -24,8 +24,10 @@ export function redirectUri(origin: string): string {
   return `${origin}${EXPA_CALLBACK_PATH}`;
 }
 
-export function authorizeUrl(clientId: string, origin: string, state: string): string {
+export function authorizeUrl(clientId: string, origin: string, state: string, forceLogin = false): string {
   const q = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirectUri(origin), state });
+  // OAuth's standard "show the sign-in form"; servers that don't know it ignore it.
+  if (forceLogin) q.set("prompt", "login");
   return `${AUTHORIZE_URL}?${q}`;
 }
 

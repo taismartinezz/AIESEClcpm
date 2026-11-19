@@ -3,17 +3,17 @@
 import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useProject } from "@/context/ProjectContext";
-import { Button, ErrorText, inputStyle } from "@/components/lc/ui";
-import { askConfirm } from "@/components/ui/confirm";
+import { ErrorText } from "@/components/lc/ui";
+import { APP_NAME } from "@/lib/brand";
 
-/** President: link the LC to its MC so the national team sees its numbers (counts only). */
+/**
+ * Which MC the LC belongs to. No codes: an LC joins its country's MC
+ * automatically (by the LC's country, from EXPA or Settings).
+ */
 export default function McLinkSettings() {
   const { projectId } = useProject();
   const [mcName, setMcName] = useState<string | null>(null);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
@@ -23,45 +23,18 @@ export default function McLinkSettings() {
       if (err) setError(err.message); else setMcName((data as string | null) ?? null);
     });
     return () => { cancelled = true; };
-  }, [projectId, version]);
-
-  async function link(value: string | null) {
-    if (!projectId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const { error: err } = await supabase.rpc("link_lc_to_mc", { p_project_id: projectId, p_lc_code: value });
-      if (err) throw new Error(err.message);
-      setCode("");
-      setVersion((v) => v + 1);
-    } catch (e) {
-      setError(`Couldn't link: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  }, [projectId]);
 
   return (
     <div>
       <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: "0 0 12px" }}>
-        When your LC is linked, your MC sees how many exchanges were applied, approved, realized and completed per product this term, and how many members you have. They never see names, tasks or wellbeing data.
+        Your MC sees how many exchanges were applied, approved, realized and completed per product this term, and how many members you have. They never see names, tasks or wellbeing data.
       </p>
-      {!mcName && (
-        <p style={{ fontSize: 12, color: "var(--color-body)", margin: "0 0 8px" }}>
-          Ask your MC (national team) for the <strong>LC code</strong>: 8 letters and numbers. It&apos;s not the member code, which is for people on the MC.
-        </p>
-      )}
-      {mcName ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--color-body)" }}>
-          <span style={{ flex: 1 }}>Linked to <strong>{mcName}</strong></span>
-          <Button variant="secondary" disabled={busy} onClick={() => { void askConfirm(`Stop sharing numbers with ${mcName}?`, { confirmLabel: "Unlink" }).then((ok) => { if (ok) link(null); }); }}>Unlink</Button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 8 }}>
-          <input aria-label="MC's LC code" placeholder="LC code, e.g. 7C2E19AD" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }} />
-          <Button onClick={() => link(code)} disabled={busy || !code.trim()}>Link</Button>
-        </div>
-      )}
+      <p style={{ fontSize: 13, color: "var(--color-body)", margin: 0 }}>
+        {mcName
+          ? <>Part of <strong>{mcName}</strong>.</>
+          : <>Your LC joins your country&apos;s MC automatically once the MC is on {APP_NAME} (its team signs in with EXPA). Check your LC&apos;s country is set.</>}
+      </p>
       <ErrorText>{error}</ErrorText>
     </div>
   );

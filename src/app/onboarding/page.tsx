@@ -12,6 +12,7 @@ import { ACTIVE_PROMPT_IDS } from "@/lib/mock-data";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
 import { countryFromMc, isLcPresident, lcDisplayName, type ExpaProfile } from "@/lib/expa-profile";
+import { switchExpaAccount } from "@/lib/expa-switch";
 import { lcNameKey } from "@/lib/lcNames";
 import BrandLogo from "@/components/ui/BrandLogo";
 import { isAppModerator } from "@/lib/postAuthRedirect";
@@ -412,6 +413,8 @@ export default function OnboardingPage() {
   const [expa, setExpa] = useState<ExpaProfile | null>(null);
   // Signed in with EXPA but their LC or MC isn't on the app yet (set by /auth/expa/finish).
   const [expaMissing, setExpaMissing] = useState<{ kind: "lc" | "mc"; name: string } | null>(null);
+  // Signed in with an EXPA account that shows no LC or MC position (its email).
+  const [expaNone, setExpaNone] = useState<string | null>(null);
 
   // Create-LC step 2
   const [piProjectName, setPiProjectName] = useState("");
@@ -537,6 +540,8 @@ export default function OnboardingPage() {
       try {
         const missing = sessionStorage.getItem("expa_missing");
         if (missing) { setExpaMissing(JSON.parse(missing)); sessionStorage.removeItem("expa_missing"); }
+        const none = sessionStorage.getItem("expa_none");
+        if (none !== null) { setExpaNone(none); sessionStorage.removeItem("expa_none"); }
       } catch { /* storage blocked */ }
 
       setSessionReady(true);
@@ -795,6 +800,18 @@ export default function OnboardingPage() {
             <p role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center" }}>
               We filled in what we could from your EXPA profile{expa.lcName ? ` (${lcDisplayName(expa.lcName)})` : ""}. You can change anything.
             </p>
+          )}
+          {expaNone !== null && (
+            <div role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center", lineHeight: 1.5 }}>
+              EXPA doesn&apos;t show a position in an LC or MC for {expaNone ? <strong>{expaNone}</strong> : "this account"}. Signed in with the wrong EXPA account?{" "}
+              <button type="button" onClick={switchExpaAccount}
+                style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 600, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>
+                Use a different EXPA account
+              </button>
+              <span style={{ display: "block", fontSize: 12, color: "var(--color-secondary)", marginTop: 4 }}>
+                If EXPA signs you straight back in, sign out at expa.aiesec.org first, then try again.
+              </span>
+            </div>
           )}
           {expaMissing && (
             <p role="status" style={{ fontSize: 13, color: "var(--color-body)", backgroundColor: "var(--color-navy-dim)", borderRadius: 8, padding: "10px 12px", margin: "-16px 0 24px", textAlign: "center" }}>

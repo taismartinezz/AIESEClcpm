@@ -218,6 +218,12 @@
       "kind": "trigger"
     },
     {
+      "name": "_mcs_link_country_lcs",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
       "name": "_meeting_proposal_guard",
       "args": "",
       "result": "trigger",
@@ -261,6 +267,12 @@
     },
     {
       "name": "_projects_currency_from_country",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_projects_mc_by_country",
       "args": "",
       "result": "trigger",
       "kind": "trigger"
@@ -807,14 +819,14 @@
     },
     {
       "name": "mc_finance_lcs",
-      "args": "p_mc_id uuid",
-      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date, has_university_account boolean)",
+      "args": "",
+      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date)",
       "kind": "internal"
     },
     {
       "name": "mc_finance_lcs",
-      "args": "",
-      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date)",
+      "args": "p_mc_id uuid",
+      "result": "TABLE(project_id uuid, name text, currency text, term_start_date date, finance_reviewed_on date, has_university_account boolean)",
       "kind": "internal"
     },
     {
