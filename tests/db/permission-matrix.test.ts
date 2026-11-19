@@ -34,6 +34,9 @@ beforeAll(async () => {
       await db.query('insert into mc_members (mc_id, user_id, role) values ($1, $2, $3)', [mc, id, role]);
       actors.push({ id, role: `mcvp-${role}`, mc });
     }
+    // The MC's own budget: one line with one payment in each MC.
+    const line = (await db.query<{ id: string }>("insert into mc_budget_lines (mc_id, fy_start, code, name, budget) values ($1, 2026, '6300', 'Private conference hotel', 1000) returning id", [mc])).rows[0].id;
+    await db.query("insert into mc_budget_payments (line_id, mc_id, paid_on, amount, description, tags) values ($1, $2, '2026-10-03', 250, 'Private hotel deposit', array['FallCo 2026'])", [line, mc]);
     for (let l = 0; l < 2; l++) {
       const president = await createUser(db, `matrix-lcp-${m}-${l}`);
       const lc = await createLc(db, president, `Matrix LC ${m}-${l}`);
@@ -107,6 +110,7 @@ function expected(table: string, row: Row, a: Actor): boolean {
   switch (table) {
     case 'projects': return row.id === a.lc;
     case 'mcs': return !!a.mc && row.id === a.mc && a.role.startsWith('mc');
+    case 'mc_budget_lines': case 'mc_budget_payments': return !!a.mc && row.mc_id === a.mc && (a.role === 'mcp' || a.role === 'mcvp-vp_finance');
     case 'mc_members': return !!a.mc && row.mc_id === a.mc && a.role.startsWith('mc');
     case 'user_profiles': return !!a.id && (row.id === a.id || !!a.lc && sites.find(s => s.lc.id === a.lc)!.people.some(p => p.id === row.id));
     case 'departments': case 'lab_roles': case 'drive_folders': case 'finance_categories': case 'onboarding_steps': case 'team_members': return ownLc;
@@ -207,6 +211,23 @@ describe('two MCs × two LCs: complete row isolation', () => {
     }
   }, 120_000);
 
+  it("only that MC's VP Finance can change the MC budget", async () => {
+    for (const a of actors) for (const mc of mcs) {
+      const keeper = a.mc === mc && a.role === 'mcvp-vp_finance';
+      const line = seeded.get('mc_budget_lines')!.find(r => r.mc_id === mc)!.id;
+      const changed = await asUser(db, a.id, async tx => {
+        try {
+          return [
+            (await tx.query('update mc_budget_lines set budget = 1 where id = $1 returning id', [line])).rows.length,
+            (await tx.query('update mc_budget_payments set amount = 1 where line_id = $1 returning id', [line])).rows.length,
+            (await tx.query("insert into mc_budget_payments (line_id, mc_id, paid_on, amount, description) values ($1, $2, '2026-10-04', 5, 'Attack') returning id", [line, mc])).rows.length,
+          ];
+        } catch (e) { if (/permission denied|row-level security|No such budget line/.test(String(e))) return 'refused'; throw e; }
+      });
+      expect(changed, `${a.role} on ${mc}`).toEqual(keeper ? [1, 1, 1] : 'refused');
+    }
+  });
+
   it('members and national users cannot insert, update, or delete LC finance', async () => {
     for (const a of actors.filter(a => !['lcp', 'lcvp'].includes(a.role))) {
       for (const entry of seeded.get('finance_entries')!) {
@@ -229,10 +250,12 @@ const readCases = {
   auth_uid_is_sub_project_member: 'select auth_uid_is_sub_project_member($7) as value',
   auth_uid_shares_sub_project: 'select auth_uid_shares_sub_project($4) as value',
   can_approve_template: 'select can_approve_template($1, $3) as value',
+  can_keep_mc_budget: 'select can_keep_mc_budget($2) as value',
   can_manage_member: 'select can_manage_member($1, $4) as value',
   can_manage_sub_project: 'select can_manage_sub_project($7) as value',
   can_manage_tabling_slot: 'select can_manage_tabling_slot($7) as value',
   can_read_finance: 'select can_read_finance($1) as value',
+  can_read_mc_budget: 'select can_read_mc_budget($2) as value',
   can_review_claim: 'select can_review_claim($1, $3, $4) as value',
   can_see_layer: "select can_see_layer($1, 'lab', null, $4) as value",
   can_use_outreach: 'select can_use_outreach($1, $3) as value',
@@ -305,6 +328,8 @@ function assertRead(name: string, rows: Row[], a: Actor, s: Site) {
     case 'can_read_finance': case 'is_lc_exec': return scalar(exec);
     case 'can_write_finance': case 'is_lc_president': case 'is_finance_lead': return scalar(lcp);
     case 'is_mc_mcp_of_lc': case 'is_mcp': return scalar(national && a.role === 'mcp');
+    case 'can_read_mc_budget': return scalar(national && ['mcp', 'mcvp-vp_finance'].includes(a.role));
+    case 'can_keep_mc_budget': return scalar(national && a.role === 'mcvp-vp_finance');
     case 'is_mc_vp_finance': return scalar(national && a.role === 'mcvp-vp_finance');
     case 'is_mc_member': return scalar(national);
     case 'in_led_department': return scalar(vp);

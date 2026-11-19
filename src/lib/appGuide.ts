@@ -127,8 +127,8 @@ export const APP_GUIDE: GuideEntry[] = [
     how: ["Write an announcement or reminder; it shows on the LCs' dashboards."], target: ['[data-tour="mc-messages"]'] },
   { id: "mc-team", title: "The national team, VP Finance and MCP handover", route: "/mc", where: "National → National team", roles: ["mc"], keywords: ["mc team", "vp finance", "hand over", "handover mcp", "next mcp", "transfer", "remove member", "leave mc"],
     how: ["The MCP names the VP Finance and, at term end, chooses Make MCP next to the next MCP; they accept and take over."], target: ['[data-tour="mc-team"]'] },
-  { id: "mc-finance", title: "National finance: every LC's account", route: "/mc", where: "National → Finance", roles: ["mc"], keywords: ["national finance", "finance tracker", "lc balances", "every lc", "all lcs", "each lc", "vp finance", "statement", "account statement", "university money", "review lc finance"],
-    how: ["MCP and VP Finance: every LC's balance at a glance; open an LC for its statement. The VP Finance adds transactions and marks LCs reviewed."], click: tab("finance"), target: ['[data-tour="mc-finance"]'] },
+  { id: "mc-finance", title: "MC budget: budget v actuals", route: "/mc", where: "National → Finance", roles: ["mc"], keywords: ["national finance", "mc budget", "budget tool", "budget v actuals", "budget vs actuals", "actuals", "account code", "vp finance", "payments", "tags", "fallco", "conference budget", "spent"],
+    how: ["MCP and VP Finance: the MC's budget per account line and month, July to June, next to last year's budget.", "The VP Finance pastes the lines from the budget sheet (or adds them), then opens a line to record each payment: the amount spent, tags like FallCo 2026, and a comment.", "Select a tag to see only what was spent under it."], click: tab("finance"), target: ['[data-tour="mc-finance"]'] },
 ];
 
 const byId = new Map(APP_GUIDE.map((e) => [e.id, e]));

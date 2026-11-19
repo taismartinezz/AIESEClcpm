@@ -10,6 +10,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
+import McBudget from "@/components/mc/McBudget";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode } from "@/lib/aiesecCountries";
@@ -29,12 +30,16 @@ export default function McPage() {
   const { mcs, loaded, error: mcError } = useMcs(version);
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
+  // Finance (the MC's own budget) is for the MCP and the VP Finance only; the VP Finance starts there.
+  const seesFinance = Boolean(mc && (mc.isMcp || mc.isVpFinance));
+  const [view, setView] = useState<"exchanges" | "finance" | null>(null);
+  const shown = seesFinance ? view ?? (mc?.isVpFinance ? "finance" : "exchanges") : "exchanges";
   // The tab shows the MC's name ("AIESEC in Portugal · LC Manager").
   useDocumentTitle(`${mc?.name ?? "National"} · ${APP_NAME}`);
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle="Every LC's exchange counts by product. Numbers only, never people." />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={shown === "finance" ? "The MC's budget: budget v actuals by account and month." : "Every LC's exchange counts by product. Numbers only, never people."} />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -48,7 +53,12 @@ export default function McPage() {
             {mcs.length > 1 && (
               <Tabs value={mc.id} onChange={setChosen} tabs={mcs.map((m) => ({ id: m.id, label: m.name }))} />
             )}
-            <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
+            {seesFinance && (
+              <Tabs value={shown} onChange={setView} tabs={[{ id: "exchanges", label: "Exchanges" }, { id: "finance", label: "Finance" }]} />
+            )}
+            {shown === "finance"
+              ? <div style={{ marginTop: 12 }}><McBudget key={mc.id} mc={mc} /></div>
+              : <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />}
           </>
         )}
       </div>

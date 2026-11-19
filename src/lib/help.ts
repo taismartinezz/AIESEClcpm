@@ -95,6 +95,14 @@ export interface Release { id: string; date: string; title: string; items: strin
 /** Newest first. Bump the first id to show "What's new" again. */
 export const RELEASES: Release[] = [
   {
+    id: "2026-11-mc-budget", date: "2026-11-19", title: "The MC budget",
+    items: [
+      "National → Finance is now the MC's own budget, for the MCP and the VP Finance: budget v actuals per account line and month, July to June, next to last year's budget.",
+      "Paste the lines from your budget sheet. Sub-lines like 6251-01 add up into 6251.",
+      "Record each payment on its line with the amount spent, tags like FallCo 2026, and a comment. Select a tag to see only what was spent under it.",
+    ],
+  },
+  {
     id: "2026-11-tour-chapters", date: "2026-11-10", title: "A shorter tour, in chapters",
     items: [
       "The tour is now about eight steps. At the end you pick what to learn next: Getting around, Setting up your LC, Exchanges, People & events, Running the LC, or Wellbeing & privacy.",

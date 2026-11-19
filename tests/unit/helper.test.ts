@@ -33,7 +33,7 @@ describe("the helper's map of the app", () => {
     expect(keywordAnswer("how do I invite my VPs")?.id).toBe("invite");
     expect(keywordAnswer("add a partner company")?.id).toBe("partners");
     expect(keywordAnswer("turn on dark mode")?.id).toBe("profile");
-    expect(keywordAnswer("Where can I see every LC's balance?", "mc")?.route).toBe("/mc");
+    expect(keywordAnswer("Where do I put what we spent on FallCo, budget vs actuals?", "mc")?.route).toBe("/mc");
     expect(keywordAnswer("where is our balance", "president")?.id).toBe("ledger");
   });
 

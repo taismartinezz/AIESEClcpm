@@ -331,7 +331,7 @@ export const MC_TOUR: TourStep[] = [
   { id: "mc-team-numbers", title: "Beyond exchanges", route: "/mc", targets: [T("mc-team-numbers")], side: "top", optional: true, body: "What EXPA can't show, as counts only: members, who's active, handover notes and recruitment." },
   { id: "mc-messages", title: "Messages to LCs", route: "/mc", targets: [T("mc-messages")], side: "top", optional: true, body: "Announcements and reminders that show on LC dashboards. Send one when there's a deadline." },
   { id: "mc-team", title: "Your national team", route: "/mc", targets: [T("mc-team")], side: "top", optional: true, body: "Who's on the MC; the MCP names the VP Finance and hands the MC over at the end of the term." },
-  { id: "mc-finance", title: "Finance", route: "/mc", click: tab("finance"), targets: [T("mc-finance")], side: "top", optional: true, body: "For the MCP and VP Finance: every LC's account and university money at a glance. Open an LC for its statement." },
+  { id: "mc-finance", title: "Finance", route: "/mc", click: tab("finance"), targets: [T("mc-finance")], side: "top", optional: true, body: "For the MCP and VP Finance: the MC's budget v actuals by account and month. Open a line to record payments, with tags like FallCo 2026 and comments." },
   { id: "mc-ask", title: "Ask", route: "/mc", click: tab("exchanges"), targets: [T("helper")], side: "bottom", body: "Looking for something? Ask in your own words; if the app can't do it yet, it goes to the team as a request." },
   { id: "mc-done", title: "You're set", route: "/mc", body: "That's the national view. Replay this tour from the button at the top of the page." },
 ];

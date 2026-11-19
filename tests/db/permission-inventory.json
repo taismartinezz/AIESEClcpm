@@ -41,6 +41,8 @@
     "lc_swot",
     "lit_annotations",
     "literature_items",
+    "mc_budget_lines",
+    "mc_budget_payments",
     "mc_lc_targets",
     "mc_members",
     "mc_messages",
@@ -213,6 +215,18 @@
     },
     {
       "name": "_lc_events_guard",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_mc_budget_lines_check",
+      "args": "",
+      "result": "trigger",
+      "kind": "trigger"
+    },
+    {
+      "name": "_mc_budget_payments_check",
       "args": "",
       "result": "trigger",
       "kind": "trigger"
@@ -422,6 +436,12 @@
       "kind": "read"
     },
     {
+      "name": "can_keep_mc_budget",
+      "args": "p_mc_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
       "name": "can_manage_member",
       "args": "p_project_id uuid, p_user_id uuid",
       "result": "boolean",
@@ -442,6 +462,12 @@
     {
       "name": "can_read_finance",
       "args": "p_project_id uuid",
+      "result": "boolean",
+      "kind": "read"
+    },
+    {
+      "name": "can_read_mc_budget",
+      "args": "p_mc_id uuid",
       "result": "boolean",
       "kind": "read"
     },

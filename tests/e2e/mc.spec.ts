@@ -318,21 +318,95 @@ test.describe('National goals and pace', () => {
     fin('3', 'lc-ch', 'lc', 'expense', 250, 'Conference fees'),
   ]
 
+  const BUDGET_LINES = [
+    { id: 'l-fund', mc_id: 'mc-1', fy_start: 2026, code: '6251', name: 'Strategic Fund', parent_id: null, prev_budget: null, budget: 0, month_budgets: null, notes: null, sort_order: 0 },
+    { id: 'l-fund-01', mc_id: 'mc-1', fy_start: 2026, code: '6251-01', name: 'National projects', parent_id: 'l-fund', prev_budget: 2000, budget: 2500, month_budgets: null, notes: null, sort_order: 0 },
+    { id: 'l-hotel', mc_id: 'mc-1', fy_start: 2026, code: '6300', name: 'Conference Hotel', parent_id: null, prev_budget: 11000, budget: 12000, month_budgets: [0, 0, 0, 6000, 0, 0, 0, 0, 0, 6000, 0, 0], notes: 'Two conferences', sort_order: 0 },
+  ]
+  const BUDGET_PAYMENTS = [
+    { id: 'p-1', line_id: 'l-hotel', mc_id: 'mc-1', paid_on: '2026-10-03', amount: 5000, description: 'Hotel deposit', tags: ['FallCo 2026'], comment: 'Half now, half at check-in' },
+    { id: 'p-2', line_id: 'l-hotel', mc_id: 'mc-1', paid_on: '2026-10-20', amount: 1500, description: 'Extra rooms', tags: ['FallCo 2026'], comment: null },
+    { id: 'p-3', line_id: 'l-fund-01', mc_id: 'mc-1', paid_on: '2027-01-10', amount: 300, description: 'Project kit', tags: [], comment: null },
+  ]
+  // The budget year follows the date: 26.27 runs July 2026 to June 2027.
+  const BUDGET_NOW = new Date('2026-11-19T10:00:00Z')
+  const budgetMocks = (role: string, keeps: boolean) => ({
+    tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role }], finance_entries: FIN_ENTRIES, mc_budget_lines: BUDGET_LINES, mc_budget_payments: BUDGET_PAYMENTS },
+    rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS, can_keep_mc_budget: keeps, currency_for_country: 'EUR' },
+  })
+
   for (const nationalRole of ['mcp', 'vp_finance']) {
-    test(`finance: ${nationalRole} has counts only and no LC ledger view`, async ({ page }) => {
-      await setupAuthMocks(page, 'member', {
-        tables: { team_members: [], mcs: [MC], mc_members: [{ mc_id: 'mc-1', role: nationalRole }], finance_entries: FIN_ENTRIES },
-        rpc: { mc_dashboard: [], mc_linked_lcs: [], lcs_in_country: [], mc_finance_lcs: FIN_LCS },
-      })
+    test(`finance: ${nationalRole} sees the MC budget, never an LC's ledger`, async ({ page }) => {
+      await page.clock.setFixedTime(BUDGET_NOW)
+      await setupAuthMocks(page, 'member', budgetMocks(nationalRole, nationalRole === 'vp_finance'))
       await intercept(page)
       await page.goto('/mc')
-      await expect(page.getByText(/joins automatically/)).toBeVisible({ timeout: 10000 })
-      await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0)
+      if (nationalRole === 'mcp') await page.getByRole('tab', { name: 'Finance' }).click({ timeout: 10000 })
+      await expect(page.getByRole('tab', { name: 'Finance' })).toHaveAttribute('aria-selected', 'true', { timeout: 10000 })
+      const table = page.getByRole('table')
+      await expect(table).toContainText('Conference Hotel')
+      await expect(table).toContainText('National projects')
+      // 6,500 spent on the hotel in October (two payments), 300 on the fund's sub-line.
+      await expect(table.getByRole('button', { name: /6,500/ })).toBeVisible()
+      await expect(page.getByText('Spent so far')).toBeVisible()
+      await expect(page.getByRole('button', { name: /FallCo 2026/ })).toBeVisible()
       await expect(page.getByText('Northwestern reimbursement')).toHaveCount(0)
-      await expect(page.getByRole('button', { name: 'Add transaction' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Add line' })).toHaveCount(nationalRole === 'vp_finance' ? 1 : 0)
+      if (nationalRole === 'mcp') await expect(page.getByText(/Read-only: your VP Finance keeps it/)).toBeVisible()
       expect((await writes(page)).some(w => w.url.includes('/rpc/mc_finance_lcs'))).toBe(false)
     })
   }
+
+  test('finance: a tag shows only what was spent under it', async ({ page }) => {
+    await page.clock.setFixedTime(BUDGET_NOW)
+    await setupAuthMocks(page, 'member', budgetMocks('vp_finance', true))
+    await page.goto('/mc')
+    await page.getByRole('button', { name: /FallCo 2026/ }).click({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /only payments tagged FallCo 2026/ })).toBeVisible()
+    await expect(page.getByRole('table')).not.toContainText('€300.00')
+    await expect(page.getByText('Spent on FallCo 2026')).toBeVisible()
+  })
+
+  test('finance: the VP Finance records a payment with tags and a comment', async ({ page }) => {
+    await page.clock.setFixedTime(BUDGET_NOW)
+    await setupAuthMocks(page, 'member', budgetMocks('vp_finance', true))
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('table').getByRole('button', { name: /6,500/ }).click({ timeout: 10000 })
+    const dialog = page.getByRole('dialog', { name: '6300 Conference Hotel' })
+    await expect(dialog).toContainText('Two conferences')
+    await expect(dialog).toContainText('Hotel deposit')
+    await expect(dialog).toContainText('Half now, half at check-in')
+    await expect(dialog).toContainText('2 payments')
+    await dialog.getByLabel('Amount spent').fill('420.50')
+    await dialog.getByLabel('What it was').fill('Bus to the venue')
+    await dialog.getByLabel('Tags').fill('FallCo 2026')
+    await dialog.getByLabel('Tags').press('Enter')
+    await dialog.getByLabel('Tags').fill('Transport')
+    await dialog.getByLabel('Comment').fill('Paid by card')
+    await dialog.getByRole('button', { name: 'Add payment' }).click()
+    await expect.poll(async () => (await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/mc_budget_payments'))?.body ?? '').toContain('"amount":420.5')
+    const body = JSON.parse((await writes(page)).find((w) => w.method === 'POST' && w.url.includes('/rest/v1/mc_budget_payments'))!.body)
+    expect(body).toMatchObject({ line_id: 'l-hotel', mc_id: 'mc-1', paid_on: '2026-10-01', description: 'Bus to the venue', tags: ['FallCo 2026', 'Transport'], comment: 'Paid by card' })
+  })
+
+  test('finance: the VP Finance pastes lines from the budget sheet', async ({ page }) => {
+    await page.clock.setFixedTime(BUDGET_NOW)
+    await setupAuthMocks(page, 'member', budgetMocks('vp_finance', true))
+    await intercept(page)
+    await page.goto('/mc')
+    await page.getByRole('button', { name: 'Paste from your sheet' }).click({ timeout: 10000 })
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Rows from your budget sheet').fill('Code\tAccount\tBudget 25.26\tBudget 26.27\n6304\tConference Travel\t3,000\t3,500\n6300\tConference Hotel\t11,000\t12,500')
+    await dialog.getByRole('button', { name: 'Add 1 line, update 1' }).click()
+    await expect.poll(async () => (await writes(page)).filter((w) => w.url.includes('/rest/v1/mc_budget_lines')).length).toBe(2)
+    const sent = (await writes(page)).filter((w) => w.url.includes('/rest/v1/mc_budget_lines'))
+    expect(sent[0].method).toBe('POST')
+    expect(JSON.parse(sent[0].body)).toEqual([expect.objectContaining({ code: '6304', name: 'Conference Travel', prev_budget: 3000, budget: 3500, fy_start: 2026 })])
+    expect(sent[1].method).toBe('PATCH')
+    expect(sent[1].url).toContain('id=eq.l-hotel')
+    expect(JSON.parse(sent[1].body)).toMatchObject({ budget: 12500, prev_budget: 11000 })
+  })
 
   test('finance: other MC members have no Finance tab; the MCP can name a VP Finance', async ({ page }) => {
     await setupAuthMocks(page, 'member', {
