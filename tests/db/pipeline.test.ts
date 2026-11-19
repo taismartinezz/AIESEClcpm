@@ -32,9 +32,9 @@ beforeAll(async () => {
   await addMember(db, lc, u.ines, { department: IGV });
   await addMember(db, lc, u.mark, { department: MKT });
 
-  await addExchange("otto", "ogv", "Ana (oGV)", "approved");
+  await addExchange("olga", "ogv", "Ana (oGV)", "approved");
   await addExchange("olga", "ogv", "Ben (oGV)");
-  await addExchange("ines", "igv", "Chen (iGV)", "realized");
+  await addExchange("ian", "igv", "Chen (iGV)", "realized");
 }, 60_000);
 
 describe("exchanges", () => {
@@ -51,10 +51,10 @@ describe("exchanges", () => {
     expect(rows[0].realized_at).toBeNull();
   });
 
-  it("are visible only to their department, its VP and the president", async () => {
-    expect(await visibleTo("otto")).toEqual(["Ana (oGV)", "Ben (oGV)"]);
+  it("are visible only to the department VP and president", async () => {
+    expect(await visibleTo("otto")).toEqual([]);
     expect(await visibleTo("olga")).toEqual(["Ana (oGV)", "Ben (oGV)"]);
-    expect(await visibleTo("ines")).toEqual(["Chen (iGV)"]);
+    expect(await visibleTo("ines")).toEqual([]);
     expect(await visibleTo("mark")).toEqual([]);
     expect(await visibleTo("mia")).toEqual([]);
     expect(await visibleTo("pres")).toEqual(["Ana (oGV)", "Ben (oGV)", "Chen (iGV)"]);
@@ -108,7 +108,7 @@ describe("EXPA import and the Completed stage", () => {
     (await db.query<Result>("select * from import_exchanges($1, $2, $3)", [lc.id, product, JSON.stringify(rows)])).rows[0]);
 
   it("inserts new applications and fills missing earlier dates from the later ones", async () => {
-    const res = await importAs("otto", "ogv", [
+    const res = await importAs("olga", "ogv", [
       { expa_id: "A-100", person_name: "Dora", stage: "approved", approved_at: "2026-03-10" },
       { expa_id: "A-101", person_name: "Eli", stage: "applied", applied_at: "2026-03-01" },
     ]);

@@ -36,28 +36,24 @@ async function loadItems(role: UserRole, projectId: string, userId: string, ledD
     ];
   }
   if (role === "vp") {
-    const [exchanges, partners, goals, events, slots, checkins] = await Promise.all([
+    const [exchanges, partners, goals, events, slots] = await Promise.all([
       count(supabase.from("exchanges").select("id", head).eq("project_id", projectId)),
       count(supabase.from("partners").select("id", head).eq("project_id", projectId)),
       ledDepartmentIds.length ? count(supabase.from("goals").select("id", head).eq("project_id", projectId).in("department_id", ledDepartmentIds)) : Promise.resolve(0),
       count(supabase.from("lc_events").select("id", head).eq("project_id", projectId).eq("created_by", userId)),
       count(supabase.from("tabling_slots").select("id", head).eq("project_id", projectId).eq("created_by", userId)),
-      count(supabase.from("checkins").select("id", head).eq("project_id", projectId).eq("user_id", userId)),
     ]);
     return [
       { id: "import", label: "Import your department's tracker", href: "/pipeline", done: exchanges + partners > 0 },
       { id: "goals", label: "Set a goal for your department", href: "/goals", done: goals > 0 },
       { id: "plan", label: "Plan an event or a tabling shift", href: "/tabling", done: events + slots > 0 },
-      { id: "checkin", label: "Do your first check-in", href: "/checkin", done: checkins > 0 },
     ];
   }
-  const [checkins, signups, profile] = await Promise.all([
-    count(supabase.from("checkins").select("id", head).eq("project_id", projectId).eq("user_id", userId)),
+  const [signups, profile] = await Promise.all([
     count(supabase.from("tabling_signups").select("slot_id", head).eq("project_id", projectId).eq("user_id", userId)),
     supabase.from("user_profiles").select("avatar_url, bio").eq("id", userId).maybeSingle(),
   ]);
   return [
-    { id: "checkin", label: "Do your first check-in", href: "/checkin", done: checkins > 0 },
     { id: "tabling", label: "Sign up for a tabling shift", href: "/tabling", done: signups > 0 },
     { id: "profile", label: "Add a photo or a short bio", href: "/profile", done: Boolean(profile.data?.avatar_url || profile.data?.bio) },
   ];

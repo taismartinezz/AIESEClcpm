@@ -81,16 +81,15 @@ describe("who keeps the books", () => {
     expect(await keeper("pres2", other.id)).toBe(false);
   });
 
-  it("lists the LCs the MC VP Finance keeps", async () => {
-    const lcs = await asUser(db, u.val, async (tx) => (await tx.query<{ name: string }>("select name from mc_finance_lcs()")).rows);
-    expect(lcs.map((l) => l.name)).toEqual(["LC Test"]);
+  it("national users cannot call the old detail-bearing finance RPC", async () => {
+    await expect(asUser(db, u.val, tx => tx.query("select * from mc_finance_lcs()"))).rejects.toThrow(/permission denied/);
   });
 });
 
 describe("the ledger", () => {
-  it("the MC VP Finance adds, edits and deletes entries", async () => {
-    const out = await asUser(db, u.val, async (tx) => {
-      const id = (await addEntry(tx, "val", 10)).rows[0].id as string;
+  it("the LCP adds, edits and deletes entries", async () => {
+    const out = await asUser(db, u.pres, async (tx) => {
+      const id = (await addEntry(tx, "pres", 10)).rows[0].id as string;
       const edited = (await tx.query("update finance_entries set amount = 12 where id = $1 returning id", [id])).rows.length;
       const deleted = (await tx.query("delete from finance_entries where id = $1 returning id", [id])).rows.length;
       return { edited, deleted };
@@ -98,9 +97,9 @@ describe("the ledger", () => {
     expect(out).toEqual({ edited: 1, deleted: 1 });
   });
 
-  it("the LCP, VP F&L, other VPs and members can't write, even calling the API directly", async () => {
-    const id = await asUserCommit(db, u.val, async () => (await addEntry(db as unknown as Tx, "val", 50, "Kept by Val")).rows[0].id as string);
-    for (const who of ["pres", "fiona", "vera", "mo"]) {
+  it("national users, VPs and members cannot write the ledger", async () => {
+    const id = await asUserCommit(db, u.pres, async () => (await addEntry(db as unknown as Tx, "pres", 50, "Kept by Val")).rows[0].id as string);
+    for (const who of ["val", "max", "fiona", "vera", "mo"]) {
       await expect(asUser(db, u[who], (tx) => addEntry(tx, who, 5))).rejects.toThrow(/row-level security/);
       const changed = await asUser(db, u[who], async (tx) => ({
         updated: (await tx.query("update finance_entries set amount = 1 where id = $1 returning id", [id])).rows.length,
@@ -108,28 +107,25 @@ describe("the ledger", () => {
       }));
       expect(changed, who).toEqual({ updated: 0, deleted: 0 });
     }
-    await expect(asUser(db, u.pres, (tx) => tx.query("select import_finance_entries($1, '[]'::jsonb)", [lc.id]))).rejects.toThrow(/MC VP Finance/);
+    await expect(asUser(db, u.val, (tx) => tx.query("select import_finance_entries($1, '[]'::jsonb)", [lc.id]))).rejects.toThrow(/LC president/);
   });
 
-  it("the LCP and every VP read the whole ledger; members read none of it", async () => {
-    const count = (who: string) => asUser(db, u[who], async (tx) => (await tx.query("select 1 from finance_entries")).rows.length);
-    const all = await count("val");
-    expect(all).toBeGreaterThan(0);
-    for (const who of ["pres", "fiona", "vera", "omar"]) expect(await count(who), who).toBe(all);
-    expect(await count("mo")).toBe(0);
-    expect(await count("max")).toBe(all);       // the MCP reads the books (read-only); plain MC members don't (mc-finance.test.ts)
+  it("only the LCP reads untagged entries; VPs cannot read outside their department", async () => {
+    const count = (who: string) => asUser(db, u[who], async tx => (await tx.query("select id from finance_entries")).rows.length);
+    expect(await count("pres")).toBeGreaterThan(0);
+    for (const who of ["fiona", "vera", "omar", "mo", "val", "max"]) expect(await count(who), who).toBe(0);
   });
 
   it("logs every change: who, when, old → new", async () => {
-    const id = await asUserCommit(db, u.val, async () => {
-      const entry = (await addEntry(db as unknown as Tx, "val", 20, "Logged")).rows[0].id as string;
+    const id = await asUserCommit(db, u.pres, async () => {
+      const entry = (await addEntry(db as unknown as Tx, "pres", 20, "Logged")).rows[0].id as string;
       await db.query("update finance_entries set amount = 25, notes = 'fixed' where id = $1", [entry]);
       return entry;
     });
     const log = await asUser(db, u.pres, async (tx) => (await tx.query<{ op: string; changed_by: string; old_values: Record<string, unknown> | null; new_values: Record<string, unknown> }>(
       "select op, changed_by, old_values, new_values from finance_entry_changes where entry_id = $1 order by changed_at, op", [id])).rows);
     expect(log.map((l) => l.op)).toEqual(["insert", "update"]);
-    expect(log[1]).toMatchObject({ changed_by: u.val, old_values: { amount: 20, notes: null }, new_values: { amount: 25, notes: "fixed" } });
+    expect(log[1]).toMatchObject({ changed_by: u.pres, old_values: { amount: 20, notes: null }, new_values: { amount: 25, notes: "fixed" } });
   });
 });
 
@@ -151,7 +147,7 @@ describe("importing the tracker", () => {
   it("brings in the 10 rows plus the opening balance, ending at $2,031.06; importing again adds nothing", async () => {
     const fresh = await createLc(db, u.pres2, "Northwestern");
     await db.query("update projects set mc_id = (select mc_id from projects where id = $1) where id = $2", [lc.id, fresh.id]);   // linked to the same MC
-    const run = () => asUserCommit(db, u.val, async () =>
+    const run = () => asUserCommit(db, u.pres2, async () =>
       (await db.query<{ inserted: number }>("select * from import_finance_entries($1, $2::jsonb)", [fresh.id, JSON.stringify(ROWS)])).rows[0].inserted);
     expect(await run()).toBe(11);
     expect(await run()).toBe(0);
@@ -162,23 +158,24 @@ describe("importing the tracker", () => {
 });
 
 describe("expense claims", () => {
-  it("only the MC VP Finance approves; the LCP and VP F&L can't", async () => {
+  it("the LCP and department VP approve; members, other VPs and national users cannot", async () => {
     const claim = await submitClaim("mo", MKT);
-    for (const who of ["mo", "vera", "pres", "fiona"]) {
-      await expect(asUser(db, u[who], (tx) => review(tx, claim, "approved"))).rejects.toThrow(/MC VP Finance/);
+    for (const who of ["mo", "fiona", "val", "max"]) {
+      await expect(asUser(db, u[who], tx => review(tx, claim, "approved"))).rejects.toThrow();
     }
-    await expect(asUser(db, u.mo, (tx) => tx.query("update expense_claims set status = 'approved' where id = $1", [claim])))
-      .rejects.toThrow(/MC VP Finance/);
-    const status = await asUser(db, u.val, async (tx) => {
-      await review(tx, claim, "approved");
-      return (await tx.query<{ status: string }>("select status from expense_claims where id = $1", [claim])).rows[0].status;
-    });
-    expect(status).toBe("approved");
+    await expect(asUser(db, u.mo, tx => tx.query("update expense_claims set status = 'approved' where id = $1", [claim])))
+      .rejects.toThrow(/another member/);
+    for (const who of ["pres", "vera"]) {
+      expect(await asUser(db, u[who], async tx => {
+        await review(tx, claim, "approved");
+        return (await tx.query<{status: string}>("select status from expense_claims where id=$1", [claim])).rows[0].status;
+      })).toBe("approved");
+    }
   });
 
   it("approving creates exactly one ledger entry, in the tracker's terms; un-approving removes it", async () => {
     const claim = await submitClaim("mo", MKT, 42.5);
-    const result = await asUser(db, u.val, async (tx) => {
+    const result = await asUser(db, u.pres, async (tx) => {
       await review(tx, claim, "approved");
       await review(tx, claim, "approved");    // again: still one entry
       const afterApprove = (await tx.query<{ amount: string; type: string; area: string; notes: string }>(
@@ -195,7 +192,7 @@ describe("expense claims", () => {
 
   it("entries created by an approved claim can't be edited by hand", async () => {
     const claim = await submitClaim("gia", OGV);
-    const updated = await asUser(db, u.val, async (tx) => {
+    const updated = await asUser(db, u.pres, async (tx) => {
       await review(tx, claim, "approved");
       return (await tx.query("update finance_entries set amount = 1 where claim_id = $1 returning id", [claim])).rows;
     });
@@ -204,8 +201,8 @@ describe("expense claims", () => {
 
   it("rejecting requires a reason, and notifies the submitter", async () => {
     const claim = await submitClaim("gia", OGV);
-    await expect(asUser(db, u.val, (tx) => review(tx, claim, "rejected", "  "))).rejects.toThrow(/requires a reason/);
-    const notes = await asUser(db, u.val, async (tx) => {
+    await expect(asUser(db, u.pres, (tx) => review(tx, claim, "rejected", "  "))).rejects.toThrow(/requires a reason/);
+    const notes = await asUser(db, u.pres, async (tx) => {
       await review(tx, claim, "rejected", "No receipt total visible");
       await tx.query("select set_config('request.jwt.claim.sub', $1, true)", [u.gia]);
       return (await tx.query<{ type: string; body: string }>("select type, body from notifications where related_id = $1", [claim])).rows;
@@ -228,12 +225,12 @@ describe("expense claims", () => {
     ))).rejects.toThrow(/row-level security/);
   });
 
-  it("the MC VP Finance sees the LC's claims and their receipts", async () => {
+  it("national users see neither LC claims nor receipts", async () => {
     const seen = await asUser(db, u.val, async (tx) => ({
       claims: (await tx.query("select 1 from expense_claims where project_id = $1", [lc.id])).rows.length,
       receipts: (await tx.query("select 1 from storage.objects where bucket_id = 'receipts'")).rows.length,
     }));
-    expect(seen.claims).toBeGreaterThan(0);
+    expect(seen.claims).toBe(0);
     expect(seen.receipts).toBe(seen.claims);
   });
 });

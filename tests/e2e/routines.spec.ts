@@ -107,10 +107,10 @@ test.describe('Membership criteria', () => {
     await expect.poll(async () => (await writes(page)).find((w) => w.url.includes('lc_compliance_checks'))?.body ?? '').toContain('"kind":"sona"')
   })
 
-  test('members are told the execs keep track of it', async ({ page }) => {
+  test('members are told the president keeps track of it', async ({ page }) => {
     await setupAuthMocks(page, 'member', { rpc: { lc_compliance: data() } })
     await page.goto('/compliance')
-    await expect(page.getByText(/president and VPs keep track of the membership criteria/)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/president keeps track of the membership criteria/)).toBeVisible({ timeout: 10000 })
   })
 })
 

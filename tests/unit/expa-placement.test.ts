@@ -27,7 +27,7 @@ describe("where EXPA sign-in puts someone", () => {
 
   it("an MC position wins over an LC one; the MCP is the MCP", () => {
     expect(placementFromExpa(person([{ role: "Team Leader", office: LC }, { role: "MCVP", fn: "Finance", office: MC }]))).toEqual({
-      kind: "mc", expaId: "1609", name: "Egypt", country: "EG", role: "member", department: null,
+      kind: "mc", expaId: "1609", name: "Egypt", country: "EG", role: "vp_finance", department: "fin",
     });
     expect(placementFromExpa(person([{ role: "MCP", office: MC }]))?.role).toBe("mcp");
   });
@@ -66,4 +66,11 @@ describe("where EXPA sign-in puts someone", () => {
     expect(destinationAfterJoin({ status: "lc_missing", kind: "lc" })).toBeNull();
     expect(destinationAfterJoin(null)).toBeNull();
   });
+});
+
+it('EXPA assigns the finance role only to a finance vice president, and keeps other MC functions distinct', () => {
+  expect(placementFromExpa(person([{ role: 'MCVP', fn: 'Marketing', office: MC }]))).toMatchObject({ kind: 'mc', role: 'member', department: 'mkt' });
+  expect(placementFromExpa(person([{ role: 'MCVP', fn: 'Outgoing Global Volunteer', office: MC }]))).toMatchObject({ kind: 'mc', role: 'member', department: 'ogv' });
+  expect(placementFromExpa(person([{ role: 'Member', fn: 'Finance', office: MC }]))).toMatchObject({ kind: 'mc', role: 'member', department: 'fin' });
+  expect(placementFromExpa(person([{ role: 'MCVP Finance', office: MC }]))).toMatchObject({ kind: 'mc', role: 'vp_finance', department: 'fin' });
 });

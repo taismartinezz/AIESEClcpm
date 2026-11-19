@@ -123,18 +123,18 @@ export default function ClaimsView({ claims, userId, departments, memberNames, i
               <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: "var(--color-body)" }}>{formatMoney(c.amount, c.currency)}</span>
               <ClaimStatusBadge status={c.status} />
               <ReceiptButton path={c.receiptPath} />
-              {isFinanceLead && c.status === "pending" && (
+              {isFinanceLead && c.submittedBy !== userId && c.status === "pending" && (
                 <span style={{ display: "inline-flex", gap: 6 }}>
                   <Button onClick={() => review(c, "approved")} disabled={busyId === c.id}><Check size={14} aria-hidden="true" /> Approve</Button>
                   <Button variant="danger" onClick={() => setRejecting(c)} disabled={busyId === c.id}><X size={14} aria-hidden="true" /> Reject</Button>
                 </span>
               )}
-              {isFinanceLead && c.status !== "pending" && (
+              {isFinanceLead && c.submittedBy !== userId && c.status !== "pending" && (
                 <Button variant="ghost" onClick={() => review(c, "pending")} disabled={busyId === c.id} title={c.status === "approved" ? "Removes the ledger entry" : undefined}>
                   <RotateCcw size={13} aria-hidden="true" /> {c.status === "approved" ? "Un-approve" : "Reopen"}
                 </Button>
               )}
-              {!isFinanceLead && c.submittedBy === userId && c.status === "pending" && (
+              {c.submittedBy === userId && c.status === "pending" && (
                 <Button variant="ghost" onClick={() => withdraw(c)} disabled={busyId === c.id}><Trash2 size={13} aria-hidden="true" /> Withdraw</Button>
               )}
             </li>

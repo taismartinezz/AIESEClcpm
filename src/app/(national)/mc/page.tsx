@@ -10,7 +10,6 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { useMcs, type Mc } from "@/hooks/useMcs";
 import { Button, ErrorText, Field, Panel, Stat, Tabs, inputStyle } from "@/components/lc/ui";
 import McTemplateReview from "@/components/outreach/McTemplateReview";
-import McFinance from "@/components/mc/McFinance";
 import { askConfirm } from "@/components/ui/confirm";
 import CountryCombobox from "@/components/ui/CountryCombobox";
 import { countryByCode, mcNameFor } from "@/lib/aiesecCountries";
@@ -29,20 +28,12 @@ export default function McPage() {
   const { mcs, loaded, error: mcError } = useMcs(version);
   const [chosen, setChosen] = useState<string | null>(null);
   const mc = mcs.find((m) => m.id === chosen) ?? mcs[0] ?? null;
-  // Finance is for the MCP and the VP Finance only.
-  const [view, setView] = useState<"exchanges" | "finance">("exchanges");
-  const seesFinance = Boolean(mc && (mc.isMcp || mc.isVpFinance));
-  const [userId, setUserId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id ?? null));
-  }, []);
   // The tab shows the MC's name ("AIESEC in Portugal · LC Manager").
   useDocumentTitle(`${mc?.name ?? "National"} · ${APP_NAME}`);
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle={mc && seesFinance && view === "finance" ? "National view: every LC's account and university money, side by side." : mc ? "National view: every LC's approvals and realizations this term, side by side. Numbers only, never people." : "Every LC's approvals and realizations this term, side by side. Numbers only, never people."} />
+      <PageHeader title={mc?.name ?? "National (MC)"} action={mc?.isMcp ? <RenameMc mc={mc} onDone={() => setVersion((v) => v + 1)} /> : undefined} subtitle="Every LC's exchange counts by product. Numbers only, never people." />
       <div className="flex-1 overflow-auto" style={{ padding: "20px clamp(16px, 3vw, 28px)", maxWidth: 1200, width: "100%" }}>
         <ErrorText>{mcError}</ErrorText>
         {!isSupabaseConfigured ? (
@@ -56,14 +47,7 @@ export default function McPage() {
             {mcs.length > 1 && (
               <Tabs value={mc.id} onChange={setChosen} tabs={mcs.map((m) => ({ id: m.id, label: m.name }))} />
             )}
-            {seesFinance && (
-              <Tabs value={view} onChange={setView} tabs={[{ id: "exchanges", label: "Exchanges" }, { id: "finance", label: "Finance" }]} />
-            )}
-            {seesFinance && view === "finance" && userId ? (
-              <div style={{ marginTop: 12 }}><McFinance mc={mc} userId={userId} /></div>
-            ) : (
-              <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
-            )}
+            <McDashboard mc={mc} onChanged={() => setVersion((v) => v + 1)} />
           </>
         )}
       </div>
@@ -233,11 +217,9 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
     let cancelled = false;
     (async () => {
       try {
-        const [dash, h, term, ins] = await Promise.all([
+        const [dash, term] = await Promise.all([
           supabase.rpc("mc_dashboard", { p_mc_id: mc.id }),
-          supabase.rpc("mc_lc_health", { p_mc_id: mc.id }),
           supabase.rpc("mc_term_start", { p_mc_id: mc.id }),
-          supabase.rpc("mc_lc_insights", { p_mc_id: mc.id }),
         ]);
         if (dash.error) throw new Error(dash.error.message);
         const start = !term.error && typeof term.data === "string" ? term.data : null;
@@ -246,9 +228,9 @@ function McDashboard({ mc, onChanged }: { mc: Mc; onChanged: () => void }) {
           : { data: [], error: null };
         if (cancelled) return;
         setRows((dash.data ?? []) as Row[]);
-        setHealth(Object.fromEntries(((h.error ? [] : h.data ?? []) as LcHealth[]).map((x) => [x.project_id, x])));
+        setHealth({});
         // Before migration 20261108007 there are no insights: those columns and panels stay hidden.
-        setInsights(Object.fromEntries(((ins.error ? [] : ins.data ?? []) as Insight[]).map((x) => [x.project_id, x])));
+        setInsights({});
         setTermStart(start);
         setTargets(Object.fromEntries(((t.error ? [] : t.data ?? []) as { project_id: string; product: string; metric: string; target: number }[])
           .map((x) => [targetKey(x.project_id, x.product, x.metric), x.target])));

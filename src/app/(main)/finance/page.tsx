@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import { NeedsDatabase } from "@/components/ui/TeachingEmpty";
 import { useProject } from "@/context/ProjectContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { isFinanceLead } from "@/lib/permissions";
 import { DEFAULT_CURRENCY, mapCategory, mapClaim, mapEntry } from "@/lib/finance";
 import { useLcMembers } from "@/hooks/useLcMembers";
 import type { ExpenseClaim, FinanceCategory, FinanceEntry } from "@/types";
@@ -22,7 +20,7 @@ interface LcFinance { name: string; termStart: string | null; reviewedOn: string
 
 export default function FinancePage() {
   const { projectId, userId, role, departments, departmentId, ledDepartmentIds, isLoading } = useProject();
-  const financeLead = isFinanceLead(role, userId, departments);
+  const financeLead = role === "president";
   // VPs see their departments' slice of the ledger; members only their claims.
   const canSeeLedger = financeLead || ledDepartmentIds.length > 0;
 
@@ -37,8 +35,6 @@ export default function FinancePage() {
   const [error, setError] = useState<string | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
   const [lc, setLc] = useState<LcFinance>({ name: "", termStart: null, reviewedOn: null, hasUniversity: false });
-  // Who keeps the LC account: the MC VP Finance, once the LC is linked to an MC that has one.
-  const [hasKeeper, setHasKeeper] = useState<boolean | null>(null);
   const { names } = useLcMembers(projectId);
 
   // Bumping `version` re-runs the loader (after a claim or entry changes).
@@ -52,14 +48,13 @@ export default function FinancePage() {
       try {
         // RLS returns exactly what this person may see; no client-side role filtering needed.
         const projQuery = (cols: string) => supabase.from("projects").select(cols).eq("id", projectId).maybeSingle();
-        const [projFull, cats, claimRows, entryRows, keeper] = await Promise.all([
+        const [projFull, cats, claimRows, entryRows] = await Promise.all([
           projQuery("currency, name, term_start_date, finance_reviewed_on, has_university_account"),
           supabase.from("finance_categories").select("*").eq("project_id", projectId).order("sort_order"),
           supabase.from("expense_claims").select("*").eq("project_id", projectId).order("created_at", { ascending: false }),
           canSeeLedger
             ? supabase.from("finance_entries").select("*").eq("project_id", projectId).order("entry_date", { ascending: false })
             : Promise.resolve({ data: [], error: null }),
-          supabase.rpc("lc_finance_keeper", { p_project_id: projectId }),
         ]);
         // Before migration 20261108009 there's no has_university_account column: ask without it.
         const proj = projFull.error?.code === "42703" ? await projQuery("currency, name, term_start_date") : projFull;
@@ -69,7 +64,6 @@ export default function FinancePage() {
         const p = (proj.data ?? {}) as Record<string, unknown>;
         setCurrency((p.currency as string) ?? DEFAULT_CURRENCY);
         setLc({ name: (p.name as string) ?? "Your LC", termStart: (p.term_start_date as string | null) ?? null, reviewedOn: (p.finance_reviewed_on as string | null) ?? null, hasUniversity: Boolean(p.has_university_account) });
-        setHasKeeper(keeper.error ? null : Boolean((keeper.data as { has_keeper: boolean }[] | null)?.[0]?.has_keeper));
         setCategories((cats.data ?? []).map(mapCategory));
         setClaims((claimRows.data ?? []).map(mapClaim));
         setEntries((entryRows.data ?? []).map(mapEntry));
@@ -129,7 +123,7 @@ export default function FinancePage() {
               />
               {financeLead && (
                 <p style={{ fontSize: 12, color: "var(--color-secondary)", margin: 0 }}>
-                  Your MC VP Finance sees this account too. University stopped funding the LC?{" "}
+                  University stopped funding the LC?{" "}
                   <button type="button" onClick={() => setUniversity(false)} style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--color-navy)", textDecoration: "underline", cursor: "pointer" }}>Turn the university account off</button> (its transactions are kept).
                 </p>
               )}
@@ -139,29 +133,24 @@ export default function FinancePage() {
               <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: "var(--color-body)" }}>Does your university give the LC money?</p>
               <p style={{ fontSize: 13, color: "var(--color-body)", margin: "0 0 12px", lineHeight: 1.5 }}>
                 Keep it in its own account, separate from the LC account: the same statement as the National Finance Tracker, with its own balance and trend.
-                You and your MC VP Finance can record it. Not every university funds its LC, so it&apos;s off until you turn it on.
+                Your LCP can record it. Not every university funds its LC, so it&apos;s off until you turn it on.
               </p>
               <Button onClick={() => setUniversity(true)}>Turn on university money</Button>
             </section>
           )
         ) : tab === "ledger" && canSeeLedger ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <p role="note" style={{ fontSize: 12, margin: 0, padding: "8px 12px", borderRadius: 8, backgroundColor: "var(--color-navy-dim)", color: "var(--color-body)" }}>
-            {hasKeeper === false
-              ? <>Your MC&apos;s VP Finance keeps this account, and none is named yet. <Link href="/settings#national" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Link your LC to your MC</Link></>
-              : "Your MC's VP Finance keeps this account; claims they approve show up here."}
-          </p>
           <LedgerView
             projectId={projectId} userId={userId} currency={currency}
             entries={lcEntries} categories={categories}
             departments={financeLead ? departments : ledDepartments}
-            memberNames={names} canEdit={financeLead} canWrite={false} onChanged={load}
+            memberNames={names} canEdit={financeLead} canWrite={financeLead} onChanged={load}
           />
           </div>
         ) : (
           <ClaimsView
             claims={claims} userId={userId} departments={departments} memberNames={names}
-            isFinanceLead={financeLead} onNewClaim={() => setClaimOpen(true)} onChanged={load}
+            isFinanceLead={financeLead || ledDepartmentIds.length > 0} onNewClaim={() => setClaimOpen(true)} onChanged={load}
           />
         )}
       </div>

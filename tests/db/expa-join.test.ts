@@ -127,3 +127,12 @@ describe("joining from EXPA", () => {
     await expect(asUser(db, null, (tx) => tx.query("select join_from_expa()"))).rejects.toThrow(/permission denied/);
   });
 });
+
+it('assigns the verified EXPA finance MCVP role on first joining, without giving LC finance access', async () => {
+  const mc = (await db.query<{ id: string }>("select id from mcs where country_code='EG'")).rows[0].id;
+  const uid = await expaUser('finance-vp', { kind: 'mc', name: 'Egypt', country: 'EG', role: 'vp_finance', department: 'fin' });
+  expect(await join(uid)).toMatchObject({ status: 'joined', kind: 'mc', id: mc, role: 'vp_finance' });
+  expect((await db.query('select role from mc_members where mc_id=$1 and user_id=$2', [mc, uid])).rows).toEqual([{ role: 'vp_finance' }]);
+  expect(await asUser(db, uid, async tx => (await tx.query('select * from finance_entries')).rows)).toEqual([]);
+  await expect(asUser(db, uid, tx => tx.query('select * from mc_finance_lcs($1)', [mc]))).rejects.toThrow(/permission denied/);
+});

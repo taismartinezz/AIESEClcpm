@@ -22,8 +22,8 @@ type Role = "president" | "member";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CREATE_STEPS = 6;   // role, country, LC, time zone, invites, check-in preview
-const JOIN_STEPS = 6;     // role, country, code, profile, time zone, check-in preview
+const CREATE_STEPS = 5;   // role, country, LC, time zone, invites
+const JOIN_STEPS = 5;     // role, country, code, profile, time zone
 
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -270,71 +270,6 @@ function SectionTitle({ title, subtitle, large }: { title: string; subtitle?: st
           {subtitle}
         </p>
       )}
-    </div>
-  );
-}
-
-// ── Wellbeing preview (shared) ────────────────────────────────────────────────
-
-const SAMPLE_QUESTIONS = [
-  "I have had enough energy for my AIESEC responsibilities this week.",
-  "My AIESEC workload has felt manageable this week.",
-  "I have felt supported by my VP or team leader this week.",
-];
-
-function WellbeingPreview({ role }: { role: "president" | "member" }) {
-  const [sample, setSample] = useState<Record<number, number>>({});
-  return (
-    <div>
-      {role === "president" ? (
-        <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Your VPs and members answer a one-minute check-in every two weeks. You&apos;ll see averages for the
-          executive board and for each department, never anyone&apos;s individual answers, and only
-          for weeks when enough people responded to keep everyone anonymous.
-        </p>
-      ) : (
-        <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-secondary)", margin: "0 0 20px", lineHeight: 1.6 }}>
-          Every two weeks you&apos;ll get a one-minute check-in. Your VP and LCP see the average for your
-          department, never your individual answers, and only when enough people have responded.
-        </p>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {SAMPLE_QUESTIONS.map((q, i) => (
-          <div key={i} style={{ padding: "14px 16px", backgroundColor: "var(--color-canvas)", border: "1px solid var(--color-border)", borderRadius: 8 }}>
-            <p style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "var(--color-body)", margin: "0 0 10px", lineHeight: 1.4 }}>{q}</p>
-            <div style={{ display: "flex", gap: 8 }}>
-              {[1,2,3,4,5].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setSample((prev) => ({ ...prev, [i]: v }))}
-                  style={{
-                    flex: 1,
-                    height: 36,
-                    borderRadius: 6,
-                    border: `1.5px solid ${sample[i] === v ? "var(--color-navy)" : "var(--color-border)"}`,
-                    backgroundColor: sample[i] === v ? "var(--color-navy)" : "var(--color-surface)",
-                    color: sample[i] === v ? "#fff" : "var(--color-secondary)",
-                    fontFamily: "var(--font-roboto)",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    transition: "all 120ms ease",
-                  }}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-              <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>Not at all</span>
-              <span style={{ fontSize: 10, color: "var(--color-secondary)" }}>Very much</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <p style={{ fontFamily: "var(--font-roboto)", fontSize: 11, color: "var(--color-secondary)", margin: "14px 0 0", textAlign: "center" }}>
-        ↑ Try it out. This is just a preview, nothing is recorded.
-      </p>
     </div>
   );
 }
@@ -1342,45 +1277,19 @@ export default function OnboardingPage() {
             )}
           </div>
 
-          <NavButton large={isLarge} onClick={() => setStep(5)}>
-            Continue
+          <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
+            {submitting ? "Setting up your workspace…" : "Go to my workspace"}
           </NavButton>
+          {syncError && <p role="alert">{syncError}</p>}
 
           <button
-            onClick={() => setStep(5)}
+            onClick={completeOnboarding} disabled={submitting}
             style={{ display: "block", width: "100%", textAlign: "center", fontFamily: "var(--font-roboto)", fontWeight: 400, fontSize: 13, color: "var(--color-secondary)", background: "none", border: "none", cursor: "pointer", marginTop: 12, padding: 0, minHeight: 36 }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
           >
             Skip for now
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 5A: President wellbeing preview ──────────────────────────────────────────
-
-  if (step === 5 && role === "president") {
-    return (
-      <div style={PAGE_WRAP}>
-        <div style={cardStyle(isLarge)}>
-          <BackButton onClick={() => setStep(4)} />
-          <StepDots current={6} total={CREATE_STEPS} />
-          <SectionTitle
-            large={isLarge}
-            title="Team wellbeing check-ins"
-            subtitle="Here's what your team will see each week."
-          />
-          <WellbeingPreview role="president" />
-          <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
-            {submitting ? "Setting up your workspace…" : "Go to my workspace"}
-          </NavButton>
-          {syncError && (
-            <p role="alert" style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "#C0392B", marginTop: 10, textAlign: "center" }}>
-              {syncError}
-            </p>
-          )}
         </div>
       </div>
     );
@@ -1457,36 +1366,10 @@ export default function OnboardingPage() {
             showDetectedBanner
             hideWorkingHours
           />
-          <NavButton large={isLarge} onClick={() => setStep(5)}>
-            Continue
-          </NavButton>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Member step 5: wellbeing preview ──────────────────────────────────
-
-  if (step === 5 && role === "member") {
-    return (
-      <div style={PAGE_WRAP}>
-        <div style={cardStyle(isLarge)}>
-          <BackButton onClick={() => setStep(4)} />
-          <StepDots current={6} total={JOIN_STEPS} />
-          <SectionTitle
-            large={isLarge}
-            title="Check-ins"
-            subtitle="A quick preview of what to expect every two weeks."
-          />
-          <WellbeingPreview role="member" />
           <NavButton large={isLarge} onClick={completeOnboarding} disabled={submitting}>
             {submitting ? "Setting up your workspace…" : "Go to my workspace"}
           </NavButton>
-          {syncError && (
-            <p role="alert" style={{ fontFamily: "var(--font-roboto)", fontSize: 13, color: "#C0392B", marginTop: 10, textAlign: "center" }}>
-              {syncError}
-            </p>
-          )}
+          {syncError && <p role="alert">{syncError}</p>}
         </div>
       </div>
     );

@@ -4,9 +4,22 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
+  permissions:
+    name: Permission isolation (all roles)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Reject unexpected rows and cross-tenant RPC results
+        run: npx vitest run tests/db/permission-matrix.test.ts tests/db/expa-join.test.ts tests/unit/expa-placement.test.ts tests/unit/expa-sync-permissions.test.ts tests/unit/expa-sync.test.ts --maxWorkers=1
+
   unit-tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

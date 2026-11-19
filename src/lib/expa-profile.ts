@@ -51,7 +51,7 @@ export interface ExpaPlacement {
   expaId: string | null;
   name: string | null;
   country: string | null;
-  role: "president" | "vp" | "member" | "mcp";
+  role: "president" | "vp" | "member" | "mcp" | "vp_finance";
   department: DepartmentKey | null;
 }
 
@@ -77,7 +77,7 @@ export function departmentFromFunction(text: string | null | undefined): Departm
  * participant also has a home LC, but isn't a member of it).
  */
 export function placementFromExpa(p: ExpaProfile): ExpaPlacement | null {
-  const rank = (x: ExpaPlacement) => (x.kind === "mc" ? 10 : 0) + ({ mcp: 3, president: 3, vp: 2, member: 1 })[x.role];
+  const rank = (x: ExpaPlacement) => (x.kind === "mc" ? 10 : 0) + ({ mcp: 3, president: 3, vp: 2, member: 1, vp_finance: 2 })[x.role];
   let best: ExpaPlacement | null = null;
   for (const pos of p.positions) {
     const r = foldText(pos.role ?? "");
@@ -89,7 +89,8 @@ export function placementFromExpa(p: ExpaProfile): ExpaPlacement | null {
       ? {
           kind: "mc", expaId: pos.office?.id ?? null, name: officeName ?? p.mcName,
           country: countryFromMc(officeName) ?? countryFromMc(p.mcName),
-          role: isPresident(r) ? "mcp" : "member", department: null,
+          role: isPresident(r) ? "mcp" : /\b(mcvp|vp|vice)\b/.test(r) && (departmentFromFunction(pos.fn) ?? departmentFromFunction(pos.role)) === "fin" ? "vp_finance" : "member",
+          department: departmentFromFunction(pos.fn) ?? departmentFromFunction(pos.role),
         }
       : {
           kind: "lc", expaId: pos.office?.id ?? p.lcId, name: officeName ?? p.lcName,

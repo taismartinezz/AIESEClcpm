@@ -19,11 +19,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 /**
  * The membership criteria an LC must meet to keep full-member status (from
  * the LC planning template), each green / yellow / red with who owns it.
- * For the LC's president and VPs.
+ * For the LC president.
  */
 export default function CompliancePage() {
   const { projectId, role, isLoading } = useProject();
-  const exec = role === "president" || role === "vp";
+  const exec = role === "president";
   const [data, setData] = useState<ComplianceData | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export default function CompliancePage() {
         {!isSupabaseConfigured ? (
           <NeedsDatabase what="Membership criteria">A non-negative balance, 3 BoA members, 5 oGX approvals and 8 iGTa meetings a year, SONA by the 1st: each criterion green, yellow or red.</NeedsDatabase>
         ) : !exec ? (
-          <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>Your LC&apos;s president and VPs keep track of the membership criteria.</p>
+          <p style={{ fontSize: 13, color: "var(--color-secondary)", margin: 0 }}>Your LC&apos;s president keeps track of the membership criteria.</p>
         ) : (
           <>
             <ErrorText>{error}</ErrorText>

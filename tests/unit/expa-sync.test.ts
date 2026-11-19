@@ -82,3 +82,17 @@ describe("EXPA profile for onboarding", () => {
     expect(isLcPresident(with_("Team Member"))).toBe(false);
   });
 });
+
+it('filters unauthorized EXPA products before collecting personal rows or skipped counts', () => {
+  const permitted = app({ id: 1, prog: 'GV' });
+  const hidden = app({ id: 2, prog: 'GTa' });
+  hidden.person!.full_name = 'Hidden Department Person';
+  hidden.person!.email = 'hidden@example.com';
+  const withdrawn = app({ id: 3, prog: 'GTa', status: 'withdrawn' });
+  const plan = planSync([permitted, hidden, withdrawn], LC, ['ogv']);
+  expect(Object.keys(plan.byProduct)).toEqual(['ogv']);
+  expect(plan.byProduct.ogv).toHaveLength(1);
+  expect(plan.skipped).toBe(0);
+  expect(JSON.stringify(plan)).not.toMatch(/Hidden Department Person|hidden@example.com/);
+  expect(planSync([permitted, hidden, withdrawn], LC, [])).toEqual({ byProduct: {}, skipped: 0, ignored: 0 });
+});
